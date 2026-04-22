@@ -2,6 +2,7 @@ import mongoose, { Schema } from "mongoose";
 
 const questionSchema = new Schema(
   {
+    id: { type: String, index: true, sparse: true },
     text: { type: String, required: true, trim: true },
     options: { type: [String], default: [] },
     correctOptionIndex: { type: Number, default: 0 },

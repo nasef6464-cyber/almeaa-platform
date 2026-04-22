@@ -1055,23 +1055,19 @@ export const useStore = create<AppState>()(
 
             // Question Actions
             addQuestion: (question) => {
-                setDoc(doc(db, 'questions', question.id), question).catch(console.error);
+                api.createQuestion(question).catch(console.error);
                 set((state) => ({
                     questions: [question, ...state.questions]
                 }));
             },
             updateQuestion: (questionId, data) => {
-                const state = get();
-                const question = state.questions.find(q => q.id === questionId);
-                if (question) {
-                    setDoc(doc(db, 'questions', questionId), { ...question, ...data }, { merge: true }).catch(console.error);
-                }
+                api.updateQuestion(questionId, data).catch(console.error);
                 set((state) => ({
                     questions: state.questions.map(q => q.id === questionId ? { ...q, ...data } : q)
                 }));
             },
             deleteQuestion: (questionId) => {
-                deleteDoc(doc(db, 'questions', questionId)).catch(console.error);
+                api.deleteQuestion(questionId).catch(console.error);
                 set((state) => ({
                     questions: state.questions.filter(q => q.id !== questionId)
                 }));
@@ -1079,23 +1075,19 @@ export const useStore = create<AppState>()(
 
             // Quiz Actions
             addQuiz: (quiz) => {
-                setDoc(doc(db, 'quizzes', quiz.id), quiz).catch(console.error);
+                api.createQuiz(quiz).catch(console.error);
                 set((state) => ({
                     quizzes: [quiz, ...state.quizzes]
                 }));
             },
             updateQuiz: (quizId, data) => {
-                const state = get();
-                const quiz = state.quizzes.find(q => q.id === quizId);
-                if (quiz) {
-                    setDoc(doc(db, 'quizzes', quizId), { ...quiz, ...data }, { merge: true }).catch(console.error);
-                }
+                api.updateQuiz(quizId, data).catch(console.error);
                 set((state) => ({
                     quizzes: state.quizzes.map(q => q.id === quizId ? { ...q, ...data } : q)
                 }));
             },
             deleteQuiz: (quizId) => {
-                deleteDoc(doc(db, 'quizzes', quizId)).catch(console.error);
+                api.deleteQuiz(quizId).catch(console.error);
                 set((state) => ({
                     quizzes: state.quizzes.filter(q => q.id !== quizId)
                 }));

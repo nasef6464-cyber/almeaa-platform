@@ -142,7 +142,41 @@ export const api = {
       token,
     }),
   getQuestions: () => request<unknown[]>("/quizzes/questions"),
+  createQuestion: (payload: unknown, token?: string | null) =>
+    request<unknown>("/quizzes/questions", {
+      method: "POST",
+      body: payload,
+      token,
+    }),
+  updateQuestion: (id: string, payload: unknown, token?: string | null) =>
+    request<unknown>(`/quizzes/questions/${id}`, {
+      method: "PATCH",
+      body: payload,
+      token,
+    }),
+  deleteQuestion: (id: string, token?: string | null) =>
+    request<{ success: boolean }>(`/quizzes/questions/${id}`, {
+      method: "DELETE",
+      token,
+    }),
   getQuizzes: () => request<unknown[]>("/quizzes"),
+  createQuiz: (payload: unknown, token?: string | null) =>
+    request<unknown>("/quizzes", {
+      method: "POST",
+      body: payload,
+      token,
+    }),
+  updateQuiz: (id: string, payload: unknown, token?: string | null) =>
+    request<unknown>(`/quizzes/${id}`, {
+      method: "PATCH",
+      body: payload,
+      token,
+    }),
+  deleteQuiz: (id: string, token?: string | null) =>
+    request<{ success: boolean }>(`/quizzes/${id}`, {
+      method: "DELETE",
+      token,
+    }),
   getQuizResults: () => request<unknown[]>("/quizzes/results"),
   getLatestQuizResult: () => request<unknown>("/quizzes/results/latest"),
   createQuizResult: (payload: unknown, token?: string | null) =>

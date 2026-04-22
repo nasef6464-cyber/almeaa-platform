@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { StatusCodes } from "http-status-codes";
+import mongoose from "mongoose";
 import { z } from "zod";
 import { QuizModel } from "../models/Quiz.js";
 import { QuestionModel } from "../models/Question.js";
@@ -8,6 +9,7 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const questionSchema = z.object({
+  id: z.string().optional(),
   text: z.string().min(1),
   options: z.array(z.string()).default([]),
   correctOptionIndex: z.number().default(0),
@@ -23,6 +25,7 @@ const questionSchema = z.object({
 });
 
 const quizSchema = z.object({
+  id: z.string().optional(),
   title: z.string().min(1),
   description: z.string().optional(),
   pathId: z.string().min(1),
@@ -35,6 +38,14 @@ const quizSchema = z.object({
   skillIds: z.array(z.string()).optional(),
   isPublished: z.boolean().default(false),
 });
+
+const buildDocumentQuery = (value: string) => {
+  if (mongoose.Types.ObjectId.isValid(value)) {
+    return { $or: [{ id: value }, { _id: value }] };
+  }
+
+  return { id: value };
+};
 
 export const quizRouter = Router();
 
@@ -54,6 +65,41 @@ quizRouter.post(
     const payload = questionSchema.parse(req.body);
     const created = await QuestionModel.create(payload);
     res.status(StatusCodes.CREATED).json(created);
+  }),
+);
+
+quizRouter.patch(
+  "/questions/:id",
+  requireAuth,
+  requireRole(["admin", "teacher", "supervisor"]),
+  asyncHandler(async (req, res) => {
+    const payload = questionSchema.partial().parse(req.body);
+    const updated = await QuestionModel.findOneAndUpdate(
+      buildDocumentQuery(req.params.id),
+      payload,
+      { new: true },
+    );
+
+    if (!updated) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Question not found" });
+    }
+
+    return res.json(updated);
+  }),
+);
+
+quizRouter.delete(
+  "/questions/:id",
+  requireAuth,
+  requireRole(["admin", "teacher", "supervisor"]),
+  asyncHandler(async (req, res) => {
+    const deleted = await QuestionModel.findOneAndDelete(buildDocumentQuery(req.params.id));
+
+    if (!deleted) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Question not found" });
+    }
+
+    return res.json({ success: true });
   }),
 );
 
@@ -96,6 +142,41 @@ quizRouter.post(
     const payload = quizSchema.parse(req.body);
     const created = await QuizModel.create(payload);
     res.status(StatusCodes.CREATED).json(created);
+  }),
+);
+
+quizRouter.patch(
+  "/:id",
+  requireAuth,
+  requireRole(["admin", "teacher", "supervisor"]),
+  asyncHandler(async (req, res) => {
+    const payload = quizSchema.partial().parse(req.body);
+    const updated = await QuizModel.findOneAndUpdate(
+      buildDocumentQuery(req.params.id),
+      payload,
+      { new: true },
+    );
+
+    if (!updated) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Quiz not found" });
+    }
+
+    return res.json(updated);
+  }),
+);
+
+quizRouter.delete(
+  "/:id",
+  requireAuth,
+  requireRole(["admin", "teacher", "supervisor"]),
+  asyncHandler(async (req, res) => {
+    const deleted = await QuizModel.findOneAndDelete(buildDocumentQuery(req.params.id));
+
+    if (!deleted) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Quiz not found" });
+    }
+
+    return res.json({ success: true });
   }),
 );
 
