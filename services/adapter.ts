@@ -1,6 +1,6 @@
 import { api } from "./api";
 import { courses as mockCourses } from "./mockData";
-import { CategoryLevel, CategoryPath, CategorySubject, Course, Lesson, Module, Question } from "../types";
+import { CategoryLevel, CategoryPath, CategorySubject, Course, Lesson, Module, Question, Quiz } from "../types";
 
 const USE_REAL_API =
   (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_USE_REAL_API !== "false";
@@ -126,6 +126,32 @@ const normalizeQuestion = (question: any): Question => ({
   type: question?.type || "mcq",
 });
 
+const normalizeQuiz = (quiz: any): Quiz => ({
+  id: String(quiz?.id || quiz?._id || ""),
+  title: String(quiz?.title || ""),
+  description: quiz?.description || "",
+  pathId: String(quiz?.pathId || ""),
+  subjectId: String(quiz?.subjectId || ""),
+  sectionId: quiz?.sectionId || undefined,
+  type: quiz?.type || "quiz",
+  settings: {
+    showExplanations: Boolean(quiz?.settings?.showExplanations),
+    showAnswers: Boolean(quiz?.settings?.showAnswers),
+    maxAttempts: Number(quiz?.settings?.maxAttempts ?? 1),
+    passingScore: Number(quiz?.settings?.passingScore ?? 50),
+    timeLimit: typeof quiz?.settings?.timeLimit === "number" ? quiz.settings.timeLimit : undefined,
+  },
+  access: {
+    type: quiz?.access?.type || "free",
+    price: typeof quiz?.access?.price === "number" ? quiz.access.price : undefined,
+    allowedGroupIds: Array.isArray(quiz?.access?.allowedGroupIds) ? quiz.access.allowedGroupIds.map(String) : [],
+  },
+  questionIds: Array.isArray(quiz?.questionIds) ? quiz.questionIds.map(String) : [],
+  createdAt: Number(quiz?.createdAt ?? Date.now()),
+  isPublished: Boolean(quiz?.isPublished),
+  skillIds: Array.isArray(quiz?.skillIds) ? quiz.skillIds.map(String) : [],
+});
+
 export const adapter = {
   async getCourses() {
     if (!USE_REAL_API) {
@@ -224,6 +250,20 @@ export const adapter = {
       return Array.isArray(data) ? data.map(normalizeQuestion).filter((question) => question.id && question.text) : [];
     } catch (error) {
       console.warn("Falling back to existing in-memory questions:", error);
+      return [];
+    }
+  },
+
+  async getQuizzes(): Promise<Quiz[]> {
+    if (!USE_REAL_API) {
+      return [];
+    }
+
+    try {
+      const data = await api.getQuizzes();
+      return Array.isArray(data) ? data.map(normalizeQuiz).filter((quiz) => quiz.id && quiz.title) : [];
+    } catch (error) {
+      console.warn("Falling back to existing in-memory quizzes:", error);
       return [];
     }
   },
