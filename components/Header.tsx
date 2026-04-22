@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Search,
   ShoppingCart,
@@ -73,6 +73,7 @@ export const Header: React.FC = () => {
   const [authError, setAuthError] = useState('');
 
   const location = useLocation();
+  const navigate = useNavigate();
   const { paths, subjects, levels } = useStore();
   const { user, signInWithGoogle, signInWithEmail, signUpWithEmail, logout } = useAuth();
 
@@ -178,15 +179,20 @@ export const Header: React.FC = () => {
     setAuthError('');
 
     try {
-      if (isSignUp) {
-        await signUpWithEmail(email, password);
-      } else {
-        await signInWithEmail(email, password);
-      }
+      const sessionUser = isSignUp
+        ? await signUpWithEmail(email, password)
+        : await signInWithEmail(email, password);
 
+      const nextPath = sessionUser.role === 'admin' ? '/admin-dashboard' : '/dashboard';
+
+      setIsUserMenuOpen(false);
+      setActiveDropdown(null);
+      setIsMobileMenuOpen(false);
       setIsLoginModalOpen(false);
       setEmail('');
       setPassword('');
+
+      navigate(nextPath);
     } catch (error) {
       const message = error instanceof Error ? error.message : text.authFallbackError;
       setAuthError(message);

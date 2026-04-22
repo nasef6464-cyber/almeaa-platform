@@ -35,8 +35,8 @@ interface AuthContextType {
   user: SessionUser | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
-  signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string) => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<SessionUser>;
+  signUpWithEmail: (email: string, password: string) => Promise<SessionUser>;
   logout: () => Promise<void>;
 }
 
@@ -177,6 +177,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const sessionUser = buildSessionUser(response.user, response.token);
     persistSession(sessionUser, response.user);
+    return sessionUser;
   };
 
   const signUpWithEmail = async (email: string, password: string) => {
@@ -188,6 +189,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const sessionUser = buildSessionUser(response.user, response.token);
     persistSession(sessionUser, response.user);
+    return sessionUser;
   };
 
   const signInWithGoogle = async () => {
