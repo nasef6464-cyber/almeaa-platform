@@ -59,6 +59,14 @@ export const api = {
       method: "POST",
       body: { name, email, password },
     }),
+  getCurrentUser: () =>
+    request<{ user: unknown }>("/auth/me"),
+  updateMyPreferences: (payload: { favorites?: string[]; reviewLater?: string[] }, token?: string | null) =>
+    request<{ user: unknown }>("/auth/me/preferences", {
+      method: "PATCH",
+      body: payload,
+      token,
+    }),
   getTaxonomyBootstrap: () =>
     request<{ paths: unknown[]; levels: unknown[]; subjects: unknown[] }>("/taxonomy/bootstrap"),
   createPath: (payload: unknown, token?: string | null) =>

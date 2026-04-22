@@ -15,6 +15,11 @@ interface BackendAuthUser {
   role: BackendRole;
   points?: number;
   badges?: string[];
+  favorites?: string[];
+  reviewLater?: string[];
+  enrolledCourses?: string[];
+  enrolledPaths?: string[];
+  completedLessons?: string[];
   subscription?: {
     plan?: 'free' | 'premium';
     purchasedCourses?: string[] | string;
@@ -97,6 +102,11 @@ const syncStoreUser = (sessionUser: SessionUser | null, backendUser?: BackendAut
         purchasedPackages: toArray(backendUser?.subscription?.purchasedPackages),
       },
     },
+    favorites: backendUser?.favorites ?? useStore.getState().favorites,
+    reviewLater: backendUser?.reviewLater ?? useStore.getState().reviewLater,
+    enrolledCourses: backendUser?.enrolledCourses ?? useStore.getState().enrolledCourses,
+    enrolledPaths: backendUser?.enrolledPaths ?? useStore.getState().enrolledPaths,
+    completedLessons: backendUser?.completedLessons ?? useStore.getState().completedLessons,
   });
 };
 
@@ -150,16 +160,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (!user) {
+      syncStoreUser(null);
       useStore.getState().hydrateExamResults([]);
       return;
     }
 
-    api.getQuizResults()
-      .then((results) => {
+    Promise.all([
+      api.getCurrentUser(),
+      api.getQuizResults(),
+    ])
+      .then(([currentUserResponse, results]) => {
+        syncStoreUser(user, (currentUserResponse as { user?: BackendAuthUser })?.user || null);
         useStore.getState().hydrateExamResults(results as any[]);
       })
       .catch((error) => {
-        console.warn('Failed to hydrate quiz results:', error);
+        console.warn('Failed to hydrate session data:', error);
       });
   }, [user]);
 

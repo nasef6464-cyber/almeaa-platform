@@ -952,15 +952,37 @@ export const useStore = create<AppState>()(
             },
 
             toggleFavorite: (questionId) => set((state) => ({
-                favorites: state.favorites.includes(questionId)
-                    ? state.favorites.filter(id => id !== questionId)
-                    : [...state.favorites, questionId]
+                favorites: (() => {
+                    const nextFavorites = state.favorites.includes(questionId)
+                        ? state.favorites.filter(id => id !== questionId)
+                        : [...state.favorites, questionId];
+
+                    if (state.user?.email) {
+                        api.updateMyPreferences({
+                            favorites: nextFavorites,
+                            reviewLater: state.reviewLater,
+                        }).catch(console.error);
+                    }
+
+                    return nextFavorites;
+                })()
             })),
 
             toggleReviewLater: (questionId) => set((state) => ({
-                reviewLater: state.reviewLater.includes(questionId)
-                    ? state.reviewLater.filter(id => id !== questionId)
-                    : [...state.reviewLater, questionId]
+                reviewLater: (() => {
+                    const nextReviewLater = state.reviewLater.includes(questionId)
+                        ? state.reviewLater.filter(id => id !== questionId)
+                        : [...state.reviewLater, questionId];
+
+                    if (state.user?.email) {
+                        api.updateMyPreferences({
+                            favorites: state.favorites,
+                            reviewLater: nextReviewLater,
+                        }).catch(console.error);
+                    }
+
+                    return nextReviewLater;
+                })()
             })),
 
             addActivity: (activity) => {

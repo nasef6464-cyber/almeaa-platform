@@ -25,6 +25,11 @@ const adminCreateUserSchema = z.object({
   role: z.enum(["student", "teacher", "admin", "supervisor", "parent"]),
 });
 
+const preferencesSchema = z.object({
+  favorites: z.array(z.string()).optional(),
+  reviewLater: z.array(z.string()).optional(),
+});
+
 const serializeUser = (user: any) => {
   const plain = typeof user?.toJSON === "function" ? user.toJSON() : user?.toObject?.() || user;
   const { passwordHash, __v, ...safeUser } = plain;
@@ -126,6 +131,57 @@ authRouter.post(
     );
 
     return res.status(StatusCodes.CREATED).json({
+      user: serializeUser(user),
+    });
+  }),
+);
+
+authRouter.get(
+  "/me",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const user = await UserModel.findById(req.authUser?.id);
+
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        message: "User not found",
+      });
+    }
+
+    return res.json({
+      user: serializeUser(user),
+    });
+  }),
+);
+
+authRouter.patch(
+  "/me/preferences",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const payload = preferencesSchema.parse(req.body);
+    const update: Record<string, string[]> = {};
+
+    if (payload.favorites) {
+      update.favorites = Array.from(new Set(payload.favorites));
+    }
+
+    if (payload.reviewLater) {
+      update.reviewLater = Array.from(new Set(payload.reviewLater));
+    }
+
+    const user = await UserModel.findByIdAndUpdate(
+      req.authUser?.id,
+      update,
+      { new: true },
+    );
+
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        message: "User not found",
+      });
+    }
+
+    return res.json({
       user: serializeUser(user),
     });
   }),
