@@ -840,9 +840,32 @@ export const useStore = create<AppState>()(
             })),
 
             hydrateTaxonomy: (payload) => set((state) => ({
-                paths: payload.paths && payload.paths.length > 0 ? payload.paths : state.paths,
-                levels: payload.levels && payload.levels.length > 0 ? payload.levels : state.levels,
-                subjects: payload.subjects && payload.subjects.length > 0 ? payload.subjects : state.subjects,
+                paths: payload.paths && payload.paths.length > 0
+                  ? payload.paths
+                      .map((path: any) => ({
+                        ...path,
+                        id: String(path?.id || path?._id || ''),
+                      }))
+                      .filter((path: any) => path.id && path.name)
+                  : state.paths,
+                levels: payload.levels && payload.levels.length > 0
+                  ? payload.levels
+                      .map((level: any) => ({
+                        ...level,
+                        id: String(level?.id || level?._id || ''),
+                        pathId: String(level?.pathId || ''),
+                      }))
+                      .filter((level: any) => level.id && level.pathId)
+                  : state.levels,
+                subjects: payload.subjects && payload.subjects.length > 0
+                  ? payload.subjects
+                      .map((subject: any) => ({
+                        ...subject,
+                        id: String(subject?.id || subject?._id || ''),
+                        pathId: String(subject?.pathId || ''),
+                      }))
+                      .filter((subject: any) => subject.id && subject.pathId && subject.name)
+                  : state.subjects,
             })),
 
             hydrateExamResults: (results) => set(() => ({

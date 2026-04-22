@@ -1,11 +1,43 @@
 import { api } from "./api";
 import { courses as mockCourses } from "./mockData";
-import { Course, Lesson, Module, Question } from "../types";
+import { CategoryLevel, CategoryPath, CategorySubject, Course, Lesson, Module, Question } from "../types";
 
 const USE_REAL_API =
   (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_USE_REAL_API !== "false";
 
 const FALLBACK_THUMBNAIL = "https://picsum.photos/seed/course-fallback/400/250";
+
+const normalizePath = (path: any): CategoryPath => ({
+  id: String(path?.id || path?._id || ""),
+  name: String(path?.name || ""),
+  color: path?.color,
+  icon: path?.icon,
+  iconUrl: path?.iconUrl,
+  iconStyle: path?.iconStyle,
+  showInNavbar: path?.showInNavbar,
+  showInHome: path?.showInHome,
+  isActive: path?.isActive,
+  parentPathId: path?.parentPathId || undefined,
+  description: path?.description,
+});
+
+const normalizeLevel = (level: any): CategoryLevel => ({
+  id: String(level?.id || level?._id || ""),
+  pathId: String(level?.pathId || ""),
+  name: String(level?.name || ""),
+});
+
+const normalizeSubject = (subject: any): CategorySubject => ({
+  id: String(subject?.id || subject?._id || ""),
+  pathId: String(subject?.pathId || ""),
+  levelId: subject?.levelId || undefined,
+  name: String(subject?.name || ""),
+  color: subject?.color,
+  icon: subject?.icon,
+  iconUrl: subject?.iconUrl,
+  iconStyle: subject?.iconStyle,
+  settings: subject?.settings,
+});
 
 const normalizeLesson = (lesson: any, moduleIndex: number, lessonIndex: number): Lesson => ({
   id: String(lesson?.id || lesson?._id || `lesson-${moduleIndex + 1}-${lessonIndex + 1}`),
@@ -140,7 +172,15 @@ export const adapter = {
     }
 
     try {
-      return await api.getTaxonomyBootstrap();
+      const data = await api.getTaxonomyBootstrap();
+
+      return {
+        paths: Array.isArray(data?.paths) ? data.paths.map(normalizePath).filter((path) => path.id && path.name) : [],
+        levels: Array.isArray(data?.levels) ? data.levels.map(normalizeLevel).filter((level) => level.id && level.pathId) : [],
+        subjects: Array.isArray(data?.subjects)
+          ? data.subjects.map(normalizeSubject).filter((subject) => subject.id && subject.pathId && subject.name)
+          : [],
+      };
     } catch (error) {
       console.warn("Falling back to empty taxonomy bootstrap:", error);
       return {
