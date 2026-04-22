@@ -20,7 +20,7 @@ import { Card } from '../components/ui/Card';
 import { VideoModal } from '../components/VideoModal';
 import { DetailedAnalysisModal } from '../components/DetailedAnalysisModal';
 import { useStore } from '../store/useStore';
-import { QuizResult } from '../types';
+import { QuizQuestionReview, QuizResult } from '../types';
 
 const Results: React.FC = () => {
   const { examResults } = useStore();
@@ -29,6 +29,7 @@ const Results: React.FC = () => {
   const [videoData, setVideoData] = React.useState<{ url: string; title: string } | null>(null);
 
   const latestResult = examResults[0];
+  const questionReviewCount = latestResult?.questionReview?.length || 0;
 
   const data = [
     { name: 'Success', value: latestResult?.score || 0 },
@@ -65,6 +66,7 @@ const Results: React.FC = () => {
     return (
       <>
         <ReviewSolutions
+          result={latestResult}
           onBack={() => setViewMode('summary')}
           onShowVideo={(url, title) => setVideoData({ url, title })}
         />
@@ -163,6 +165,7 @@ const Results: React.FC = () => {
         <StatRow label="الإجابات الصحيحة" value={latestResult.correctAnswers.toString()} color="text-emerald-500" />
         <StatRow label="الأخطاء" value={latestResult.wrongAnswers.toString()} color="text-red-500" />
         <StatRow label="لم يتم حلها" value={latestResult.unanswered.toString()} color="text-amber-500" />
+        <StatRow label="تفاصيل المراجعة" value={questionReviewCount > 0 ? `${questionReviewCount} سؤال` : 'غير متاحة بعد'} color="text-indigo-600" />
       </div>
 
       <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 text-white text-right relative overflow-hidden mt-6">
@@ -221,43 +224,47 @@ const Results: React.FC = () => {
 };
 
 const ReviewSolutions = ({
+  result,
   onBack,
   onShowVideo,
 }: {
+  result: QuizResult;
   onBack: () => void;
   onShowVideo: (url: string, title: string) => void;
 }) => {
+  const { favorites, toggleFavorite } = useStore();
   const [currentIdx, setCurrentIdx] = React.useState(0);
   const [showExplanation, setShowExplanation] = React.useState(false);
-  const [favorites, setFavorites] = React.useState<Record<number, boolean>>({});
 
-  const toggleFavorite = (idx: number) => {
-    setFavorites((prev) => ({ ...prev, [idx]: !prev[idx] }));
-  };
-
-  const questions = [
-    {
-      id: 1,
-      text: 'المعكوس الإيجابي للعبارة p -> q هو ...',
-      image: 'https://picsum.photos/seed/math1/800/400',
-      options: ['~q -> p', 'q -> ~p', 'p -> ~q', '~p -> ~q'],
-      correct: 0,
-      userAnswer: 0,
-      explanation: 'المعكوس الإيجابي يعتمد على تبديل الفرض والنتيجة ثم نفيهما بالشكل الصحيح.',
-      videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    },
-    {
-      id: 2,
-      text: 'إذا كانت الشركة أ فيها 30% غير سعوديين والشركة ب نصفها وعدد غير السعوديين فيها 40%، فما النسبة معًا؟',
-      options: ['33.3%', '30%', '25%', '66.6%'],
-      correct: 0,
-      userAnswer: 2,
-      explanation: 'نفترض 100 موظف في الشركة أ و50 في الشركة ب، فيكون مجموع غير السعوديين 50 من أصل 150 أي 33.3%.',
-      videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    },
-  ];
-
+  const questions = result.questionReview || [];
   const q = questions[currentIdx];
+
+  if (!q) {
+    return (
+      <div className="space-y-6 pb-20">
+        <header className="flex items-center gap-4 mb-6">
+          <button onClick={onBack} className="text-gray-500 hover:text-indigo-600 transition-colors">
+            <ArrowRight />
+          </button>
+          <h1 className="text-xl font-bold">مراجعة الحلول</h1>
+        </header>
+
+        <Card className="p-10 text-center border-dashed border-2 border-gray-200">
+          <h2 className="text-2xl font-bold text-gray-800 mb-3">تفاصيل المراجعة غير متاحة لهذه المحاولة</h2>
+          <p className="text-gray-500 mb-6">المحاولات الجديدة ستُحفظ معها تفاصيل الإجابات والفيديو والشرح تلقائيًا.</p>
+          <button
+            onClick={onBack}
+            className="inline-flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors"
+          >
+            <ArrowRight size={18} />
+            العودة للنتيجة
+          </button>
+        </Card>
+      </div>
+    );
+  }
+
+  const isFavorite = favorites.includes(q.questionId);
 
   return (
     <div className="space-y-6 pb-20 animate-fade-in">
@@ -273,11 +280,11 @@ const ReviewSolutions = ({
             السؤال {currentIdx + 1} من {questions.length}
           </span>
           <button
-            onClick={() => toggleFavorite(currentIdx)}
-            className={`${favorites[currentIdx] ? 'bg-rose-500 hover:bg-rose-600' : 'bg-indigo-500 hover:bg-indigo-600'} text-white px-4 py-1.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors`}
+            onClick={() => toggleFavorite(q.questionId)}
+            className={`${isFavorite ? 'bg-rose-500 hover:bg-rose-600' : 'bg-indigo-500 hover:bg-indigo-600'} text-white px-4 py-1.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors`}
           >
-            {favorites[currentIdx] ? <Trash2 size={16} /> : <Star size={16} />}
-            {favorites[currentIdx] ? 'مسح من المفضلة' : 'إضافة للمفضلة'}
+            {isFavorite ? <Trash2 size={16} /> : <Star size={16} />}
+            {isFavorite ? 'مسح من المفضلة' : 'إضافة للمفضلة'}
           </button>
         </div>
       </header>
@@ -285,21 +292,21 @@ const ReviewSolutions = ({
       <Card className="p-0 overflow-hidden border-2 border-gray-100 shadow-xl">
         <div className="p-8 bg-white">
           <div className="bg-gray-50 rounded-2xl p-8 mb-8 flex flex-col items-center justify-center border border-gray-100 min-h-[250px]">
-            {q.image ? (
-              <img src={q.image} alt="Question" className="max-h-64 object-contain mb-6" referrerPolicy="no-referrer" />
+            {q.imageUrl ? (
+              <img src={q.imageUrl} alt="Question" className="max-h-64 object-contain mb-6" referrerPolicy="no-referrer" />
             ) : (
               <div className="text-center mb-6">
                 <FileText size={48} className="text-gray-200 mx-auto mb-2" />
-                <span className="text-sm text-gray-400 font-bold">[صورة توضيحية للسؤال]</span>
+                <span className="text-sm text-gray-400 font-bold">[لا توجد صورة مرفقة لهذا السؤال]</span>
               </div>
             )}
-            <p className="text-xl font-bold text-gray-800 text-center leading-relaxed px-4">{q.text}</p>
+            <div className="text-xl font-bold text-gray-800 text-center leading-relaxed px-4" dangerouslySetInnerHTML={{ __html: q.text }} />
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-            {['A', 'B', 'C', 'D'].map((label, i) => {
-              const isCorrect = i === q.correct;
-              const isUser = i === q.userAnswer;
+            {['A', 'B', 'C', 'D'].slice(0, q.options.length).map((label, i) => {
+              const isCorrect = i === q.correctOptionIndex;
+              const isUser = i === q.selectedOptionIndex;
 
               let borderClass = 'border-gray-200 text-gray-400';
               let bgClass = 'bg-white';
@@ -319,7 +326,7 @@ const ReviewSolutions = ({
                   <div className={`w-16 h-16 rounded-full border-2 flex items-center justify-center text-xl font-black transition-all ${borderClass} ${bgClass}`}>
                     {label}
                   </div>
-                  <span className="text-xs font-bold text-gray-400">{q.options[i]}</span>
+                  <span className="text-xs font-bold text-gray-500 text-center">{q.options[i]}</span>
                 </div>
               );
             })}
@@ -328,13 +335,15 @@ const ReviewSolutions = ({
 
         <div className="bg-gray-50 p-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => onShowVideo(q.videoUrl, `شرح السؤال ${currentIdx + 1}`)}
-              className="bg-emerald-500 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100"
-            >
-              <PlayCircle size={20} />
-              شرح الفيديو
-            </button>
+            {q.videoUrl ? (
+              <button
+                onClick={() => onShowVideo(q.videoUrl!, `شرح السؤال ${currentIdx + 1}`)}
+                className="bg-emerald-500 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100"
+              >
+                <PlayCircle size={20} />
+                شرح الفيديو
+              </button>
+            ) : null}
             <button
               onClick={() => setShowExplanation((value) => !value)}
               className="bg-white border-2 border-indigo-100 text-indigo-600 px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-50 transition-all"
@@ -375,12 +384,34 @@ const ReviewSolutions = ({
 
       {showExplanation ? (
         <div className="animate-slide-up">
-          <Card className="p-6 border-2 border-emerald-100 bg-emerald-50/30">
-            <h4 className="font-bold text-emerald-800 mb-3 flex items-center gap-2">
-              <CheckCircle2 size={20} />
-              توضيح الحل الصحيح:
-            </h4>
-            <p className="text-gray-700 leading-relaxed font-medium">{q.explanation}</p>
+          <Card className="p-6 border-2 border-emerald-100 bg-emerald-50/30 space-y-4">
+            <div className="flex flex-wrap gap-3 text-sm font-bold">
+              <span className={`px-3 py-1 rounded-full ${q.isCorrect ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                {q.isCorrect ? 'إجابتك صحيحة' : 'إجابتك تحتاج مراجعة'}
+              </span>
+              {typeof q.selectedOptionIndex === 'number' ? (
+                <span className="px-3 py-1 rounded-full bg-indigo-100 text-indigo-700">
+                  اختيارك: {q.options[q.selectedOptionIndex]}
+                </span>
+              ) : (
+                <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-700">لم تُجب عن هذا السؤال</span>
+              )}
+              <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                الإجابة الصحيحة: {q.options[q.correctOptionIndex]}
+              </span>
+            </div>
+
+            {q.explanation ? (
+              <div>
+                <h4 className="font-bold text-emerald-800 mb-3 flex items-center gap-2">
+                  <CheckCircle2 size={20} />
+                  توضيح الحل الصحيح:
+                </h4>
+                <div className="text-gray-700 leading-relaxed font-medium" dangerouslySetInnerHTML={{ __html: q.explanation }} />
+              </div>
+            ) : (
+              <p className="text-gray-600 leading-relaxed">لا يوجد شرح نصي محفوظ لهذا السؤال، ويمكنك الاعتماد على الفيديو إذا كان متاحًا.</p>
+            )}
           </Card>
         </div>
       ) : null}

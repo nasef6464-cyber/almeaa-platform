@@ -13,6 +13,7 @@ const quizResultSchema = new Schema(
     timeSpent: { type: String, default: "" },
     date: { type: String, default: "" },
     skillsAnalysis: { type: [Schema.Types.Mixed], default: [] },
+    questionReview: { type: [Schema.Types.Mixed], default: [] },
   },
   {
     timestamps: true,

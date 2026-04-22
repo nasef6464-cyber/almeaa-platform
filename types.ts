@@ -222,6 +222,18 @@ export interface SkillGap {
     recommendation?: string; // Action text like "Additional test available"
 }
 
+export interface QuizQuestionReview {
+    questionId: string;
+    text: string;
+    options: string[];
+    correctOptionIndex: number;
+    selectedOptionIndex?: number;
+    explanation?: string;
+    videoUrl?: string;
+    imageUrl?: string;
+    isCorrect: boolean;
+}
+
 export interface QuizResult {
     quizId: string;
     quizTitle: string;
@@ -233,6 +245,7 @@ export interface QuizResult {
     timeSpent: string;
     date: string;
     skillsAnalysis: SkillGap[];
+    questionReview?: QuizQuestionReview[];
 }
 
 export interface QuizHistoryItem {

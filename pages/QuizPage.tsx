@@ -121,6 +121,21 @@ export const QuizPage: React.FC = () => {
     });
 
     const score = Math.round((correctCount / quizQuestions.length) * 100);
+    const questionReview = quizQuestions.map((question) => {
+      const selectedOptionIndex = selectedOptions[question.id];
+
+      return {
+        questionId: question.id,
+        text: question.text,
+        options: question.options,
+        correctOptionIndex: question.correctOptionIndex,
+        selectedOptionIndex,
+        explanation: question.explanation,
+        videoUrl: question.videoUrl,
+        imageUrl: question.imageUrl,
+        isCorrect: selectedOptionIndex === question.correctOptionIndex,
+      };
+    });
 
     const result: QuizResult = {
       quizId: quiz.id,
@@ -132,7 +147,8 @@ export const QuizPage: React.FC = () => {
       unanswered: quizQuestions.length - Object.keys(selectedOptions).length,
       timeSpent: quiz?.settings.timeLimit ? `${Math.floor((quiz.settings.timeLimit * 60 - (timeLeft || 0)) / 60)} دقيقة` : 'غير محدد',
       date: new Date().toISOString(),
-      skillsAnalysis
+      skillsAnalysis,
+      questionReview,
     };
 
     saveExamResult(result);
