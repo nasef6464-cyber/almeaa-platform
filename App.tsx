@@ -48,6 +48,7 @@ const LoadingFallback = () => (
 const App: React.FC = () => {
   useFirebaseSync();
   const hydrateCourses = useStore((state) => state.hydrateCourses);
+  const hydrateQuestions = useStore((state) => state.hydrateQuestions);
   const hydrateTaxonomy = useStore((state) => state.hydrateTaxonomy);
 
   useEffect(() => {
@@ -55,8 +56,9 @@ const App: React.FC = () => {
 
     const bootstrapAppData = async () => {
       try {
-        const [courses, taxonomy] = await Promise.all([
+        const [courses, questions, taxonomy] = await Promise.all([
           adapter.getCourses(),
+          adapter.getQuestions(),
           adapter.getTaxonomyBootstrap(),
         ]);
 
@@ -65,6 +67,7 @@ const App: React.FC = () => {
         }
 
         hydrateCourses(courses);
+        hydrateQuestions(questions);
         hydrateTaxonomy({
           paths: taxonomy.paths as any[],
           levels: taxonomy.levels as any[],
@@ -80,7 +83,7 @@ const App: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, [hydrateCourses, hydrateTaxonomy]);
+  }, [hydrateCourses, hydrateQuestions, hydrateTaxonomy]);
 
   return (
     <AuthProvider>

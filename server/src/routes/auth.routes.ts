@@ -25,6 +25,12 @@ const adminCreateUserSchema = z.object({
   role: z.enum(["student", "teacher", "admin", "supervisor", "parent"]),
 });
 
+const serializeUser = (user: any) => {
+  const plain = typeof user?.toJSON === "function" ? user.toJSON() : user?.toObject?.() || user;
+  const { passwordHash, __v, ...safeUser } = plain;
+  return safeUser;
+};
+
 export const authRouter = Router();
 
 authRouter.post(
@@ -56,7 +62,7 @@ authRouter.post(
 
     return res.status(StatusCodes.CREATED).json({
       token,
-      user,
+      user: serializeUser(user),
     });
   }),
 );
@@ -89,7 +95,7 @@ authRouter.post(
 
     return res.json({
       token,
-      user,
+      user: serializeUser(user),
     });
   }),
 );
@@ -120,7 +126,7 @@ authRouter.post(
     );
 
     return res.status(StatusCodes.CREATED).json({
-      user,
+      user: serializeUser(user),
     });
   }),
 );

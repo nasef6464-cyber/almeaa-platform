@@ -591,6 +591,7 @@ interface AppState {
     
     // Actions
     hydrateCourses: (courses: Course[]) => void;
+    hydrateQuestions: (questions: Question[]) => void;
     hydrateTaxonomy: (payload: {
         paths?: CategoryPath[];
         levels?: import('../types').CategoryLevel[];
@@ -832,6 +833,10 @@ export const useStore = create<AppState>()(
 
             hydrateCourses: (courses) => set((state) => ({
                 courses: courses.length > 0 ? courses : state.courses
+            })),
+
+            hydrateQuestions: (questions) => set((state) => ({
+                questions: questions.length > 0 ? questions : state.questions
             })),
 
             hydrateTaxonomy: (payload) => set((state) => ({

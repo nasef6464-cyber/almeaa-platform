@@ -1,6 +1,6 @@
 import { api } from "./api";
 import { courses as mockCourses } from "./mockData";
-import { Course, Lesson, Module } from "../types";
+import { Course, Lesson, Module, Question } from "../types";
 
 const USE_REAL_API =
   (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_USE_REAL_API !== "false";
@@ -76,6 +76,22 @@ const normalizeCourse = (course: any): Course => ({
   fakeRating: typeof course?.fakeRating === "number" ? course.fakeRating : undefined,
   fakeStudentsCount: typeof course?.fakeStudentsCount === "number" ? course.fakeStudentsCount : undefined,
   skills: Array.isArray(course?.skills) ? course.skills : [],
+});
+
+const normalizeQuestion = (question: any): Question => ({
+  id: String(question?.id || question?._id || ""),
+  text: String(question?.text || ""),
+  options: Array.isArray(question?.options) ? question.options.map(String) : [],
+  correctOptionIndex: Number(question?.correctOptionIndex ?? 0),
+  explanation: question?.explanation || "",
+  videoUrl: question?.videoUrl,
+  imageUrl: question?.imageUrl,
+  skillIds: Array.isArray(question?.skillIds) ? question.skillIds.map(String) : [],
+  pathId: question?.pathId,
+  subject: String(question?.subject || ""),
+  sectionId: question?.sectionId,
+  difficulty: question?.difficulty || "Medium",
+  type: question?.type || "mcq",
 });
 
 export const adapter = {
@@ -155,6 +171,20 @@ export const adapter = {
         libraryItems: [],
         groups: [],
       };
+    }
+  },
+
+  async getQuestions(): Promise<Question[]> {
+    if (!USE_REAL_API) {
+      return [];
+    }
+
+    try {
+      const data = await api.getQuestions();
+      return Array.isArray(data) ? data.map(normalizeQuestion).filter((question) => question.id && question.text) : [];
+    } catch (error) {
+      console.warn("Falling back to existing in-memory questions:", error);
+      return [];
     }
   },
 };

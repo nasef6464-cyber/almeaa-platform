@@ -30,4 +30,13 @@ const userSchema = new Schema(
   },
 );
 
+userSchema.set("toJSON", {
+  transform: (_doc, ret) => {
+    const safeRet = ret as Record<string, unknown>;
+    delete safeRet.passwordHash;
+    delete safeRet.__v;
+    return safeRet;
+  },
+});
+
 export const UserModel = mongoose.model("User", userSchema);
