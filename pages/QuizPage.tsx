@@ -7,7 +7,7 @@ import { Clock, AlertCircle, CheckCircle2, XCircle, ArrowRight, ArrowLeft, FileQ
 export const QuizPage: React.FC = () => {
   const { quizId } = useParams();
   const navigate = useNavigate();
-  const { quizzes, questions, user, checkAccess, saveExamResult, nestedSkills } = useStore();
+  const { quizzes, questions, user, checkAccess, saveExamResult, nestedSkills, topics, subjects, sections } = useStore();
   
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
@@ -105,11 +105,24 @@ export const QuizPage: React.FC = () => {
 
     const allSkills = nestedSkills.flatMap(s => [s, ...s.subSkills]);
     const skillsAnalysis = Object.entries(skillStats).map(([skillId, stats]) => {
-      const skill = allSkills.find(s => s.id === skillId);
+      const topicSkill = topics.find(topic => topic.id === skillId);
+      const nestedSkill = allSkills.find(skill => skill.id === skillId);
       const mastery = Math.round((stats.correct / stats.total) * 100);
       let status: 'weak' | 'average' | 'strong' = 'average';
       if (mastery < 50) status = 'weak';
       else if (mastery >= 80) status = 'strong';
+
+      const sectionLabel = topicSkill?.sectionId
+        ? sections.find(section => section.id === topicSkill.sectionId)?.name
+        : topicSkill?.subjectId
+          ? subjects.find(subject => subject.id === topicSkill.subjectId)?.name
+          : ('subjectId' in (nestedSkill || {}) && nestedSkill?.subjectId
+              ? subjects.find(subject => subject.id === nestedSkill.subjectId)?.name
+              : undefined);
+      const skill = {
+        name: topicSkill?.title || nestedSkill?.name || 'مهارة غير معروفة',
+        subjectId: sectionLabel,
+      };
       
       return {
         skill: skill ? skill.name : 'مهارة غير معروفة',

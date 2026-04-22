@@ -183,6 +183,8 @@ export interface NestedSubSkill {
 export interface Topic {
     id: string;
     subjectId: string;
+    pathId?: string;
+    sectionId?: string;
     title: string;
     parentId?: string | null; // null or undefined for main topics
     order: number;

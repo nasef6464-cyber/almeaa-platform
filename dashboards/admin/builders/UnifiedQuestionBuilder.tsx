@@ -41,6 +41,18 @@ export const UnifiedQuestionBuilder: React.FC<UnifiedQuestionBuilderProps> = ({
       alert('يرجى إدخال نص السؤال');
       return;
     }
+    if (!question.pathId) {
+      alert('يرجى اختيار المسار');
+      return;
+    }
+    if (!question.subject) {
+      alert('يرجى اختيار المادة');
+      return;
+    }
+    if (!question.skillIds || question.skillIds.length === 0) {
+      alert('يرجى ربط السؤال بمهارة واحدة على الأقل');
+      return;
+    }
     if (question.type === 'mcq' && question.options?.some(o => !o)) {
       alert('يرجى تعبئة جميع الخيارات');
       return;

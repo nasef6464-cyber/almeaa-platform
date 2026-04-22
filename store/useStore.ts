@@ -598,6 +598,12 @@ interface AppState {
         levels?: import('../types').CategoryLevel[];
         subjects?: CategorySubject[];
     }) => void;
+    hydrateContentBootstrap: (payload: {
+        topics?: import('../types').Topic[];
+        lessons?: Lesson[];
+        libraryItems?: LibraryItem[];
+        groups?: Group[];
+    }) => void;
     hydrateExamResults: (results: QuizResult[]) => void;
     enrollCourse: (courseId: string) => void;
     enrollPath: (pathId: string) => void;
@@ -873,6 +879,42 @@ export const useStore = create<AppState>()(
                   : state.subjects,
             })),
 
+            hydrateContentBootstrap: (payload) => set((state) => ({
+                topics: payload.topics && payload.topics.length > 0
+                  ? payload.topics
+                      .map((topic: any) => ({
+                        ...topic,
+                        id: String(topic?.id || topic?._id || ''),
+                      }))
+                      .filter((topic: any) => topic.id && topic.subjectId && topic.title)
+                  : state.topics,
+                lessons: payload.lessons && payload.lessons.length > 0
+                  ? payload.lessons
+                      .map((lesson: any) => ({
+                        ...lesson,
+                        id: String(lesson?.id || lesson?._id || ''),
+                        skillIds: Array.isArray(lesson?.skillIds) ? lesson.skillIds.map(String) : [],
+                      }))
+                      .filter((lesson: any) => lesson.id && lesson.title)
+                  : state.lessons,
+                libraryItems: payload.libraryItems && payload.libraryItems.length > 0
+                  ? payload.libraryItems
+                      .map((item: any) => ({
+                        ...item,
+                        id: String(item?.id || item?._id || ''),
+                      }))
+                      .filter((item: any) => item.id && item.title)
+                  : state.libraryItems,
+                groups: payload.groups && payload.groups.length > 0
+                  ? payload.groups
+                      .map((group: any) => ({
+                        ...group,
+                        id: String(group?.id || group?._id || ''),
+                      }))
+                      .filter((group: any) => group.id && group.name)
+                  : state.groups,
+            })),
+
             hydrateExamResults: (results) => set(() => ({
                 examResults: results
             })),
@@ -1095,23 +1137,19 @@ export const useStore = create<AppState>()(
 
             // Lesson Actions
             addLesson: (lesson) => {
-                setDoc(doc(db, 'lessons', lesson.id), lesson).catch(console.error);
+                api.createLesson(lesson).catch(console.error);
                 set((state) => ({
                     lessons: [lesson, ...state.lessons]
                 }));
             },
             updateLesson: (lessonId, data) => {
-                const state = get();
-                const lesson = state.lessons.find(l => l.id === lessonId);
-                if (lesson) {
-                    setDoc(doc(db, 'lessons', lessonId), { ...lesson, ...data }, { merge: true }).catch(console.error);
-                }
+                api.updateLesson(lessonId, data).catch(console.error);
                 set((state) => ({
                     lessons: state.lessons.map(l => l.id === lessonId ? { ...l, ...data } : l)
                 }));
             },
             deleteLesson: (lessonId) => {
-                deleteDoc(doc(db, 'lessons', lessonId)).catch(console.error);
+                api.deleteLesson(lessonId).catch(console.error);
                 set((state) => ({
                     lessons: state.lessons.filter(l => l.id !== lessonId)
                 }));
@@ -1119,23 +1157,19 @@ export const useStore = create<AppState>()(
 
             // Topic Actions
             addTopic: (topic) => {
-                setDoc(doc(db, 'topics', topic.id), topic).catch(console.error);
+                api.createTopic(topic).catch(console.error);
                 set((state) => ({
                     topics: [...state.topics, topic]
                 }));
             },
             updateTopic: (topicId, data) => {
-                const state = get();
-                const topic = state.topics.find(t => t.id === topicId);
-                if (topic) {
-                    setDoc(doc(db, 'topics', topicId), { ...topic, ...data }, { merge: true }).catch(console.error);
-                }
+                api.updateTopic(topicId, data).catch(console.error);
                 set((state) => ({
                     topics: state.topics.map(t => t.id === topicId ? { ...t, ...data } : t)
                 }));
             },
             deleteTopic: (topicId) => {
-                deleteDoc(doc(db, 'topics', topicId)).catch(console.error);
+                api.deleteTopic(topicId).catch(console.error);
                 set((state) => ({
                     topics: state.topics.filter(t => t.id !== topicId)
                 }));

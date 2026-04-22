@@ -16,8 +16,8 @@ const questionSchema = z.object({
   explanation: z.string().optional(),
   videoUrl: z.string().optional(),
   imageUrl: z.string().optional(),
-  skillIds: z.array(z.string()).optional(),
-  pathId: z.string().optional(),
+  skillIds: z.array(z.string()).min(1),
+  pathId: z.string().min(1),
   subject: z.string().min(1),
   sectionId: z.string().optional(),
   difficulty: z.enum(["Easy", "Medium", "Hard"]).default("Medium"),
@@ -45,6 +45,15 @@ const buildDocumentQuery = (value: string) => {
   }
 
   return { id: value };
+};
+
+const resolveQuizSkillIds = async (questionIds: string[]) => {
+  if (questionIds.length === 0) {
+    return [];
+  }
+
+  const questions = await QuestionModel.find({ id: { $in: questionIds } }).select("skillIds");
+  return [...new Set(questions.flatMap((question) => question.skillIds || []).filter(Boolean))];
 };
 
 export const quizRouter = Router();
@@ -140,7 +149,12 @@ quizRouter.post(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = quizSchema.parse(req.body);
-    const created = await QuizModel.create(payload);
+    const resolvedSkillIds =
+      payload.questionIds.length > 0 ? await resolveQuizSkillIds(payload.questionIds) : payload.skillIds || [];
+    const created = await QuizModel.create({
+      ...payload,
+      skillIds: resolvedSkillIds,
+    });
     res.status(StatusCodes.CREATED).json(created);
   }),
 );
@@ -151,9 +165,15 @@ quizRouter.patch(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = quizSchema.partial().parse(req.body);
+    const resolvedSkillIds = payload.questionIds
+      ? await resolveQuizSkillIds(payload.questionIds)
+      : payload.skillIds;
     const updated = await QuizModel.findOneAndUpdate(
       buildDocumentQuery(req.params.id),
-      payload,
+      {
+        ...payload,
+        ...(resolvedSkillIds ? { skillIds: resolvedSkillIds } : {}),
+      },
       { new: true },
     );
 

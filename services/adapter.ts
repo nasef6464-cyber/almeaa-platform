@@ -1,6 +1,6 @@
 import { api } from "./api";
 import { courses as mockCourses } from "./mockData";
-import { CategoryLevel, CategoryPath, CategorySubject, Course, Lesson, Module, Question, Quiz } from "../types";
+import { CategoryLevel, CategoryPath, CategorySubject, Course, Group, Lesson, LibraryItem, Module, Question, Quiz, Topic } from "../types";
 
 const USE_REAL_API =
   (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_USE_REAL_API !== "false";
@@ -63,6 +63,46 @@ const normalizeLesson = (lesson: any, moduleIndex: number, lessonIndex: number):
   pathId: lesson?.pathId,
   subjectId: lesson?.subjectId,
   sectionId: lesson?.sectionId,
+});
+
+const normalizeTopic = (topic: any): Topic => ({
+  id: String(topic?.id || topic?._id || ""),
+  pathId: topic?.pathId || undefined,
+  subjectId: String(topic?.subjectId || ""),
+  sectionId: topic?.sectionId || undefined,
+  title: String(topic?.title || ""),
+  parentId: topic?.parentId || null,
+  order: Number(topic?.order ?? 0),
+  lessonIds: Array.isArray(topic?.lessonIds) ? topic.lessonIds.map(String) : [],
+  quizIds: Array.isArray(topic?.quizIds) ? topic.quizIds.map(String) : [],
+});
+
+const normalizeLibraryItem = (item: any): LibraryItem => ({
+  id: String(item?.id || item?._id || ""),
+  title: String(item?.title || ""),
+  size: String(item?.size || ""),
+  downloads: Number(item?.downloads ?? 0),
+  type: item?.type || "pdf",
+  subjectId: String(item?.subjectId || ""),
+  url: item?.url || undefined,
+});
+
+const normalizeGroup = (group: any): Group => ({
+  id: String(group?.id || group?._id || ""),
+  name: String(group?.name || ""),
+  type: group?.type || "CLASS",
+  parentId: group?.parentId || undefined,
+  ownerId: String(group?.ownerId || ""),
+  supervisorIds: Array.isArray(group?.supervisorIds) ? group.supervisorIds.map(String) : [],
+  studentIds: Array.isArray(group?.studentIds) ? group.studentIds.map(String) : [],
+  courseIds: Array.isArray(group?.courseIds) ? group.courseIds.map(String) : [],
+  createdAt: Number(group?.createdAt ?? Date.now()),
+  metadata: group?.metadata,
+  totalStudents: typeof group?.totalStudents === "number" ? group.totalStudents : undefined,
+  totalSupervisors: typeof group?.totalSupervisors === "number" ? group.totalSupervisors : undefined,
+  totalCourses: typeof group?.totalCourses === "number" ? group.totalCourses : undefined,
+  activityScore: typeof group?.activityScore === "number" ? group.activityScore : undefined,
+  performanceScore: typeof group?.performanceScore === "number" ? group.performanceScore : undefined,
 });
 
 const normalizeModule = (module: any, moduleIndex: number): Module => ({
@@ -228,7 +268,13 @@ export const adapter = {
     }
 
     try {
-      return await api.getContentBootstrap();
+      const data = await api.getContentBootstrap();
+      return {
+        topics: Array.isArray(data?.topics) ? data.topics.map(normalizeTopic).filter((topic) => topic.id && topic.subjectId && topic.title) : [],
+        lessons: Array.isArray(data?.lessons) ? data.lessons.map((lesson: any, index: number) => normalizeLesson(lesson, 0, index)).filter((lesson) => lesson.id && lesson.title) : [],
+        libraryItems: Array.isArray(data?.libraryItems) ? data.libraryItems.map(normalizeLibraryItem).filter((item) => item.id && item.title) : [],
+        groups: Array.isArray(data?.groups) ? data.groups.map(normalizeGroup).filter((group) => group.id && group.name) : [],
+      };
     } catch (error) {
       console.warn("Falling back to empty content bootstrap:", error);
       return {

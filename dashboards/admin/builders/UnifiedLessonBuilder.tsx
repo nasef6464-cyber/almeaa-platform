@@ -22,7 +22,7 @@ export const UnifiedLessonBuilder: React.FC<UnifiedLessonBuilderProps> = ({
   const [lesson, setLesson] = useState<Lesson>(initialLesson);
   const [showQuizBuilder, setShowQuizBuilder] = useState(false);
   const [showQuestionBuilder, setShowQuestionBuilder] = useState(false);
-  const { quizzes } = useStore();
+  const { quizzes, paths, subjects, sections } = useStore();
 
   const getLessonIcon = (type: LessonType) => {
     switch (type) {
@@ -40,6 +40,18 @@ export const UnifiedLessonBuilder: React.FC<UnifiedLessonBuilderProps> = ({
   const handleSave = () => {
     if (!lesson.title) {
       alert('يرجى إدخال عنوان الدرس');
+      return;
+    }
+    if (!lesson.pathId) {
+      alert('يرجى اختيار المسار قبل حفظ الدرس');
+      return;
+    }
+    if (!lesson.subjectId) {
+      alert('يرجى اختيار المادة قبل حفظ الدرس');
+      return;
+    }
+    if (!lesson.skillIds || lesson.skillIds.length === 0) {
+      alert('يرجى ربط الدرس بمهارة واحدة على الأقل');
       return;
     }
     onSave(moduleId, lesson);
@@ -129,6 +141,50 @@ export const UnifiedLessonBuilder: React.FC<UnifiedLessonBuilderProps> = ({
               ))}
             </select>
             <p className="text-xs text-gray-500 mt-1">عند ربط الدرس بمهارة، سيظهر أيضاً في "مركز المهارات" للطالب.</p>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="col-span-2 md:col-span-1">
+              <label className="block text-sm font-bold text-gray-700 mb-1">المسار</label>
+              <select
+                value={lesson.pathId || ''}
+                onChange={(e) => setLesson({ ...lesson, pathId: e.target.value, subjectId: '', sectionId: undefined, skillIds: [] })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+              >
+                <option value="">-- اختر المسار --</option>
+                {paths.map(path => (
+                  <option key={path.id} value={path.id}>{path.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="col-span-2 md:col-span-1">
+              <label className="block text-sm font-bold text-gray-700 mb-1">المادة</label>
+              <select
+                value={lesson.subjectId || ''}
+                onChange={(e) => setLesson({ ...lesson, subjectId: e.target.value, sectionId: undefined, skillIds: [] })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                disabled={!lesson.pathId}
+              >
+                <option value="">-- اختر المادة --</option>
+                {subjects.filter(subject => subject.pathId === lesson.pathId).map(subject => (
+                  <option key={subject.id} value={subject.id}>{subject.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="col-span-2 md:col-span-1">
+              <label className="block text-sm font-bold text-gray-700 mb-1">القسم</label>
+              <select
+                value={lesson.sectionId || ''}
+                onChange={(e) => setLesson({ ...lesson, sectionId: e.target.value || undefined, skillIds: [] })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                disabled={!lesson.subjectId}
+              >
+                <option value="">-- اختر القسم --</option>
+                {sections.filter(section => section.subjectId === lesson.subjectId).map(section => (
+                  <option key={section.id} value={section.id}>{section.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Video Specific Settings */}

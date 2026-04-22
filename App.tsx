@@ -51,17 +51,19 @@ const App: React.FC = () => {
   const hydrateQuestions = useStore((state) => state.hydrateQuestions);
   const hydrateQuizzes = useStore((state) => state.hydrateQuizzes);
   const hydrateTaxonomy = useStore((state) => state.hydrateTaxonomy);
+  const hydrateContentBootstrap = useStore((state) => state.hydrateContentBootstrap);
 
   useEffect(() => {
     let mounted = true;
 
     const bootstrapAppData = async () => {
       try {
-        const [courses, questions, quizzes, taxonomy] = await Promise.all([
+        const [courses, questions, quizzes, taxonomy, content] = await Promise.all([
           adapter.getCourses(),
           adapter.getQuestions(),
           adapter.getQuizzes(),
           adapter.getTaxonomyBootstrap(),
+          adapter.getContentBootstrap(),
         ]);
 
         if (!mounted) {
@@ -76,6 +78,12 @@ const App: React.FC = () => {
           levels: taxonomy.levels as any[],
           subjects: taxonomy.subjects as any[],
         });
+        hydrateContentBootstrap({
+          topics: content.topics as any[],
+          lessons: content.lessons as any[],
+          libraryItems: content.libraryItems as any[],
+          groups: content.groups as any[],
+        });
       } catch (error) {
         console.warn('App bootstrap fallback active:', error);
       }
@@ -86,7 +94,7 @@ const App: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, [hydrateCourses, hydrateQuestions, hydrateQuizzes, hydrateTaxonomy]);
+  }, [hydrateContentBootstrap, hydrateCourses, hydrateQuestions, hydrateQuizzes, hydrateTaxonomy]);
 
   return (
     <AuthProvider>

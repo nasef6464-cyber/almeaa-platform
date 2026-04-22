@@ -8,7 +8,7 @@ interface FoundationManagerProps {
 }
 
 export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId }) => {
-  const { topics, addTopic, updateTopic, deleteTopic, lessons, quizzes } = useStore();
+  const { topics, addTopic, updateTopic, deleteTopic, lessons, quizzes, subjects } = useStore();
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
   
   // Editing state
@@ -34,7 +34,9 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
   };
 
   const handleCreateNew = (parentId?: string) => {
+    const subject = subjects.find(item => item.id === subjectId);
     setEditingTopic({
+      pathId: subject?.pathId,
       subjectId,
       parentId,
       title: '',
@@ -47,9 +49,10 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
 
   const handleSaveTopic = () => {
     if (!editingTopic?.title) return;
+    const subject = subjects.find(item => item.id === (editingTopic.subjectId || subjectId));
 
     if (editingTopic.id) {
-      const updateData = { ...editingTopic };
+      const updateData = { ...editingTopic, pathId: editingTopic.pathId || subject?.pathId };
       if (updateData.parentId === undefined) {
         updateData.parentId = null; // Use null instead of undefined for Firebase
       }
@@ -57,6 +60,7 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
     } else {
       const newTopic: Topic = {
         ...(editingTopic as Topic),
+        pathId: editingTopic.pathId || subject?.pathId,
         id: `topic_${Date.now()}`
       };
       if (newTopic.parentId === undefined) {

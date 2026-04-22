@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { StatusCodes } from "http-status-codes";
+import mongoose from "mongoose";
 import { z } from "zod";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -9,7 +10,10 @@ import { LibraryItemModel } from "../models/LibraryItem.js";
 import { GroupModel } from "../models/Group.js";
 
 const topicSchema = z.object({
+  id: z.string().optional(),
+  pathId: z.string().min(1),
   subjectId: z.string().min(1),
+  sectionId: z.string().nullable().optional(),
   title: z.string().min(1),
   parentId: z.string().nullable().optional(),
   order: z.number().default(0),
@@ -20,8 +24,8 @@ const topicSchema = z.object({
 const lessonSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
-  pathId: z.string().nullable().optional(),
-  subjectId: z.string().nullable().optional(),
+  pathId: z.string().min(1),
+  subjectId: z.string().min(1),
   sectionId: z.string().nullable().optional(),
   type: z.enum(["video", "quiz", "file", "assignment", "text", "live_youtube", "zoom", "google_meet", "teams"]),
   duration: z.string().default(""),
@@ -31,8 +35,16 @@ const lessonSchema = z.object({
   quizId: z.string().nullable().optional(),
   order: z.number().default(0),
   isLocked: z.boolean().default(false),
-  skillIds: z.array(z.string()).default([]),
+  skillIds: z.array(z.string()).min(1),
 });
+
+const buildDocumentQuery = (value: string) => {
+  if (mongoose.Types.ObjectId.isValid(value)) {
+    return { $or: [{ id: value }, { _id: value }] };
+  }
+
+  return { id: value };
+};
 
 const librarySchema = z.object({
   title: z.string().min(1),
@@ -81,6 +93,39 @@ contentRouter.post(
   }),
 );
 
+contentRouter.patch(
+  "/topics/:id",
+  requireAuth,
+  requireRole(["admin", "teacher", "supervisor"]),
+  asyncHandler(async (req, res) => {
+    const payload = topicSchema.partial().parse(req.body);
+    const updated = await TopicModel.findOneAndUpdate(buildDocumentQuery(req.params.id), payload, {
+      new: true,
+    });
+
+    if (!updated) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Topic not found" });
+    }
+
+    return res.json(updated);
+  }),
+);
+
+contentRouter.delete(
+  "/topics/:id",
+  requireAuth,
+  requireRole(["admin", "teacher", "supervisor"]),
+  asyncHandler(async (req, res) => {
+    const deleted = await TopicModel.findOneAndDelete(buildDocumentQuery(req.params.id));
+
+    if (!deleted) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Topic not found" });
+    }
+
+    return res.json({ success: true });
+  }),
+);
+
 contentRouter.post(
   "/lessons",
   requireAuth,
@@ -89,6 +134,39 @@ contentRouter.post(
     const payload = lessonSchema.parse(req.body);
     const created = await LessonModel.create(payload);
     res.status(StatusCodes.CREATED).json(created);
+  }),
+);
+
+contentRouter.patch(
+  "/lessons/:id",
+  requireAuth,
+  requireRole(["admin", "teacher", "supervisor"]),
+  asyncHandler(async (req, res) => {
+    const payload = lessonSchema.partial().parse(req.body);
+    const updated = await LessonModel.findOneAndUpdate(buildDocumentQuery(req.params.id), payload, {
+      new: true,
+    });
+
+    if (!updated) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Lesson not found" });
+    }
+
+    return res.json(updated);
+  }),
+);
+
+contentRouter.delete(
+  "/lessons/:id",
+  requireAuth,
+  requireRole(["admin", "teacher", "supervisor"]),
+  asyncHandler(async (req, res) => {
+    const deleted = await LessonModel.findOneAndDelete(buildDocumentQuery(req.params.id));
+
+    if (!deleted) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Lesson not found" });
+    }
+
+    return res.json({ success: true });
   }),
 );
 

@@ -231,17 +231,20 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
   };
 
   const openAddLessonModal = (parentId: string, subSkillId: string) => {
+    const parentSkill = nestedSkills.find(skill => skill.id === parentId);
     setActiveParentSkillId(parentId);
     setEditingLesson({
       subSkillId,
       lesson: {
         id: `lesson_${Date.now()}`,
         title: '',
+        pathId: parentSkill?.pathId || selectedPathId,
+        subjectId: parentSkill?.subjectId || subjectId || selectedSubjectId,
         type: 'video',
         duration: '0',
         isCompleted: false,
         order: 1,
-        skillIds: []
+        skillIds: [subSkillId]
       }
     });
   };

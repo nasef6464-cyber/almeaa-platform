@@ -9,7 +9,7 @@ import { useStore } from '../store/useStore';
 
 const Quiz: React.FC = () => {
     const navigate = useNavigate();
-    const { saveExamResult, toggleFavorite: toggleStoreFavorite, favorites: storeFavorites, recordQuestionAttempt } = useStore();
+    const { saveExamResult, toggleFavorite: toggleStoreFavorite, favorites: storeFavorites, recordQuestionAttempt, topics, subjects, sections, nestedSkills } = useStore();
     
     // States
     const [quizStarted, setQuizStarted] = useState(false);
@@ -129,6 +129,46 @@ const Quiz: React.FC = () => {
             });
             
             const score = Math.round((correct / questions.length) * 100);
+            const skillStats: Record<string, { total: number; correct: number }> = {};
+            questions.forEach((question, idx) => {
+                const isCorrect = answers[idx] === question.correctOptionIndex;
+                (question.skillIds || []).forEach((skillId) => {
+                    if (!skillStats[skillId]) {
+                        skillStats[skillId] = { total: 0, correct: 0 };
+                    }
+                    skillStats[skillId].total++;
+                    if (isCorrect) {
+                        skillStats[skillId].correct++;
+                    }
+                });
+            });
+
+            const allSkills = nestedSkills.flatMap(skill => [skill, ...skill.subSkills]);
+            const skillsAnalysis = Object.entries(skillStats).map(([skillId, stats]) => {
+                const topicSkill = topics.find(topic => topic.id === skillId);
+                const nestedSkill = allSkills.find(skill => skill.id === skillId);
+                const mastery = Math.round((stats.correct / stats.total) * 100);
+                let status: 'weak' | 'average' | 'strong' = 'average';
+                if (mastery < 50) status = 'weak';
+                else if (mastery >= 80) status = 'strong';
+
+                const sectionLabel = topicSkill?.sectionId
+                    ? sections.find(section => section.id === topicSkill.sectionId)?.name
+                    : topicSkill?.subjectId
+                        ? subjects.find(subject => subject.id === topicSkill.subjectId)?.name
+                        : ('subjectId' in (nestedSkill || {}) && nestedSkill?.subjectId
+                            ? subjects.find(subject => subject.id === nestedSkill.subjectId)?.name
+                            : undefined);
+
+                return {
+                    skill: topicSkill?.title || nestedSkill?.name || 'مهارة غير معروفة',
+                    mastery,
+                    status,
+                    recommendation: status === 'weak' ? 'بحاجة لمراجعة الدروس والتدريب على نفس المهارة' : (status === 'average' ? 'يمكن التحسين بالتدريب الموجه على نفس المهارة' : 'أداء ممتاز في هذه المهارة'),
+                    section: sectionLabel
+                };
+            });
+
             const questionReview = questions.map((question, idx) => {
                 const selectedOptionIndex = answers[idx];
 
@@ -154,7 +194,7 @@ const Quiz: React.FC = () => {
                 unanswered,
                 timeSpent: formatTime(1200 - timeLeft),
                 date: new Date().toISOString(),
-                skillsAnalysis: [], // Could be populated based on question tags
+                skillsAnalysis,
                 totalQuestions: questions.length,
                 questionReview
             });

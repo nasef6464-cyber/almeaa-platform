@@ -122,6 +122,40 @@ export const api = {
     }),
   getContentBootstrap: () =>
     request<{ topics: unknown[]; lessons: unknown[]; libraryItems: unknown[]; groups: unknown[] }>("/content/bootstrap"),
+  createTopic: (payload: unknown, token?: string | null) =>
+    request<unknown>("/content/topics", {
+      method: "POST",
+      body: payload,
+      token,
+    }),
+  updateTopic: (id: string, payload: unknown, token?: string | null) =>
+    request<unknown>(`/content/topics/${id}`, {
+      method: "PATCH",
+      body: payload,
+      token,
+    }),
+  deleteTopic: (id: string, token?: string | null) =>
+    request<{ success: boolean }>(`/content/topics/${id}`, {
+      method: "DELETE",
+      token,
+    }),
+  createLesson: (payload: unknown, token?: string | null) =>
+    request<unknown>("/content/lessons", {
+      method: "POST",
+      body: payload,
+      token,
+    }),
+  updateLesson: (id: string, payload: unknown, token?: string | null) =>
+    request<unknown>(`/content/lessons/${id}`, {
+      method: "PATCH",
+      body: payload,
+      token,
+    }),
+  deleteLesson: (id: string, token?: string | null) =>
+    request<{ success: boolean }>(`/content/lessons/${id}`, {
+      method: "DELETE",
+      token,
+    }),
   getCourses: () => request<unknown[]>("/courses"),
   getCourseById: (id: string) => request<unknown>(`/courses/${id}`),
   createCourse: (payload: unknown, token?: string | null) =>
