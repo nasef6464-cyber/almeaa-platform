@@ -2,23 +2,28 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Save, User, Mail, Phone, CreditCard, School, ChevronDown, ChevronUp, Eye, EyeOff, CheckCircle, AlertCircle, Upload } from 'lucide-react';
 import { Card } from '../components/ui/Card';
-import { currentUser } from '../services/mockData';
+import { useStore } from '../store/useStore';
 
 const Profile: React.FC = () => {
+    const user = useStore((state) => state.user);
+    const fullNameParts = (user?.name || '').trim().split(' ').filter(Boolean);
+    const firstName = fullNameParts[0] || '';
+    const lastName = fullNameParts.slice(1).join(' ') || '';
+
     // State for Profile Image
-    const [avatar, setAvatar] = useState(currentUser.avatar);
+    const [avatar, setAvatar] = useState(user?.avatar || 'https://i.pravatar.cc/150?u=profile-fallback');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // State for Form Fields matched to screenshot
     const [formData, setFormData] = useState({
-        firstName: currentUser.name.split(' ')[0] || '',
-        lastName: currentUser.name.split(' ')[1] || '',
-        email: 'alisalem008866@gmail.com',
-        phone: '',
+        firstName,
+        lastName,
+        email: user?.email || '',
+        phone: (user as any)?.phone || '',
         idNumber: '',
-        academicStage: 'high_school',
-        classNumber: 'grade_1',
-        schoolName: '',
+        academicStage: (user as any)?.academicStage || 'high_school',
+        classNumber: (user as any)?.classNumber || 'grade_1',
+        schoolName: (user as any)?.schoolName || '',
     });
 
     // State for UI interactions
@@ -42,6 +47,20 @@ const Profile: React.FC = () => {
         }, 100);
         return () => clearTimeout(timer);
     }, [completionRate]);
+
+    useEffect(() => {
+        setAvatar(user?.avatar || 'https://i.pravatar.cc/150?u=profile-fallback');
+        setFormData({
+            firstName,
+            lastName,
+            email: user?.email || '',
+            phone: (user as any)?.phone || '',
+            idNumber: '',
+            academicStage: (user as any)?.academicStage || 'high_school',
+            classNumber: (user as any)?.classNumber || 'grade_1',
+            schoolName: (user as any)?.schoolName || '',
+        });
+    }, [firstName, lastName, user]);
 
     // Handlers
     const handleImageClick = () => {
