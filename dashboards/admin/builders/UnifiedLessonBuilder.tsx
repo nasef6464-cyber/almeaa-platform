@@ -373,6 +373,14 @@ export const UnifiedLessonBuilder: React.FC<UnifiedLessonBuilderProps> = ({
 
       {showQuestionBuilder && (
         <UnifiedQuestionBuilder
+          initialQuestion={{
+            pathId: lesson.pathId || '',
+            subject: lesson.subjectId || '',
+            sectionId: lesson.sectionId || '',
+            skillIds: lesson.skillIds || []
+          }}
+          subjectId={lesson.subjectId || ''}
+          sectionId={lesson.sectionId || ''}
           onSave={question => {
             const newQuestion = { ...question, id: `q_${Date.now()}`, timestamp: 0 } as any;
             setLesson(prev => ({

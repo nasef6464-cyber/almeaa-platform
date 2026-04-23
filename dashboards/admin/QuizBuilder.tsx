@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { Quiz, Question } from '../../types';
 import { Plus, Search, Edit2, Trash2, Save, X, Settings, Link as LinkIcon, Users, FileQuestion, Filter, CheckCircle2 } from 'lucide-react';
@@ -12,7 +12,7 @@ interface QuizBuilderProps {
 }
 
 export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjectId, initialQuizId, initialType = 'quiz' }) => {
-  const { quizzes, addQuiz, updateQuiz, deleteQuiz, questions, subjects, paths, groups, addQuestion } = useStore();
+  const { quizzes, addQuiz, updateQuiz, deleteQuiz, questions, subjects, paths, groups, addQuestion, topics } = useStore();
   const [isEditing, setIsEditing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'info' | 'questions' | 'settings' | 'access'>('info');
@@ -58,9 +58,14 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
     explanation: '',
     difficulty: 'Medium',
     type: 'mcq',
+    pathId: currentQuiz.pathId,
     subject: currentQuiz.subjectId,
     skillIds: []
   });
+  const availableQuizSkillTopics = useMemo(
+    () => topics.filter(topic => !!currentQuiz.subjectId && topic.subjectId === currentQuiz.subjectId && !topic.parentId),
+    [topics, currentQuiz.subjectId]
+  );
 
   const [isAiGenerating, setIsAiGenerating] = useState(false);
 
@@ -180,6 +185,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
     const q: Question = {
       ...savedQuestion,
       id: `q_${Date.now()}`,
+      pathId: savedQuestion.pathId || currentQuiz.pathId || '',
       subject: currentQuiz.subjectId || '',
     } as Question;
     
@@ -324,7 +330,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
                     <label className="block text-sm font-bold text-gray-700 mb-2">المسار (اختياري / لتصنيف الاختبار)</label>
                     <select 
                       value={currentQuiz.pathId || ''}
-                      onChange={(e) => setCurrentQuiz(prev => ({ ...prev, pathId: e.target.value, subjectId: '' }))}
+                      onChange={(e) => setCurrentQuiz(prev => ({ ...prev, pathId: e.target.value, subjectId: '', skillIds: [] }))}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-gray-50"
                     >
                       <option value="">-- كل المسارات --</option>
@@ -335,7 +341,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
                     <label className="block text-sm font-bold text-gray-700 mb-2">المادة الأساسية</label>
                     <select 
                       value={currentQuiz.subjectId || ''}
-                      onChange={(e) => setCurrentQuiz(prev => ({ ...prev, subjectId: e.target.value }))}
+                      onChange={(e) => setCurrentQuiz(prev => ({ ...prev, subjectId: e.target.value, skillIds: [] }))}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-gray-50"
                       disabled={!!currentQuiz.pathId && subjects.filter(s => s.pathId === currentQuiz.pathId).length === 0}
                     >
@@ -693,12 +699,13 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
         )}
 
         {isAddQuestionModalOpen && (
-          <UnifiedQuestionBuilder 
-            subjectId={currentQuiz.subjectId}
-            onSave={handleSaveNewQuestion}
-            onCancel={() => setIsAddQuestionModalOpen(false)}
-          />
-        )}
+            <UnifiedQuestionBuilder 
+              initialQuestion={{ pathId: currentQuiz.pathId || '', subject: currentQuiz.subjectId || '', skillIds: [] }}
+              subjectId={currentQuiz.subjectId}
+              onSave={handleSaveNewQuestion}
+              onCancel={() => setIsAddQuestionModalOpen(false)}
+            />
+          )}
       </div>
     );
   }
