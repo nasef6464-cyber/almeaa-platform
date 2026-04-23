@@ -1,6 +1,6 @@
 
 import React, { useState, Suspense } from 'react';
-import { schedule, skillsData, saherUpcomingTests } from '../services/mockData';
+import { saherUpcomingTests } from '../services/mockData';
 import { 
     Clock, TrendingUp, AlertTriangle, Zap, FileText, 
     PieChart, Heart, Map, HelpCircle, LayoutDashboard, 
@@ -12,6 +12,7 @@ import { ProgressBar } from '../components/ui/ProgressBar';
 import { Link } from 'react-router-dom';
 import { SmartLearningPath } from '../components/SmartLearningPath';
 import { useStore } from '../store/useStore';
+import { QuizResult, SkillGap } from '../types';
 
 // Lazy Load Sub-Pages to optimize Dashboard initial load
 const Quizzes = React.lazy(() => import('./Quizzes'));
@@ -26,6 +27,69 @@ const TabLoading = () => (
         <Loader2 size={40} className="animate-spin" />
     </div>
 );
+
+const buildSmartPathSkillsFromResults = (examResults: QuizResult[]): SkillGap[] => {
+    if (!examResults || examResults.length === 0) return [];
+
+    const skillMap = new Map<string, {
+        skillId?: string;
+        pathId?: string;
+        subjectId?: string;
+        sectionId?: string;
+        section?: string;
+        skill: string;
+        masterySum: number;
+        attempts: number;
+    }>();
+
+    examResults.forEach(result => {
+        result.skillsAnalysis?.forEach(skill => {
+            const key = skill.skillId || [skill.pathId, skill.subjectId, skill.sectionId, skill.skill].join(':');
+            const existing = skillMap.get(key);
+
+            if (existing) {
+                existing.masterySum += skill.mastery;
+                existing.attempts += 1;
+                return;
+            }
+
+            skillMap.set(key, {
+                skillId: skill.skillId,
+                pathId: skill.pathId,
+                subjectId: skill.subjectId,
+                sectionId: skill.sectionId,
+                section: skill.section,
+                skill: skill.skill,
+                masterySum: skill.mastery,
+                attempts: 1
+            });
+        });
+    });
+
+    return Array.from(skillMap.values())
+        .map((item): SkillGap => {
+            const mastery = Math.round(item.masterySum / item.attempts);
+            const status: SkillGap['status'] = mastery < 50 ? 'weak' : mastery < 75 ? 'average' : 'strong';
+
+            return {
+                skillId: item.skillId,
+                pathId: item.pathId,
+                subjectId: item.subjectId,
+                sectionId: item.sectionId,
+                section: item.section,
+                skill: item.skill,
+                mastery,
+                status,
+                recommendation: status === 'weak'
+                    ? 'مراجعة عاجلة مع درس وتدريب'
+                    : status === 'average'
+                        ? 'تثبيت المهارة بتدريب إضافي'
+                        : 'استمرار وتمارين تعزيز'
+            };
+        })
+        .sort((a, b) => a.mastery - b.mastery)
+        .slice(0, 12);
+};
 
 const PathsTab = () => {
     const { paths: storePaths, courses, enrolledPaths, enrollPath, unenrollPath, enrolledCourses, completedLessons } = useStore();
@@ -154,11 +218,14 @@ const PathsTab = () => {
 };
 
 const SmartPathTab = () => {
+    const { examResults } = useStore();
+    const smartPathSkills = buildSmartPathSkillsFromResults(examResults);
+
     return (
         <div className="space-y-6 animate-fade-in">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">مسار التعلم الذكي</h2>
             <p className="text-gray-600 mb-8">نظام الذكاء الاصطناعي يحلل أداءك ويقترح لك أفضل الخطوات التالية لرفع مستواك.</p>
-            <SmartLearningPath skills={skillsData} />
+            <SmartLearningPath skills={smartPathSkills} />
         </div>
     );
 };
@@ -374,6 +441,7 @@ const Dashboard: React.FC = () => {
 // 1. OverviewTab (Smart Dashboard Content)
 const OverviewTab = ({ setActiveTab }: { setActiveTab: (tab: any) => void }) => {
     const { courses, user, enrolledCourses, completedLessons, examResults, recentActivity } = useStore();
+    const smartPathSkills = buildSmartPathSkillsFromResults(examResults);
     
     // Debugging logs as requested
     console.log("Dashboard Data:", { enrolledCourses, completedLessons, examResults });
@@ -625,8 +693,7 @@ const OverviewTab = ({ setActiveTab }: { setActiveTab: (tab: any) => void }) => 
                     )}
                 </section>
 
-                {/* Keep Smart Learning Path for now, but it could be replaced later */}
-                <SmartLearningPath skills={skillsData} />
+                <SmartLearningPath skills={smartPathSkills} />
             </div>
         </div>
     </div>
