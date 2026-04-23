@@ -88,7 +88,15 @@ export const Header: React.FC = () => {
       { id: '1', label: text.main, link: '/', iconName: 'home' },
     ];
 
-    const activePaths = paths.filter((path) => path.isActive !== false && path.showInNavbar !== false);
+    const activePaths = paths.filter(
+      (path) =>
+        path.isActive !== false &&
+        path.showInNavbar !== false &&
+        typeof path.id === 'string' &&
+        path.id.trim().length > 0 &&
+        typeof path.name === 'string' &&
+        path.name.trim().length > 0
+    );
     const topLevelPaths = activePaths.filter((path) => !path.parentPathId);
     const childPaths = activePaths.filter((path) => path.parentPathId);
 
