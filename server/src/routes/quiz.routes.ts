@@ -149,11 +149,10 @@ quizRouter.post(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = quizSchema.parse(req.body);
-    const resolvedSkillIds =
-      payload.questionIds.length > 0 ? await resolveQuizSkillIds(payload.questionIds) : payload.skillIds || [];
-    const created = await QuizModel.create({
-      ...payload,
-      skillIds: resolvedSkillIds,
+      const resolvedSkillIds = await resolveQuizSkillIds(payload.questionIds);
+      const created = await QuizModel.create({
+        ...payload,
+        skillIds: resolvedSkillIds,
     });
     res.status(StatusCodes.CREATED).json(created);
   }),
@@ -165,9 +164,9 @@ quizRouter.patch(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = quizSchema.partial().parse(req.body);
-    const resolvedSkillIds = payload.questionIds
-      ? await resolveQuizSkillIds(payload.questionIds)
-      : payload.skillIds;
+      const resolvedSkillIds = payload.questionIds
+        ? await resolveQuizSkillIds(payload.questionIds)
+        : undefined;
     const updated = await QuizModel.findOneAndUpdate(
       buildDocumentQuery(req.params.id),
       {

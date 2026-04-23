@@ -240,11 +240,14 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
       return;
     }
 
+    const quizPayload = { ...currentQuiz };
+    delete (quizPayload as any).skillIds;
+
     if (currentQuiz.id) {
-      updateQuiz(currentQuiz.id, currentQuiz as Quiz);
+      updateQuiz(currentQuiz.id, quizPayload as Quiz);
     } else {
       const newQuiz: Quiz = {
-        ...currentQuiz,
+        ...(quizPayload as Quiz),
         id: `quiz_${Date.now()}`,
         createdAt: Date.now(),
       } as Quiz;
