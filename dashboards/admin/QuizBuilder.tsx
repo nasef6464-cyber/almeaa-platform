@@ -301,6 +301,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
       .filter((item): item is { id: string; title: string; questionCount: number } => !!item)
       .sort((a, b) => b.questionCount - a.questionCount || a.title.localeCompare(b.title, 'ar'));
   }, [selectedQuestions, topics]);
+  const totalSelectedQuestions = selectedQuestions.length;
 
   if (isEditing) {
     return (
@@ -358,27 +359,27 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
               <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
                 <div className="grid grid-cols-2 gap-4 pb-4 border-b border-gray-100 mb-4">
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">?????? (??????? / ?????? ????????)</label>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">{'\u0627\u0644\u0645\u0633\u0627\u0631 (\u0627\u062e\u062a\u064a\u0627\u0631\u064a / \u0644\u062a\u0635\u0646\u064a\u0641 \u0627\u0644\u0627\u062e\u062a\u0628\u0627\u0631)'}</label>
                     <select
                       value={currentQuiz.pathId || ''}
                       onChange={(e) => setCurrentQuiz(prev => ({ ...prev, pathId: e.target.value, subjectId: '', skillIds: [] }))}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-gray-50"
                     >
-                      <option value="">-- ?? ???????? --</option>
+                      <option value="">{'-- \u0643\u0644 \u0627\u0644\u0645\u0633\u0627\u0631\u0627\u062a --'}</option>
                       {paths.map(path => (
                         <option key={path.id} value={path.id}>{path.name}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">?????? ????????</label>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">{'\u0627\u0644\u0645\u0627\u062f\u0629 \u0627\u0644\u0623\u0633\u0627\u0633\u064a\u0629'}</label>
                     <select
                       value={currentQuiz.subjectId || ''}
                       onChange={(e) => setCurrentQuiz(prev => ({ ...prev, subjectId: e.target.value, skillIds: [] }))}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-gray-50"
                       disabled={!!currentQuiz.pathId && subjects.filter(subject => subject.pathId === currentQuiz.pathId).length === 0}
                     >
-                      <option value="">-- ???? ?????? --</option>
+                      <option value="">{'-- \u0627\u062e\u062a\u0631 \u0627\u0644\u0645\u0627\u062f\u0629 --'}</option>
                       {subjects
                         .filter(subject => !currentQuiz.pathId || subject.pathId === currentQuiz.pathId)
                         .map(subject => (
@@ -389,36 +390,36 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">????? ????????</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">{'\u0639\u0646\u0648\u0627\u0646 \u0627\u0644\u0627\u062e\u062a\u0628\u0627\u0631'}</label>
                   <input
                     type="text"
                     value={currentQuiz.title || ''}
                     onChange={(e) => setCurrentQuiz(prev => ({ ...prev, title: e.target.value }))}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    placeholder="????: ?????? ???? - ???"
+                    placeholder={'\u0645\u062b\u0627\u0644: \u0627\u062e\u062a\u0628\u0627\u0631 \u0634\u0627\u0645\u0644 - \u0643\u0645\u064a'}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">??? ???????? (???????)</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">{'\u0648\u0635\u0641 \u0627\u0644\u0627\u062e\u062a\u0628\u0627\u0631 (\u0627\u062e\u062a\u064a\u0627\u0631\u064a)'}</label>
                   <textarea
                     value={currentQuiz.description || ''}
                     onChange={(e) => setCurrentQuiz(prev => ({ ...prev, description: e.target.value }))}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 h-24"
-                    placeholder="??? ???? ???? ?????? ??? ??? ????????..."
+                    placeholder={'\u0648\u0635\u0641 \u0642\u0635\u064a\u0631 \u064a\u0638\u0647\u0631 \u0644\u0644\u0637\u0644\u0627\u0628 \u0642\u0628\u0644 \u0628\u062f\u0621 \u0627\u0644\u0627\u062e\u062a\u0628\u0627\u0631...'}
                   />
                 </div>
 
                 <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div>
-                      <h4 className="text-sm font-bold text-gray-800">???????? ??????? ??????</h4>
+                      <h4 className="text-sm font-bold text-gray-800">{'\u0627\u0644\u0645\u0647\u0627\u0631\u0627\u062a \u0627\u0644\u0645\u0642\u0627\u0633\u0629 \u0641\u0639\u0644\u064a\u064b\u0627'}</h4>
                       <p className="text-xs text-gray-600 mt-1">
-                        ??? ??????? ????? ???????? ?? ??????? ??????? ??? ????????? ??? ???? ?????? ?? ???? ????? ????????.
+                        {'\u0647\u0630\u0647 \u0627\u0644\u0642\u0627\u0626\u0645\u0629 \u062a\u064f\u0628\u0646\u0649 \u062a\u0644\u0642\u0627\u0626\u064a\u064b\u0627 \u0645\u0646 \u0627\u0644\u0623\u0633\u0626\u0644\u0629 \u0627\u0644\u0645\u0636\u0627\u0641\u0629 \u0625\u0644\u0649 \u0627\u0644\u0627\u062e\u062a\u0628\u0627\u0631\u060c \u062d\u062a\u0649 \u062a\u0639\u0631\u0641 \u0645\u0628\u0627\u0634\u0631\u0629 \u0645\u0627 \u0627\u0644\u0630\u064a \u064a\u0642\u064a\u0633\u0647 \u0627\u0644\u0627\u062e\u062a\u0628\u0627\u0631.'}
                       </p>
                     </div>
                     <div className="text-xs font-bold text-indigo-700 bg-white border border-indigo-200 rounded-lg px-3 py-2">
-                      {selectedQuestions.length} ????
+                      {totalSelectedQuestions} {'\u0633\u0624\u0627\u0644'}
                     </div>
                   </div>
 
@@ -432,18 +433,18 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
                           >
                             {skill.title}
                             <span className="text-xs text-indigo-600 mr-2">
-                              ({skill.questionCount} ????)
+                              ({skill.questionCount} {'\u0633\u0624\u0627\u0644'} - {Math.round((skill.questionCount / totalSelectedQuestions) * 100)}%)
                             </span>
                           </span>
                         ))}
                       </div>
                       <div className="text-xs text-gray-600">
-                        ??? ???? ?? ???? ???????? ????? ??????? ??? ?????? ?????? ??????? ???? ??????? ?? ??? ???????.
+                        {'\u0625\u0630\u0627 \u0623\u0631\u062f\u062a \u0623\u0646 \u064a\u0642\u064a\u0633 \u0627\u0644\u0627\u062e\u062a\u0628\u0627\u0631 \u0645\u0647\u0627\u0631\u0629 \u0625\u0636\u0627\u0641\u064a\u0629\u060c \u0623\u0636\u0641 \u0633\u0624\u0627\u0644\u064b\u0627 \u062c\u062f\u064a\u062f\u064b\u0627 \u0645\u0631\u062a\u0628\u0637\u064b\u0627 \u0628\u0647\u0630\u0647 \u0627\u0644\u0645\u0647\u0627\u0631\u0629 \u0645\u0646 \u0628\u0646\u0643 \u0627\u0644\u0623\u0633\u0626\u0644\u0629.'}
                       </div>
                     </div>
                   ) : (
                     <div className="text-sm text-gray-600 bg-white border border-dashed border-indigo-200 rounded-lg p-4">
-                      ?? ??????? ?????? ???. ??? ????? ???????? ????? ??? ???????? ????? ???????? ???????? ???? ????????.
+                      {'\u0644\u0645 \u062a\u064f\u0633\u062a\u062e\u0631\u062c \u0645\u0647\u0627\u0631\u0627\u062a \u0628\u0639\u062f. \u0628\u0639\u062f \u0625\u0636\u0627\u0641\u0629 \u0627\u0644\u0623\u0633\u0626\u0644\u0629\u060c \u0633\u064a\u0638\u0647\u0631 \u0647\u0646\u0627 \u062a\u0644\u0642\u0627\u0626\u064a\u064b\u0627 \u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0645\u0647\u0627\u0631\u0627\u062a \u0627\u0644\u0645\u0648\u062c\u0648\u062f\u0629 \u062f\u0627\u062e\u0644 \u0627\u0644\u0627\u062e\u062a\u0628\u0627\u0631.'}
                     </div>
                   )}
                 </div>
