@@ -9,7 +9,7 @@ import { adapter } from '../services/adapter';
 import { Course } from '../types';
 
 const Courses: React.FC = () => {
-    const { enrolledCourses, completedLessons } = useStore();
+    const { user, enrolledCourses, completedLessons, hasScopedPackageAccess } = useStore();
     const [activeTab, setActiveTab] = useState<'enrolled' | 'active' | 'completed'>('active');
     const [searchQuery, setSearchQuery] = useState('');
     const [expandedCourseId, setExpandedCourseId] = useState<string | null>(null);
@@ -43,7 +43,12 @@ const Courses: React.FC = () => {
     // Map courses with dynamic progress based on completedLessons
     const coursesWithProgress = useMemo(() => {
         return courses.map(course => {
-            if (!enrolledCourses.includes(course.id)) return course;
+            const hasAccess =
+                enrolledCourses.includes(course.id) ||
+                (user.subscription?.purchasedCourses || []).includes(course.id) ||
+                hasScopedPackageAccess('courses', course.pathId || course.category, course.subjectId || course.subject);
+
+            if (!hasAccess) return course;
 
             let totalLessons = 0;
             let completedCount = 0;
@@ -65,14 +70,20 @@ const Courses: React.FC = () => {
                 isPurchased: true
             };
         });
-    }, [enrolledCourses, completedLessons]);
+    }, [courses, enrolledCourses, completedLessons, hasScopedPackageAccess, user.subscription?.purchasedCourses]);
 
     // Optimized Filter Logic with useMemo
-    const filteredCourses = useMemo(() => coursesWithProgress.filter(c => 
-        enrolledCourses.includes(c.id) &&
-        (c.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        c.category.toLowerCase().includes(searchQuery.toLowerCase()))
-    ), [searchQuery, coursesWithProgress, enrolledCourses]);
+    const filteredCourses = useMemo(() => {
+        return coursesWithProgress.filter(c => 
+            (
+                enrolledCourses.includes(c.id) ||
+                (user.subscription?.purchasedCourses || []).includes(c.id) ||
+                hasScopedPackageAccess('courses', c.pathId || c.category, c.subjectId || c.subject)
+            ) &&
+            (c.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+            c.category.toLowerCase().includes(searchQuery.toLowerCase()))
+        );
+    }, [searchQuery, coursesWithProgress, enrolledCourses, hasScopedPackageAccess, user.subscription?.purchasedCourses]);
 
     const displayedCourses = useMemo(() => activeTab === 'completed' 
         ? filteredCourses.filter(c => c.progress === 100)

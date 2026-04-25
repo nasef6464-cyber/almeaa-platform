@@ -8,6 +8,7 @@ import { SimulatedTestExperience } from './SimulatedTestExperience';
 import { FileModal } from './FileModal';
 import { PaymentModal } from './PaymentModal';
 import { useStore } from '../store/useStore';
+import { PackageContentType } from '../types';
 
 interface LearningSectionProps {
     category: string;
@@ -20,7 +21,7 @@ interface LearningSectionProps {
 export const LearningSection: React.FC<LearningSectionProps> = ({ category, subject, grade, title, colorTheme = 'indigo' }) => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const { subjects, courses, libraryItems, quizzes } = useStore();
+    const { user, enrolledCourses, subjects, courses, libraryItems, quizzes, hasScopedPackageAccess, getMatchingPackage } = useStore();
     const [activeTab, setActiveTab] = useState<'courses' | 'skills' | 'banks' | 'tests' | 'library'>('courses');
     const safeColorTheme = colorTheme.startsWith('#') ? 'indigo' : colorTheme;
     
@@ -44,6 +45,49 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
     const [selectedSkill, setSelectedSkill] = useState<any>(null);
     const [viewingFile, setViewingFile] = useState<any>(null);
     const [paymentModalData, setPaymentModalData] = useState<{ isOpen: boolean, item: any, type: string }>({ isOpen: false, item: null, type: '' });
+    const accessibleCourseIds = new Set([
+        ...enrolledCourses,
+        ...(user.subscription?.purchasedCourses || []),
+    ]);
+    const buildScopedPackageItem = (contentType: PackageContentType, fallbackTitle: string, fallbackDescription: string) => {
+        const matchedPackage = getMatchingPackage(contentType, category, subject);
+        if (!matchedPackage) {
+            return null;
+        }
+        const contentTypeLabels: Record<PackageContentType, string> = {
+            courses: 'الدورات',
+            foundation: 'التأسيس',
+            banks: 'التدريبات',
+            tests: 'الاختبارات',
+            library: 'المكتبة',
+            all: 'الباقة الشاملة',
+        };
+
+        return {
+            id: matchedPackage.id,
+            packageId: matchedPackage.id,
+            purchaseType: 'package',
+            title: matchedPackage.name || fallbackTitle,
+            price: 99,
+            currency: 'ر.س',
+            description: matchedPackage
+                ? `هذه الباقة تفتح ${contentTypeLabels[contentType]} في ${currentSubjectData?.name || subject}.`
+                : fallbackDescription,
+            contentTypes: matchedPackage.contentTypes || [contentType],
+            pathIds: matchedPackage.pathIds || [category],
+            subjectIds: matchedPackage.subjectIds || [subject],
+            includedCourseIds: matchedPackage.courseIds || [],
+            courseIds: matchedPackage.courseIds || [],
+        };
+    };
+
+    const hasCourseAccess = hasScopedPackageAccess('courses', category, subject);
+    const hasFoundationAccess = hasScopedPackageAccess('foundation', category, subject);
+    const hasBanksAccess = hasScopedPackageAccess('banks', category, subject);
+    const hasTestsAccess = hasScopedPackageAccess('tests', category, subject);
+    const hasLibraryAccess = hasScopedPackageAccess('library', category, subject);
+
+    const isPremiumLocked = (shouldLock?: boolean, accessGranted = false) => Boolean(shouldLock && !accessGranted);
 
     // Data Retrieval from Store
     let sectionCourses = courses.filter(c => {
@@ -92,7 +136,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                 totalLessons: totalLessons || 1,
                 completed: Math.floor((progress / 100) * (totalLessons || 1)),
                 totalQuizzes: totalQuizzes,
-                isLocked: settings.lockSkillsForNonSubscribers,
+                isLocked: isPremiumLocked(settings.lockSkillsForNonSubscribers, hasFoundationAccess),
                 progress: progress,
                 originalTopic: topic // Keep a reference to the real topic
             };
@@ -111,7 +155,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
         updated: new Date(q.createdAt).toISOString(),
         type: 'bank',
         level: 'متعدد',
-        isLocked: q.access.type !== 'free' || (settings.lockBanksForNonSubscribers),
+        isLocked: (q.access.type !== 'free' && !hasBanksAccess) || isPremiumLocked(settings.lockBanksForNonSubscribers, hasBanksAccess),
         duration: 'غير محدد'
     }));
 
@@ -122,12 +166,12 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
         questions: q.questionIds?.length || 0,
         type: 'simulated',
         level: 'متوسط',
-        isLocked: q.access.type !== 'free' || (settings.lockTestsForNonSubscribers)
+        isLocked: (q.access.type !== 'free' && !hasTestsAccess) || isPremiumLocked(settings.lockTestsForNonSubscribers, hasTestsAccess)
     }));
 
     let sectionLibraryItems = libraryItems.filter(item => item.subjectId === subject || item.subjectId === `${category}_${subject}`).map(item => ({
         ...item,
-        isLocked: settings.lockLibraryForNonSubscribers
+        isLocked: isPremiumLocked(settings.lockLibraryForNonSubscribers, hasLibraryAccess)
     }));
     banks = banks.filter((bank) => {
         const sourceQuiz = quizList.find((quiz) => quiz.id === bank.id);
@@ -145,7 +189,18 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
 
     const handleItemClick = (item: any, type: string) => {
         if (item.isLocked) {
-            setPaymentModalData({ isOpen: true, item, type });
+            const packageMap: Record<string, any> = {
+                skill: buildScopedPackageItem('foundation', 'باقة التأسيس', 'اشترك الآن لفتح موضوعات التأسيس والدروس المرتبطة بها.'),
+                bank: buildScopedPackageItem('banks', 'باقة التدريبات', 'اشترك الآن لفتح بنوك الأسئلة والتدريبات القصيرة.'),
+                test: buildScopedPackageItem('tests', 'باقة الاختبارات', 'اشترك الآن لفتح الاختبارات المحاكية والمركزية.'),
+                library: buildScopedPackageItem('library', 'باقة المكتبة', 'اشترك الآن لفتح ملفات المراجعة والمكتبة العلمية.'),
+            };
+            const matchedPackage = packageMap[type];
+            setPaymentModalData({
+                isOpen: true,
+                item: matchedPackage || item,
+                type: matchedPackage ? 'package' : type,
+            });
         } else {
             if (type === 'skill') setSelectedSkill(item);
             // Tests and Banks are handled by SimulatedTestExperience directly
@@ -167,7 +222,19 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
             <div className="animate-fade-in">
                 {activeTab === 'courses' && (
                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {sectionCourses.map((course) => (
+                        {sectionCourses.map((baseCourse) => {
+                            const coursePurchaseItem = buildScopedPackageItem(
+                                'courses',
+                                'باقة الدورات',
+                                'اشترك الآن لفتح الدورات المرتبطة بهذا المسار وهذه المادة.'
+                            );
+                            const course = {
+                                ...baseCourse,
+                                isPurchased: accessibleCourseIds.has(baseCourse.id) || hasCourseAccess || baseCourse.isPurchased,
+                            };
+                            const isPurchased = course.isPurchased;
+
+                            return (
                             <Card key={course.id} className={`flex flex-col overflow-hidden border-2 border-transparent hover:border-${safeColorTheme}-300 hover:shadow-xl transition-all duration-300 cursor-pointer rounded-3xl`}>
                                 <div className="relative h-48 bg-gray-900 group">
                                     <img 
@@ -175,7 +242,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                                         alt={course.title} 
                                         className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" 
                                     />
-                                    {!course.isPurchased && (
+                                    {!isPurchased && (
                                         <div className="absolute top-3 left-3 bg-black/50 backdrop-blur-md text-white p-2 rounded-full">
                                             <Lock size={16} />
                                         </div>
@@ -195,13 +262,26 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                                         <ProgressBar percentage={course.progress} showPercentage={false} color={safeColorTheme as any} />
                                     </div>
                                     <div className="mt-auto">
-                                        <Link to={`/course/${course.id}`} className={`w-full py-3 rounded-xl font-bold text-white shadow-md transition-transform hover:-translate-y-1 flex items-center justify-center bg-${safeColorTheme}-500 hover:bg-${safeColorTheme}-600`}>
+                                        {!isPurchased && (
+                                            <button
+                                                onClick={() => setPaymentModalData({
+                                                    isOpen: true,
+                                                    item: coursePurchaseItem || course,
+                                                    type: coursePurchaseItem ? 'package' : 'course',
+                                                })}
+                                                className={`w-full py-3 rounded-xl font-bold text-white shadow-md transition-transform hover:-translate-y-1 flex items-center justify-center bg-${safeColorTheme}-500 hover:bg-${safeColorTheme}-600 mb-0`}
+                                            >
+                                                اشترك الآن
+                                            </button>
+                                        )}
+                                        <Link to={`/course/${course.id}`} className={`w-full py-3 rounded-xl font-bold text-white shadow-md transition-transform hover:-translate-y-1 flex items-center justify-center bg-${safeColorTheme}-500 hover:bg-${safeColorTheme}-600 ${!isPurchased ? 'hidden' : ''}`}>
                                             {course.isPurchased ? (course.progress > 0 ? 'مواصلة التعلم' : 'ابدأ التعلم') : 'اشترك الآن'}
                                         </Link>
                                     </div>
                                 </div>
                             </Card>
-                        ))}
+                            );
+                        })}
                         {sectionCourses.length === 0 && (
                             <div className="col-span-full text-center py-12 text-gray-400">
                                 <MonitorPlay size={48} className="mx-auto mb-4 opacity-20" />
@@ -352,14 +432,21 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                 isOpen={paymentModalData.isOpen} 
                 onClose={() => setPaymentModalData({ isOpen: false, item: null, type: '' })} 
                 item={{
-                    id: paymentModalData.item?.id || 'pkg',
-                    title: `باقة ${paymentModalData.type === 'skill' ? 'التأسيس' : paymentModalData.type === 'bank' ? 'بنك الأسئلة' : paymentModalData.type === 'test' ? 'الاختبارات' : 'شاملة'}`,
-                    price: 99,
-                    currency: 'ر.س',
-                    description: `اشترك الآن للوصول إلى ${paymentModalData.item?.title || 'المحتوى'} والمزيد من المحتوى الحصري.`,
+                    ...paymentModalData.item,
+                    id: paymentModalData.item?.id,
+                    packageId: paymentModalData.item?.packageId,
+                    purchaseType: paymentModalData.item?.purchaseType || (paymentModalData.type === 'course' ? 'course' : 'package'),
+                    title: paymentModalData.item?.title || `باقة ${paymentModalData.type === 'skill' ? 'التأسيس' : paymentModalData.type === 'bank' ? 'بنك الأسئلة' : paymentModalData.type === 'test' ? 'الاختبارات' : 'شاملة'}`,
+                    price: paymentModalData.item?.price || 99,
+                    currency: paymentModalData.item?.currency || 'ر.س',
+                    description: paymentModalData.item?.description || `اشترك الآن للوصول إلى ${paymentModalData.item?.title || 'المحتوى'} والمزيد من المحتوى الحصري.`,
                     thumbnail: 'https://picsum.photos/seed/package/800/600',
                     features: ['وصول كامل للمحتوى', 'تحديثات مستمرة', 'دعم فني'],
-                    category: 'باقة اشتراك'
+                    category: 'باقة اشتراك',
+                    includedCourseIds: paymentModalData.item?.includedCourseIds || paymentModalData.item?.courseIds || [],
+                    contentTypes: paymentModalData.item?.contentTypes || ['all'],
+                    pathIds: paymentModalData.item?.pathIds || [category],
+                    subjectIds: paymentModalData.item?.subjectIds || [subject],
                 }}
                 type={paymentModalData.type as any}
             />

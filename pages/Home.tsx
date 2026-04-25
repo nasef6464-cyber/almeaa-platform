@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Clock, TrendingUp, AlertTriangle, Zap, FileText, PieChart, Heart, Map, HelpCircle } from 'lucide-react';
+﻿import React, { useMemo } from 'react';
+import { Clock, TrendingUp, AlertTriangle, Zap, FileText, PieChart, Heart, Map as MapIcon, HelpCircle } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { ProgressBar } from '../components/ui/ProgressBar';
 import { Link } from 'react-router-dom';
@@ -10,7 +10,7 @@ import { QuizResult, SkillGap } from '../types';
 const buildSmartPathSkillsFromResults = (examResults: QuizResult[]): SkillGap[] => {
   if (!examResults || examResults.length === 0) return [];
 
-  const skillMap = new Map<string, { skill: string; masterySum: number; attempts: number }>();
+  const skillMap = new globalThis.Map<string, { skill: string; masterySum: number; attempts: number }>();
 
   examResults.forEach((result) => {
     result.skillsAnalysis?.forEach((skill) => {
@@ -38,14 +38,29 @@ const buildSmartPathSkillsFromResults = (examResults: QuizResult[]): SkillGap[] 
 };
 
 const Home: React.FC = () => {
-  const { user, courses, enrolledCourses, completedLessons, examResults, recentActivity } = useStore();
+  const { user, courses, enrolledCourses, completedLessons, examResults, recentActivity, hasScopedPackageAccess } = useStore();
 
   const smartSkills = useMemo(() => buildSmartPathSkillsFromResults(examResults), [examResults]);
 
+  const accessibleCourseIds = useMemo(
+    () =>
+      new Set(
+        courses
+          .filter(
+            (course) =>
+              enrolledCourses.includes(course.id) ||
+              (user.subscription?.purchasedCourses || []).includes(course.id) ||
+              hasScopedPackageAccess('courses', course.pathId || course.category, course.subjectId || course.subject),
+          )
+          .map((course) => course.id),
+      ),
+    [courses, enrolledCourses, hasScopedPackageAccess, user.subscription?.purchasedCourses],
+  );
+
   const activeCourses = useMemo(() => {
-    const enrolled = courses.filter((course) => enrolledCourses.includes(course.id));
+    const enrolled = courses.filter((course) => accessibleCourseIds.has(course.id));
     return enrolled.length > 0 ? enrolled : courses.slice(0, 4);
-  }, [courses, enrolledCourses]);
+  }, [accessibleCourseIds, courses]);
 
   const scheduleItems = useMemo(() => {
     const pendingLessons = activeCourses
@@ -54,7 +69,7 @@ const Home: React.FC = () => {
           mod.lessons.map((lesson) => ({
             id: `${course.id}_${lesson.id}`,
             subject: `${course.title} - ${lesson.title}`,
-            duration: lesson.duration || '—',
+            duration: lesson.duration || 'â€”',
           }))
         )
       )
@@ -62,7 +77,7 @@ const Home: React.FC = () => {
       .slice(0, 3)
       .map((lesson, index) => ({
         ...lesson,
-        day: index === 0 ? 'اليوم' : 'هذا الأسبوع',
+        day: index === 0 ? 'Ø§Ù„ÙŠÙˆÙ…' : 'Ù‡Ø°Ø§ Ø§Ù„Ø£Ø³Ø¨ÙˆØ¹',
         status: index === 0 ? 'in-progress' : 'upcoming',
       }));
 
@@ -72,7 +87,7 @@ const Home: React.FC = () => {
       id: item.id,
       subject: item.title,
       day: new Date(item.date).toLocaleDateString('ar-SA'),
-      duration: '—',
+      duration: 'â€”',
       status: 'completed' as const,
     }));
   }, [activeCourses, completedLessons, recentActivity]);
@@ -81,12 +96,12 @@ const Home: React.FC = () => {
     <div className="space-y-8">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">مرحباً، {user.name.split(' ')[0]} 👋</h2>
-          <p className="text-gray-500">لنواصل رحلة التعلم اليوم</p>
+          <h2 className="text-2xl font-bold text-gray-800">Ù…Ø±Ø­Ø¨Ø§Ù‹ØŒ {user.name.split(' ')[0]} ðŸ‘‹</h2>
+          <p className="text-gray-500">Ù„Ù†ÙˆØ§ØµÙ„ Ø±Ø­Ù„Ø© Ø§Ù„ØªØ¹Ù„Ù… Ø§Ù„ÙŠÙˆÙ…</p>
         </div>
         <Link to="/gamification" className="bg-secondary-100 text-secondary-600 px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2">
           <TrendingUp size={16} />
-          المستوى 12
+          Ø§Ù„Ù…Ø³ØªÙˆÙ‰ 12
         </Link>
       </div>
 
@@ -97,49 +112,49 @@ const Home: React.FC = () => {
               <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center group-hover:bg-purple-100 transition-colors">
                 <Zap size={24} />
               </div>
-              <span className="font-bold text-gray-800 text-sm">الاختبارات المحاكية</span>
+              <span className="font-bold text-gray-800 text-sm">Ø§Ù„Ø§Ø®ØªØ¨Ø§Ø±Ø§Øª Ø§Ù„Ù…Ø­Ø§ÙƒÙŠØ©</span>
             </Link>
 
             <Link to="/quizzes" className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-3 group">
               <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center group-hover:bg-blue-100 transition-colors">
                 <FileText size={24} />
               </div>
-              <span className="font-bold text-gray-800 text-sm">اختباراتي</span>
+              <span className="font-bold text-gray-800 text-sm">Ø§Ø®ØªØ¨Ø§Ø±Ø§ØªÙŠ</span>
             </Link>
 
             <Link to="/reports" className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-3 group">
               <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center group-hover:bg-emerald-100 transition-colors">
                 <PieChart size={24} />
               </div>
-              <span className="font-bold text-gray-800 text-sm">تقاريري</span>
+              <span className="font-bold text-gray-800 text-sm">ØªÙ‚Ø§Ø±ÙŠØ±ÙŠ</span>
             </Link>
 
             <Link to="/favorites" className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-3 group">
               <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center group-hover:bg-rose-100 transition-colors">
                 <Heart size={24} />
               </div>
-              <span className="font-bold text-gray-800 text-sm">الأسئلة المفضلة</span>
+              <span className="font-bold text-gray-800 text-sm">Ø§Ù„Ø£Ø³Ø¦Ù„Ø© Ø§Ù„Ù…ÙØ¶Ù„Ø©</span>
             </Link>
 
             <Link to="/plan" className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-3 group">
               <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center group-hover:bg-indigo-100 transition-colors">
-                <Map size={24} />
+                <MapIcon size={24} />
               </div>
-              <span className="font-bold text-gray-800 text-sm">خُطتي</span>
+              <span className="font-bold text-gray-800 text-sm">Ø®ÙØ·ØªÙŠ</span>
             </Link>
 
             <Link to="/qa" className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-3 group">
               <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center group-hover:bg-amber-100 transition-colors">
                 <HelpCircle size={24} />
               </div>
-              <span className="font-bold text-gray-800 text-sm">سؤال وجواب</span>
+              <span className="font-bold text-gray-800 text-sm">Ø³Ø¤Ø§Ù„ ÙˆØ¬ÙˆØ§Ø¨</span>
             </Link>
           </div>
 
           <section>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">الكورسات النشطة</h3>
-              <Link to="/courses" className="text-primary-600 text-sm font-medium">عرض الكل</Link>
+              <h3 className="text-lg font-bold">Ø§Ù„ÙƒÙˆØ±Ø³Ø§Øª Ø§Ù„Ù†Ø´Ø·Ø©</h3>
+              <Link to="/courses" className="text-primary-600 text-sm font-medium">Ø¹Ø±Ø¶ Ø§Ù„ÙƒÙ„</Link>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               {activeCourses.map((course) => (
@@ -155,11 +170,11 @@ const Home: React.FC = () => {
                       <div className="flex justify-between items-start mb-2">
                         <span className="bg-gray-100 text-gray-600 text-[10px] px-2 py-1 rounded-full">{course.level}</span>
                         <div className="flex items-center text-amber-400 text-sm font-bold">
-                          <span>★</span> {course.rating}
+                          <span>â˜…</span> {course.rating}
                         </div>
                       </div>
                       <h4 className="font-bold text-gray-900 leading-snug mb-1">{course.title}</h4>
-                      <p className="text-xs text-gray-500 mb-3">المدرس: {course.instructor}</p>
+                      <p className="text-xs text-gray-500 mb-3">Ø§Ù„Ù…Ø¯Ø±Ø³: {course.instructor}</p>
                     </div>
                     <div className="space-y-3">
                       <div className="flex flex-wrap gap-2">
@@ -168,7 +183,7 @@ const Home: React.FC = () => {
                         ))}
                       </div>
                       <Link to={`/course/${course.id}`} className="block w-full bg-secondary-500 hover:bg-secondary-600 text-white text-center py-2 rounded-lg font-bold transition-colors">
-                        شراء / متابعة الكورس
+                        Ø´Ø±Ø§Ø¡ / Ù…ØªØ§Ø¨Ø¹Ø© Ø§Ù„ÙƒÙˆØ±Ø³
                       </Link>
                     </div>
                   </div>
@@ -183,7 +198,7 @@ const Home: React.FC = () => {
 
           <section>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">الجدول الدراسي</h3>
+              <h3 className="text-lg font-bold">Ø§Ù„Ø¬Ø¯ÙˆÙ„ Ø§Ù„Ø¯Ø±Ø§Ø³ÙŠ</h3>
             </div>
             <div className="space-y-3">
               {scheduleItems.map((item) => (
@@ -211,7 +226,7 @@ const Home: React.FC = () => {
                   </div>
                   <div className="text-left">
                     <span className="block font-bold text-gray-800">{item.duration}</span>
-                    {item.status === 'in-progress' && <span className="text-xs text-secondary-600 font-bold animate-pulse">جاري الآن</span>}
+                    {item.status === 'in-progress' && <span className="text-xs text-secondary-600 font-bold animate-pulse">Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø¢Ù†</span>}
                   </div>
                 </div>
               ))}
@@ -222,9 +237,9 @@ const Home: React.FC = () => {
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-bold flex items-center gap-2">
                 <AlertTriangle className="text-secondary-500" size={20} />
-                نقاط الضعف
+                Ù†Ù‚Ø§Ø· Ø§Ù„Ø¶Ø¹Ù
               </h3>
-              <Link to="/reports" className="text-xs text-primary-600 font-bold">التفاصيل</Link>
+              <Link to="/reports" className="text-xs text-primary-600 font-bold">Ø§Ù„ØªÙØ§ØµÙŠÙ„</Link>
             </div>
 
             <div className="space-y-6">
@@ -238,7 +253,7 @@ const Home: React.FC = () => {
                 </div>
               ))}
               {smartSkills.length === 0 && (
-                <p className="text-sm text-gray-500">ابدأ أول اختبار لتظهر لك نقاط التحسين تلقائيًا.</p>
+                <p className="text-sm text-gray-500">Ø§Ø¨Ø¯Ø£ Ø£ÙˆÙ„ Ø§Ø®ØªØ¨Ø§Ø± Ù„ØªØ¸Ù‡Ø± Ù„Ùƒ Ù†Ù‚Ø§Ø· Ø§Ù„ØªØ­Ø³ÙŠÙ† ØªÙ„Ù‚Ø§Ø¦ÙŠÙ‹Ø§.</p>
               )}
             </div>
           </section>
@@ -249,3 +264,4 @@ const Home: React.FC = () => {
 };
 
 export default Home;
+

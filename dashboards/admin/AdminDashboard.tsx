@@ -1,121 +1,421 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+    Activity,
+    Bell,
+    BookOpen,
+    Building2,
+    CreditCard,
+    FileQuestion,
+    FolderOpen,
+    LayoutDashboard,
+    Settings,
+    Target,
+    User,
+    Users,
+    Award,
+} from 'lucide-react';
 import { DashboardLayout } from '../../components/DashboardLayout';
+import { useStore } from '../../store/useStore';
+import { Role } from '../../types';
 import { UsersManager } from './UsersManager';
 import { SchoolsManager } from './SchoolsManager';
 import { PathsManager } from './PathsManager';
-import { QuizBuilder } from './QuizBuilder';
 import { QuestionBankManager } from './QuestionBankManager';
 import { LessonsManager } from './LessonsManager';
 import { QuizzesManager } from './QuizzesManager';
 import { SkillsTreeManager } from './SkillsTreeManager';
 import { FinancialManager } from './FinancialManager';
-import { 
-    LayoutDashboard, Users, BookOpen, FileQuestion, 
-    Target, Award, Building2, CreditCard, Bell, 
-    Activity, Settings, User, FolderOpen
-} from 'lucide-react';
+
+type ReviewQueueItem = {
+    id: string;
+    type: string;
+    title: string;
+    ownerType: string;
+};
+
+type TeacherContributionItem = {
+    id: string;
+    name: string;
+    managedPaths: number;
+    managedSubjects: number;
+    totalItems: number;
+    pendingItems: number;
+    approvedItems: number;
+    publishedItems: number;
+};
 
 export const AdminDashboard: React.FC = () => {
-    const [activeTab, setActiveTab] = useState('paths'); // Changed default to paths
+    const {
+        user,
+        users,
+        groups,
+        courses,
+        quizzes,
+        questions,
+        lessons,
+        libraryItems,
+        examResults,
+    } = useStore();
+    const [activeTab, setActiveTab] = useState(user.role === Role.ADMIN ? 'paths' : 'overview');
 
-    const menuItems = [
-        { id: 'overview', label: 'نظرة عامة', icon: <LayoutDashboard size={20} /> },
-        { id: 'paths', label: 'إدارة المسارات (مساحات العمل)', icon: <FolderOpen size={20} /> },
-        { id: 'lessons', label: 'مركز الدروس', icon: <BookOpen size={20} /> },
-        { id: 'quizzes', label: 'مركز الاختبارات', icon: <FileQuestion size={20} /> },
-        { id: 'questions', label: 'مركز الأسئلة', icon: <Target size={20} /> },
-        { id: 'skills', label: 'مركز المهارات', icon: <Award size={20} /> },
-        { id: 'users', label: 'إدارة المستخدمين', icon: <Users size={20} /> },
-        { id: 'groups', label: 'المجموعات والمدارس', icon: <Building2 size={20} /> },
-        { id: 'financial', label: 'المالية والاشتراكات', icon: <CreditCard size={20} /> },
-        { id: 'notifications', label: 'الإشعارات', icon: <Bell size={20} /> },
-        { id: 'monitoring', label: 'مراقبة النظام', icon: <Activity size={20} /> },
-        { id: 'settings', label: 'الإعدادات', icon: <Settings size={20} /> },
-    ];
+    const overviewStats = useMemo(() => {
+        const pendingCourses = courses.filter((item) => item.approvalStatus === 'pending_review').length;
+        const pendingLessons = lessons.filter((item) => item.approvalStatus === 'pending_review').length;
+        const pendingQuestions = questions.filter((item) => item.approvalStatus === 'pending_review').length;
+        const pendingQuizzes = quizzes.filter((item) => item.approvalStatus === 'pending_review').length;
+        const pendingLibrary = libraryItems.filter((item) => item.approvalStatus === 'pending_review').length;
+        const totalStudents = users.filter((user) => user.role === Role.STUDENT).length;
+        const totalTeachers = users.filter((user) => user.role === Role.TEACHER).length;
+        const totalSchools = groups.filter((group) => group.type === 'SCHOOL').length;
+
+        return {
+            totalStudents,
+            totalTeachers,
+            totalSchools,
+            totalResults: examResults.length,
+            pendingReview: pendingCourses + pendingLessons + pendingQuestions + pendingQuizzes + pendingLibrary,
+            pendingBreakdown: {
+                courses: pendingCourses,
+                lessons: pendingLessons,
+                questions: pendingQuestions,
+                quizzes: pendingQuizzes,
+                library: pendingLibrary,
+            },
+        };
+    }, [courses, examResults.length, groups, lessons, libraryItems, questions, quizzes, users]);
+
+    const reviewQueue = useMemo<ReviewQueueItem[]>(() => {
+        const normalizeItem = (
+            type: string,
+            item: { id: string; title?: string; question?: string; name?: string; ownerType?: string; approvalStatus?: string },
+        ): ReviewQueueItem => ({
+            id: `${type}-${item.id}`,
+            type,
+            title: item.title || item.name || item.question || 'عنصر بدون عنوان',
+            ownerType: item.ownerType || 'platform',
+        });
+
+        return [
+            ...courses.filter((item) => item.approvalStatus === 'pending_review').map((item) => normalizeItem('دورة', item)),
+            ...lessons.filter((item) => item.approvalStatus === 'pending_review').map((item) => normalizeItem('درس', item)),
+            ...questions.filter((item) => item.approvalStatus === 'pending_review').map((item) => normalizeItem('سؤال', item)),
+            ...quizzes.filter((item) => item.approvalStatus === 'pending_review').map((item) => normalizeItem('اختبار', item)),
+            ...libraryItems.filter((item) => item.approvalStatus === 'pending_review').map((item) => normalizeItem('ملف', item)),
+        ].slice(0, 8);
+    }, [courses, lessons, libraryItems, questions, quizzes]);
+
+    const teacherContributionStats = useMemo<TeacherContributionItem[]>(() => {
+        const teachers = users.filter((item) => item.role === Role.TEACHER);
+
+        const countTeacherItems = (teacherId: string) => {
+            const matchesTeacher = (item: {
+                ownerId?: string;
+                createdBy?: string;
+                assignedTeacherId?: string;
+                approvalStatus?: string;
+                isPublished?: boolean;
+            }) =>
+                item.ownerId === teacherId || item.createdBy === teacherId || item.assignedTeacherId === teacherId;
+
+            const teacherItems = [
+                ...courses.filter(matchesTeacher),
+                ...lessons.filter(matchesTeacher),
+                ...questions.filter(matchesTeacher),
+                ...quizzes.filter(matchesTeacher),
+                ...libraryItems.filter(matchesTeacher),
+            ];
+
+            return {
+                totalItems: teacherItems.length,
+                pendingItems: teacherItems.filter((item) => item.approvalStatus === 'pending_review').length,
+                approvedItems: teacherItems.filter((item) => item.approvalStatus === 'approved').length,
+                publishedItems: teacherItems.filter((item) => 'isPublished' in item && !!item.isPublished).length,
+            };
+        };
+
+        return teachers
+            .map((teacher) => {
+                const counts = countTeacherItems(teacher.id);
+                return {
+                    id: teacher.id,
+                    name: teacher.name,
+                    managedPaths: teacher.managedPathIds?.length || 0,
+                    managedSubjects: teacher.managedSubjectIds?.length || 0,
+                    ...counts,
+                };
+            })
+            .filter((teacher) => teacher.totalItems > 0 || teacher.managedPaths > 0 || teacher.managedSubjects > 0)
+            .sort((a, b) => b.pendingItems - a.pendingItems || b.totalItems - a.totalItems)
+            .slice(0, 8);
+    }, [courses, lessons, libraryItems, questions, quizzes, users]);
+
+    const currentTeacherContribution = useMemo(
+        () => teacherContributionStats.find((item) => item.id === user.id) || null,
+        [teacherContributionStats, user.id],
+    );
+
+    const menuItems = useMemo(() => {
+        const adminItems = [
+            { id: 'overview', label: 'نظرة عامة', icon: <LayoutDashboard size={20} /> },
+            { id: 'paths', label: 'إدارة المسارات (مساحات العمل)', icon: <FolderOpen size={20} /> },
+            { id: 'lessons', label: 'مركز الدروس', icon: <BookOpen size={20} /> },
+            { id: 'quizzes', label: 'مركز الاختبارات', icon: <FileQuestion size={20} /> },
+            { id: 'questions', label: 'مركز الأسئلة', icon: <Target size={20} /> },
+            { id: 'skills', label: 'مركز المهارات', icon: <Award size={20} /> },
+            { id: 'users', label: 'إدارة المستخدمين', icon: <Users size={20} /> },
+            { id: 'groups', label: 'المجموعات والمدارس', icon: <Building2 size={20} /> },
+            { id: 'financial', label: 'المالية والاشتراكات', icon: <CreditCard size={20} /> },
+            { id: 'notifications', label: 'الإشعارات', icon: <Bell size={20} /> },
+            { id: 'monitoring', label: 'مراقبة النظام', icon: <Activity size={20} /> },
+            { id: 'settings', label: 'الإعدادات', icon: <Settings size={20} /> },
+        ];
+
+        if (user.role === Role.TEACHER) {
+            return adminItems.filter((item) => ['overview', 'lessons', 'quizzes', 'questions', 'skills'].includes(item.id));
+        }
+
+        if (user.role === Role.SUPERVISOR) {
+            return adminItems.filter((item) => ['overview', 'quizzes', 'questions', 'skills'].includes(item.id));
+        }
+
+        return adminItems;
+    }, [user.role]);
+
+    useEffect(() => {
+        if (!menuItems.some((item) => item.id === activeTab)) {
+            setActiveTab(menuItems[0]?.id || 'overview');
+        }
+    }, [activeTab, menuItems]);
 
     const renderSidebar = () => (
         <div className="py-6 space-y-1">
             <div className="mb-8 px-6">
                 <h2 className="text-xl font-bold text-gray-900">لوحة الإدارة</h2>
-                <p className="text-sm text-gray-500 mt-1">التحكم الكامل بالمنصة</p>
+                <p className="text-sm text-gray-500 mt-1">
+                    {user.role === Role.ADMIN ? 'التحكم الكامل بالمنصة' : user.role === Role.TEACHER ? 'لوحة تشغيل المعلم والمحتوى' : 'لوحة متابعة المشرف'}
+                </p>
             </div>
-            {menuItems.map(item => (
+            {menuItems.map((item) => (
                 <button
                     key={item.id}
                     onClick={() => setActiveTab(item.id)}
                     className={`w-full flex items-center gap-3 px-6 py-3 transition-colors ${
-                        activeTab === item.id 
-                        ? 'bg-amber-50 text-amber-600 font-bold border-r-4 border-amber-500' 
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border-r-4 border-transparent'
+                        activeTab === item.id
+                            ? 'bg-amber-50 text-amber-600 font-bold border-r-4 border-amber-500'
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border-r-4 border-transparent'
                     }`}
                 >
-                    <div className={`${activeTab === item.id ? 'text-amber-500' : 'text-gray-400'}`}>
-                        {item.icon}
-                    </div>
+                    <div className={activeTab === item.id ? 'text-amber-500' : 'text-gray-400'}>{item.icon}</div>
                     <span className="text-sm">{item.label}</span>
                 </button>
             ))}
         </div>
     );
 
+    const renderOverview = () => (
+        <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-bold text-gray-900">نظرة عامة (Overview)</h1>
+                <div className="text-sm text-gray-500 bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm">
+                    آخر تحديث: مباشر من بيانات المنصة
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                    {
+                        title: 'إجمالي الطلاب',
+                        value: overviewStats.totalStudents.toLocaleString('ar-EG'),
+                        trend: `${overviewStats.totalSchools} مدرسة`,
+                        color: 'text-blue-600',
+                        bg: 'bg-blue-50',
+                    },
+                    {
+                        title: 'المعلمون النشطون',
+                        value: overviewStats.totalTeachers.toLocaleString('ar-EG'),
+                        trend: 'بصلاحيات تدريس',
+                        color: 'text-emerald-600',
+                        bg: 'bg-emerald-50',
+                    },
+                    {
+                        title: 'المحتوى بانتظار اعتماد',
+                        value: overviewStats.pendingReview.toLocaleString('ar-EG'),
+                        trend: `${overviewStats.pendingBreakdown.questions} سؤال / ${overviewStats.pendingBreakdown.lessons} درس`,
+                        color: 'text-purple-600',
+                        bg: 'bg-purple-50',
+                    },
+                    {
+                        title: 'نتائج الاختبارات',
+                        value: overviewStats.totalResults.toLocaleString('ar-EG'),
+                        trend: `${overviewStats.pendingBreakdown.quizzes} اختبارًا معلقًا`,
+                        color: 'text-amber-600',
+                        bg: 'bg-amber-50',
+                    },
+                ].map((kpi) => (
+                    <div key={kpi.title} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start">
+                            <h3 className="text-gray-500 text-sm font-medium">{kpi.title}</h3>
+                            <span className={`text-xs font-bold px-2 py-1 rounded-full ${kpi.bg} ${kpi.color}`}>
+                                {kpi.trend}
+                            </span>
+                        </div>
+                        <p className="text-3xl font-bold text-gray-900 mt-4">{kpi.value}</p>
+                    </div>
+                ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-96">
+                    <div className="flex items-center justify-between mb-5">
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-900">مؤشرات الاعتماد والتشغيل</h3>
+                            <p className="text-sm text-gray-500 mt-1">توزيع العناصر التي تنتظر اعتمادك الآن حسب نوع المحتوى.</p>
+                        </div>
+                        <div className="text-sm text-amber-600 font-bold">
+                            {overviewStats.pendingReview.toLocaleString('ar-EG')} عنصر
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {[
+                            { label: 'الدورات', value: overviewStats.pendingBreakdown.courses, color: 'bg-blue-500' },
+                            { label: 'الدروس', value: overviewStats.pendingBreakdown.lessons, color: 'bg-emerald-500' },
+                            { label: 'الأسئلة', value: overviewStats.pendingBreakdown.questions, color: 'bg-purple-500' },
+                            { label: 'الاختبارات', value: overviewStats.pendingBreakdown.quizzes, color: 'bg-amber-500' },
+                            { label: 'ملفات المكتبة', value: overviewStats.pendingBreakdown.library, color: 'bg-pink-500' },
+                        ].map((item) => {
+                            const percentage = overviewStats.pendingReview
+                                ? Math.round((item.value / overviewStats.pendingReview) * 100)
+                                : 0;
+
+                            return (
+                                <div key={item.label} className="border border-gray-100 rounded-xl p-4 bg-gray-50/60">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <span className="font-bold text-gray-900">{item.label}</span>
+                                        <span className="text-sm text-gray-500">{item.value}</span>
+                                    </div>
+                                    <div className="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
+                                        <div
+                                            className={`h-full ${item.color}`}
+                                            style={{ width: `${Math.max(percentage, item.value ? 8 : 0)}%` }}
+                                        />
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-2">يمثل {percentage}% من طابور المراجعة الحالي.</p>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-96 flex flex-col">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">أحدث ما ينتظر الاعتماد</h3>
+                    <div className="flex-1 overflow-y-auto space-y-4">
+                        {reviewQueue.length === 0 ? (
+                            <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-400">
+                                <Activity size={42} className="mb-3 text-gray-200" />
+                                <p className="font-medium">لا يوجد محتوى معلق الآن</p>
+                                <p className="text-xs mt-1">كل ما أضيفه المعلمون تمت مراجعته أو لا يزال في المسودة.</p>
+                            </div>
+                        ) : (
+                            reviewQueue.map((item) => (
+                                <div key={item.id} className="flex items-start gap-3 pb-4 border-b border-gray-50 last:border-0">
+                                    <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                                        <User size={14} className="text-amber-600" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-sm text-gray-800 font-bold truncate">{item.title}</p>
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            {item.type} • المصدر: {item.ownerType === 'teacher' ? 'معلم' : item.ownerType === 'school' ? 'مدرسة' : 'المنصة'}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {(user.role === Role.ADMIN || user.role === Role.TEACHER) && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {user.role === Role.ADMIN && (
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                            <div className="flex items-center justify-between mb-5">
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-900">نشاط المعلمين واعتماد المحتوى</h3>
+                                    <p className="text-sm text-gray-500 mt-1">المعلمون الأكثر إضافة للمحتوى والنطاقات المسندة لهم الآن.</p>
+                                </div>
+                                <div className="text-sm text-emerald-600 font-bold">
+                                    {teacherContributionStats.length.toLocaleString('ar-EG')} معلم
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                {teacherContributionStats.length > 0 ? teacherContributionStats.map((teacher) => (
+                                    <div key={teacher.id} className="border border-gray-100 rounded-xl p-4 bg-gray-50/70">
+                                        <div className="flex items-center justify-between gap-3 mb-2">
+                                            <div className="font-bold text-gray-900">{teacher.name}</div>
+                                            <div className="text-sm font-black text-amber-600">{teacher.pendingItems}</div>
+                                        </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-gray-600">
+                                            <div>الإجمالي: <span className="font-bold text-gray-900">{teacher.totalItems}</span></div>
+                                            <div>معتمد: <span className="font-bold text-emerald-700">{teacher.approvedItems}</span></div>
+                                            <div>منشور: <span className="font-bold text-indigo-700">{teacher.publishedItems}</span></div>
+                                            <div>بانتظارك: <span className="font-bold text-amber-700">{teacher.pendingItems}</span></div>
+                                        </div>
+                                        <div className="mt-2 text-xs text-gray-500">
+                                            المسارات المسندة: <span className="font-bold">{teacher.managedPaths}</span>
+                                            {' • '}
+                                            المواد المسندة: <span className="font-bold">{teacher.managedSubjects}</span>
+                                        </div>
+                                    </div>
+                                )) : (
+                                    <div className="border border-dashed border-gray-200 rounded-xl p-4 text-sm text-gray-500">
+                                        لا توجد مساهمات معلمين ظاهرة بعد داخل المنصة.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {user.role === Role.TEACHER && (
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                            <div className="flex items-center justify-between mb-5">
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-900">نطاق عملي الحالي</h3>
+                                    <p className="text-sm text-gray-500 mt-1">أي إضافة جديدة منك ستظهر أولًا في طابور المراجعة حتى اعتمادها من الإدارة.</p>
+                                </div>
+                                <div className="text-sm text-indigo-600 font-bold">معلم مادة</div>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="rounded-xl bg-indigo-50 p-4">
+                                    <div className="text-xs text-indigo-600 mb-1">المسارات المسندة</div>
+                                    <div className="text-2xl font-black text-indigo-700">{user.managedPathIds?.length || 0}</div>
+                                </div>
+                                <div className="rounded-xl bg-emerald-50 p-4">
+                                    <div className="text-xs text-emerald-600 mb-1">المواد المسندة</div>
+                                    <div className="text-2xl font-black text-emerald-700">{user.managedSubjectIds?.length || 0}</div>
+                                </div>
+                                <div className="rounded-xl bg-amber-50 p-4">
+                                    <div className="text-xs text-amber-600 mb-1">بانتظار الاعتماد</div>
+                                    <div className="text-2xl font-black text-amber-700">{currentTeacherContribution?.pendingItems || 0}</div>
+                                </div>
+                                <div className="rounded-xl bg-purple-50 p-4">
+                                    <div className="text-xs text-purple-600 mb-1">محتوى منشور</div>
+                                    <div className="text-2xl font-black text-purple-700">{currentTeacherContribution?.publishedItems || 0}</div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+
     const renderContent = () => {
         switch (activeTab) {
             case 'overview':
-                return (
-                    <div className="space-y-6 animate-fade-in">
-                        <div className="flex items-center justify-between">
-                            <h1 className="text-2xl font-bold text-gray-900">نظرة عامة (Overview)</h1>
-                            <div className="text-sm text-gray-500 bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm">
-                                آخر تحديث: اليوم، 10:30 صباحاً
-                            </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {/* KPI Cards */}
-                            {[
-                                { title: 'إجمالي الطلاب', value: '1,245', trend: '+12%', color: 'text-blue-600', bg: 'bg-blue-50' },
-                                { title: 'الدورات النشطة', value: '34', trend: '+2', color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                                { title: 'الاختبارات المنجزة', value: '8,920', trend: '+150', color: 'text-purple-600', bg: 'bg-purple-50' },
-                                { title: 'الإيرادات (الشهر)', value: 'SAR 45,200', trend: '+5%', color: 'text-amber-600', bg: 'bg-amber-50' }
-                            ].map((kpi, i) => (
-                                <div key={i} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                                    <div className="flex justify-between items-start">
-                                        <h3 className="text-gray-500 text-sm font-medium">{kpi.title}</h3>
-                                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${kpi.bg} ${kpi.color}`}>
-                                            {kpi.trend}
-                                        </span>
-                                    </div>
-                                    <p className="text-3xl font-bold text-gray-900 mt-4">{kpi.value}</p>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-96 flex flex-col items-center justify-center">
-                                <Activity size={48} className="text-gray-200 mb-4" />
-                                <p className="text-gray-400 font-medium">مساحة للرسوم البيانية (Analytics Chart)</p>
-                                <p className="text-gray-400 text-sm mt-2">سيتم دمج مكتبة Recharts هنا</p>
-                            </div>
-                            
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-96 flex flex-col">
-                                <h3 className="text-lg font-bold text-gray-900 mb-4">أحدث النشاطات</h3>
-                                <div className="flex-1 overflow-y-auto space-y-4">
-                                    {[1, 2, 3, 4, 5].map((_, i) => (
-                                        <div key={i} className="flex items-start gap-3 pb-4 border-b border-gray-50 last:border-0">
-                                            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-                                                <User size={14} className="text-amber-600" />
-                                            </div>
-                                            <div>
-                                                <p className="text-sm text-gray-800">طالب جديد انضم للمنصة</p>
-                                                <p className="text-xs text-gray-400 mt-1">منذ {i + 1} ساعة</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                );
+                return renderOverview();
             case 'paths':
                 return <PathsManager />;
             case 'lessons':
@@ -138,14 +438,14 @@ export const AdminDashboard: React.FC = () => {
                         <div className="text-center max-w-sm">
                             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-amber-50 mb-6">
                                 <div className="text-amber-500 scale-150">
-                                    {menuItems.find(m => m.id === activeTab)?.icon}
+                                    {menuItems.find((item) => item.id === activeTab)?.icon}
                                 </div>
                             </div>
                             <h2 className="text-2xl font-bold text-gray-900 mb-3">
-                                {menuItems.find(m => m.id === activeTab)?.label}
+                                {menuItems.find((item) => item.id === activeTab)?.label}
                             </h2>
                             <p className="text-gray-500 leading-relaxed">
-                                هذا القسم قيد التطوير. سيتم إضافة واجهات التحكم والإدارة الخاصة بهذا القسم قريباً.
+                                هذا القسم قيد التطوير. سيتم إضافة واجهات التحكم والإدارة الخاصة به قريبًا.
                             </p>
                         </div>
                     </div>

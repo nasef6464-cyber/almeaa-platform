@@ -4,6 +4,20 @@ import { env } from "../config/env.js";
 import { verifyAccessToken } from "../utils/jwt.js";
 import type { AppRole } from "../constants/roles.js";
 
+function resolveAuthUser(req: Request) {
+  const raw = req.headers.authorization;
+  if (!raw?.startsWith("Bearer ")) {
+    return null;
+  }
+
+  try {
+    const token = raw.replace("Bearer ", "");
+    return verifyAccessToken(token);
+  } catch {
+    return null;
+  }
+}
+
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const ip = req.ip || req.socket.remoteAddress || "";
   const isLocalRequest =
@@ -22,22 +36,41 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     return next();
   }
 
-  const raw = req.headers.authorization;
-  if (!raw?.startsWith("Bearer ")) {
+  const authUser = resolveAuthUser(req);
+  if (!authUser) {
     return res.status(StatusCodes.UNAUTHORIZED).json({
       message: "Authentication required",
     });
   }
 
-  try {
-    const token = raw.replace("Bearer ", "");
-    req.authUser = verifyAccessToken(token);
+  req.authUser = authUser;
+  return next();
+}
+
+export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
+  const ip = req.ip || req.socket.remoteAddress || "";
+  const isLocalRequest =
+    ip.includes("127.0.0.1") ||
+    ip.includes("::1") ||
+    req.hostname === "localhost" ||
+    req.hostname === "127.0.0.1";
+
+  if (env.DEV_LOCAL_ADMIN_BYPASS && isLocalRequest) {
+    req.authUser = {
+      id: "local-dev-admin",
+      email: env.ADMIN_EMAIL,
+      role: "admin",
+      name: env.ADMIN_NAME,
+    };
     return next();
-  } catch {
-    return res.status(StatusCodes.UNAUTHORIZED).json({
-      message: "Invalid or expired token",
-    });
   }
+
+  const authUser = resolveAuthUser(req);
+  if (authUser) {
+    req.authUser = authUser;
+  }
+
+  return next();
 }
 
 export function requireRole(allowedRoles: AppRole[]) {

@@ -4,6 +4,7 @@ import { Card } from './ui/Card';
 import { ProgressBar } from './ui/ProgressBar';
 import { DetailedAnalysisModal } from './DetailedAnalysisModal';
 import { VideoModal } from './VideoModal';
+import { PaymentModal } from './PaymentModal';
 import { Link } from 'react-router-dom';
 
 interface Test {
@@ -36,6 +37,7 @@ export const SimulatedTestExperience: React.FC<SimulatedTestExperienceProps> = (
     const [showExplanation, setShowExplanation] = useState(false);
     const [videoData, setVideoData] = useState<{ url: string; title: string } | null>(null);
     const [favorites, setFavorites] = useState<Record<number, boolean>>({});
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
 
     const toggleFavorite = (idx: number) => {
         setFavorites(prev => ({ ...prev, [idx]: !prev[idx] }));
@@ -160,11 +162,17 @@ export const SimulatedTestExperience: React.FC<SimulatedTestExperienceProps> = (
                     <p className="text-gray-600 mb-8">اشترك الآن لتتمكن من فتح جميع {mode === 'bank' ? 'بنوك الأسئلة' : 'الاختبارات المحاكية'} والتدرب بشكل احترافي.</p>
                     
                     <div className="space-y-3">
-                        <button className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-md flex items-center justify-center gap-2">
+                        <button
+                            onClick={() => setShowPaymentModal(true)}
+                            className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-md flex items-center justify-center gap-2"
+                        >
                             <Star size={18} className="fill-current" />
                             اشترك في الباقة الكاملة ⭐
                         </button>
-                        <button className="w-full bg-white text-indigo-600 border-2 border-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-50 transition-colors">
+                        <button
+                            onClick={() => setShowPaymentModal(true)}
+                            className="w-full bg-white text-indigo-600 border-2 border-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-50 transition-colors"
+                        >
                             اشترك في باقة الاختبارات فقط
                         </button>
                         <button onClick={() => setTestState('list')} className="w-full text-gray-500 py-2 font-medium hover:text-gray-700 transition-colors mt-2">
@@ -172,6 +180,19 @@ export const SimulatedTestExperience: React.FC<SimulatedTestExperienceProps> = (
                         </button>
                     </div>
                 </div>
+                <PaymentModal
+                    isOpen={showPaymentModal}
+                    onClose={() => setShowPaymentModal(false)}
+                    item={{
+                        id: `locked-${mode}-${selectedTest?.id || 'content'}`,
+                        packageId: `locked-${mode}-${selectedTest?.id || 'content'}`,
+                        purchaseType: 'package',
+                        title: selectedTest?.title || (mode === 'bank' ? 'Ø¨Ø§Ù‚Ø© Ø§Ù„ØªØ¯Ø±ÙŠØ¨' : 'Ø¨Ø§Ù‚Ø© Ø§Ù„Ø§Ø®ØªØ¨Ø§Ø±Ø§Øª'),
+                        price: 99,
+                        currency: 'Ø±.Ø³',
+                    }}
+                    type={mode === 'bank' ? 'package' : 'test'}
+                />
             </div>
         );
     }

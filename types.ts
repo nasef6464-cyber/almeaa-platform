@@ -7,6 +7,21 @@ export enum Role {
     PARENT = 'parent'
 }
 
+export type ContentOwnerType = 'platform' | 'teacher' | 'school';
+export type ContentApprovalStatus = 'draft' | 'pending_review' | 'approved' | 'rejected';
+
+export interface ContentWorkflow {
+    ownerType?: ContentOwnerType;
+    ownerId?: string;
+    createdBy?: string;
+    assignedTeacherId?: string;
+    approvalStatus?: ContentApprovalStatus;
+    approvedBy?: string;
+    approvedAt?: number;
+    reviewerNotes?: string;
+    revenueSharePercentage?: number;
+}
+
 export type LessonType = 'video' | 'quiz' | 'file' | 'assignment' | 'text' | 'live_youtube' | 'zoom' | 'google_meet' | 'teams';
 
 export interface InteractiveQuestion {
@@ -23,7 +38,7 @@ export interface InteractiveQuestion {
     rewatchTimestamp?: number; // where to go back if failed
 }
 
-export interface Lesson {
+export interface Lesson extends ContentWorkflow {
     id: string;
     title: string;
     description?: string;
@@ -72,7 +87,7 @@ export interface CourseQA {
     date: string;
 }
 
-export interface Course {
+export interface Course extends ContentWorkflow {
     id: string;
     title: string;
     thumbnail: string;
@@ -293,7 +308,7 @@ export interface QuizAccess {
     allowedGroupIds?: string[];
 }
 
-export interface Quiz {
+export interface Quiz extends ContentWorkflow {
     id: string;
     title: string;
     description?: string;
@@ -313,7 +328,7 @@ export interface Quiz {
     dueDate?: string;
 }
 
-export interface Question {
+export interface Question extends ContentWorkflow {
     id: string;
     text: string;
     options: string[];
@@ -352,6 +367,8 @@ export interface UserSubscription {
     purchasedPackages: string[];
 }
 
+export type PackageContentType = 'courses' | 'foundation' | 'banks' | 'tests' | 'library' | 'all';
+
 export interface User {
     id: string;
     name: string;
@@ -364,6 +381,9 @@ export interface User {
     isActive?: boolean;
     schoolId?: string;
     groupIds?: string[];
+    linkedStudentIds?: string[];
+    managedPathIds?: string[];
+    managedSubjectIds?: string[];
 }
 
 export type GroupType = 'SCHOOL' | 'CLASS' | 'PRIVATE_GROUP';
@@ -373,6 +393,9 @@ export interface B2BPackage {
     schoolId: string;
     name: string;
     courseIds: string[];
+    contentTypes: PackageContentType[];
+    pathIds: string[];
+    subjectIds: string[];
     type: 'free_access' | 'discounted';
     discountPercentage?: number;
     maxStudents: number;
@@ -437,7 +460,7 @@ export interface FavoriteQuestion {
     dateAdded: string;
 }
 
-export interface LibraryItem {
+export interface LibraryItem extends ContentWorkflow {
     id: string;
     title: string;
     size: string;

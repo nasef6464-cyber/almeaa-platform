@@ -9,22 +9,60 @@ interface QuizzesManagerProps {
   filterType?: 'quiz' | 'bank';
 }
 
+const getStatusMeta = (quiz: Quiz) => {
+  if (quiz.approvalStatus === 'rejected') {
+    return { label: 'مرفوض', className: 'bg-red-50 text-red-600' };
+  }
+
+  if (quiz.approvalStatus === 'pending_review') {
+    return { label: 'بانتظار المراجعة', className: 'bg-amber-50 text-amber-600' };
+  }
+
+  if (quiz.approvalStatus === 'approved' && quiz.isPublished) {
+    return { label: 'معتمد ومنشور', className: 'bg-emerald-50 text-emerald-600' };
+  }
+
+  if (quiz.approvalStatus === 'approved') {
+    return { label: 'معتمد غير منشور', className: 'bg-blue-50 text-blue-600' };
+  }
+
+  return {
+    label: quiz.isPublished ? 'منشور قديم' : 'مسودة',
+    className: quiz.isPublished ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-600',
+  };
+};
+
 export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filterType }) => {
   const {
+    user,
     quizzes: globalQuizzes,
     deleteQuiz,
+    updateQuiz,
     paths,
     subjects,
     sections,
     skills,
     questions,
-    addQuiz
+    addQuiz,
   } = useStore();
+  const canReview = user.role === 'admin';
+  const managedPathIds = user.managedPathIds || [];
+  const managedSubjectIds = user.managedSubjectIds || [];
+  const allowedPaths = user.role === 'teacher'
+    ? paths.filter((path) => managedPathIds.length === 0 || managedPathIds.includes(path.id))
+    : paths;
+  const allowedSubjects = user.role === 'teacher'
+    ? subjects.filter((subject) => {
+        if (managedSubjectIds.length > 0) return managedSubjectIds.includes(subject.id);
+        if (managedPathIds.length > 0) return managedPathIds.includes(subject.pathId);
+        return true;
+      })
+    : subjects;
 
-  const [selectedPathId, setSelectedPathId] = useState<string>('');
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string>(subjectId || '');
-  const [selectedSectionId, setSelectedSectionId] = useState<string>('');
-  const [selectedSkillId, setSelectedSkillId] = useState<string>('');
+  const [selectedPathId, setSelectedPathId] = useState('');
+  const [selectedSubjectId, setSelectedSubjectId] = useState(subjectId || '');
+  const [selectedSectionId, setSelectedSectionId] = useState('');
+  const [selectedSkillId, setSelectedSkillId] = useState('');
   const [modeFilter, setModeFilter] = useState<'all' | 'regular' | 'saher' | 'central'>('all');
   const [isEditing, setIsEditing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -33,9 +71,9 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
   const availableSections = useMemo(
     () =>
       sections
-        .filter((section) => section.subjectId === selectedSubjectId)
+        .filter((section) => section.subjectId === selectedSubjectId && allowedSubjects.some((subject) => subject.id === section.subjectId))
         .sort((a, b) => a.name.localeCompare(b.name, 'ar')),
-    [sections, selectedSubjectId]
+    [allowedSubjects, sections, selectedSubjectId],
   );
 
   const availableSubSkills = useMemo(
@@ -47,12 +85,16 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
           return true;
         })
         .sort((a, b) => a.name.localeCompare(b.name, 'ar')),
-    [skills, selectedSectionId, selectedSubjectId]
+    [skills, selectedSectionId, selectedSubjectId],
   );
 
   const quizzes = useMemo(
     () =>
       globalQuizzes.filter((quiz) => {
+        if (user.role === 'teacher') {
+          if (managedSubjectIds.length > 0 && !managedSubjectIds.includes(quiz.subjectId)) return false;
+          if (managedPathIds.length > 0 && quiz.pathId && !managedPathIds.includes(quiz.pathId)) return false;
+        }
         if (filterType && quiz.type !== filterType) return false;
         if (subjectId && quiz.subjectId !== subjectId) return false;
         if (selectedSubjectId && quiz.subjectId !== selectedSubjectId) return false;
@@ -62,21 +104,39 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
         if (modeFilter !== 'all' && (quiz.mode || 'regular') !== modeFilter) return false;
         return true;
       }),
-    [filterType, globalQuizzes, modeFilter, selectedPathId, selectedSectionId, selectedSkillId, selectedSubjectId, subjectId]
+    [filterType, globalQuizzes, managedPathIds, managedSubjectIds, modeFilter, selectedPathId, selectedSectionId, selectedSkillId, selectedSubjectId, subjectId, user.role],
   );
 
   const filteredQuizzes = useMemo(
     () => quizzes.filter((quiz) => quiz.title.toLowerCase().includes(searchTerm.toLowerCase())),
-    [quizzes, searchTerm]
+    [quizzes, searchTerm],
   );
 
   const modeCounts = useMemo(
     () => ({
       all: globalQuizzes.length,
       saher: globalQuizzes.filter((quiz) => (quiz.mode || 'regular') === 'saher').length,
-      central: globalQuizzes.filter((quiz) => (quiz.mode || 'regular') === 'central').length
+      central: globalQuizzes.filter((quiz) => (quiz.mode || 'regular') === 'central').length,
     }),
-    [globalQuizzes]
+    [globalQuizzes],
+  );
+
+  const quizzesWithoutQuestions = useMemo(
+    () => globalQuizzes.filter((quiz) => (quiz.questionIds || []).length === 0).length,
+    [globalQuizzes],
+  );
+
+  const quizzesWithoutMeasuredSkills = useMemo(
+    () =>
+      globalQuizzes.filter((quiz) => {
+        const directSkillIds = quiz.skillIds || [];
+        const questionSkillIds = (quiz.questionIds || []).flatMap((questionId) => {
+          const question = questions.find((item) => item.id === questionId);
+          return question?.skillIds || [];
+        });
+        return [...new Set([...directSkillIds, ...questionSkillIds])].length === 0;
+      }).length,
+    [globalQuizzes, questions],
   );
 
   const measuredSkillNames = (quiz: Quiz) => {
@@ -87,9 +147,25 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
     });
 
     const uniqueIds = [...new Set([...directSkillIds, ...questionSkillIds])];
-    return uniqueIds
-      .map((skillId) => skills.find((skill) => skill.id === skillId)?.name)
-      .filter(Boolean) as string[];
+    return uniqueIds.map((skillId) => skills.find((skill) => skill.id === skillId)?.name).filter(Boolean) as string[];
+  };
+
+  const measuredSectionNames = (quiz: Quiz) => {
+    const directSkillIds = quiz.skillIds || [];
+    const questionSkillIds = (quiz.questionIds || []).flatMap((questionId) => {
+      const question = questions.find((item) => item.id === questionId);
+      return question?.skillIds || [];
+    });
+
+    const uniqueSectionIds = [
+      ...new Set(
+        [...directSkillIds, ...questionSkillIds]
+          .map((skillId) => skills.find((skill) => skill.id === skillId)?.sectionId)
+          .filter(Boolean),
+      ),
+    ];
+
+    return uniqueSectionIds.map((sectionId) => sections.find((section) => section.id === sectionId)?.name).filter(Boolean) as string[];
   };
 
   const handleCreateNew = () => {
@@ -100,7 +176,7 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
   const handleCreateByMode = (mode: 'regular' | 'saher' | 'central') => {
     const draftQuiz: Quiz = {
       id: `quiz_${Date.now()}_${mode}`,
-      title: mode === 'saher' ? 'اختبار ساهر جديد' : mode === 'central' ? 'اختبار مركزي جديد' : 'اختبار جديد',
+      title: mode === 'saher' ? 'اختبار ساهر جديد' : mode === 'central' ? 'اختبار موجّه جديد' : 'اختبار جديد',
       description: '',
       pathId: selectedPathId || '',
       subjectId: selectedSubjectId || '',
@@ -111,18 +187,16 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
         showAnswers: true,
         maxAttempts: 3,
         passingScore: 60,
-        timeLimit: 60
+        timeLimit: 60,
       },
-      access:
-        mode === 'central'
-          ? { type: 'private', allowedGroupIds: [] }
-          : { type: 'free', allowedGroupIds: [] },
+      access: mode === 'central' ? { type: 'private', allowedGroupIds: [] } : { type: 'free', allowedGroupIds: [] },
       questionIds: [],
       createdAt: Date.now(),
       isPublished: false,
       targetGroupIds: [],
       targetUserIds: [],
-      dueDate: ''
+      dueDate: '',
+      approvalStatus: 'draft',
     };
 
     addQuiz(draftQuiz);
@@ -142,34 +216,41 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
   };
 
   const handleDuplicate = (quiz: Quiz) => {
-    const duplicatedQuiz: Quiz = {
+    addQuiz({
       ...quiz,
       id: `quiz_${Date.now()}_copy`,
-      title: `${quiz.title} (نسخة)`
-    };
-    addQuiz(duplicatedQuiz);
+      title: `${quiz.title} (نسخة)`,
+      approvalStatus: 'draft',
+      isPublished: false,
+    });
+  };
+
+  const handleApprove = (quiz: Quiz) => {
+    updateQuiz(quiz.id, {
+      approvalStatus: 'approved',
+      isPublished: true,
+      approvedAt: Date.now(),
+    });
+  };
+
+  const handleReject = (quiz: Quiz) => {
+    updateQuiz(quiz.id, {
+      approvalStatus: 'rejected',
+      isPublished: false,
+    });
   };
 
   if (isEditing) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-120px)] animate-fade-in">
         <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-          <h3 className="font-bold text-gray-800">
-            {editingQuizId ? 'تعديل الاختبار' : 'إنشاء اختبار جديد'}
-          </h3>
-          <button
-            onClick={() => setIsEditing(false)}
-            className="text-gray-500 hover:text-gray-700 font-bold text-sm"
-          >
+          <h3 className="font-bold text-gray-800">{editingQuizId ? 'تعديل الاختبار' : 'إنشاء اختبار جديد'}</h3>
+          <button onClick={() => setIsEditing(false)} className="text-gray-500 hover:text-gray-700 font-bold text-sm">
             العودة للقائمة
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">
-          <QuizBuilder
-            initialQuizId={editingQuizId || undefined}
-            initialSubjectId={selectedSubjectId || undefined}
-            initialType={filterType}
-          />
+          <QuizBuilder initialQuizId={editingQuizId || undefined} initialSubjectId={selectedSubjectId || undefined} initialType={filterType} />
         </div>
       </div>
     );
@@ -180,9 +261,7 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">مركز الاختبارات</h2>
-          <p className="text-gray-500 text-sm mt-1">
-            إدارة جميع الاختبارات في المنصة وربطها بالمادة والمهارات المقاسة فعليًا من الأسئلة المضافة لها.
-          </p>
+          <p className="text-gray-500 text-sm mt-1">إدارة الاختبارات واعتماد ما يضيفه المعلمون أو المدارس قبل توجيهه للطلاب.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -192,17 +271,11 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
             <Plus size={18} />
             إنشاء اختبار جديد
           </button>
-          <button
-            onClick={() => handleCreateByMode('saher')}
-            className="bg-purple-50 text-purple-700 px-4 py-2 rounded-xl font-bold hover:bg-purple-100 transition-colors"
-          >
+          <button onClick={() => handleCreateByMode('saher')} className="bg-purple-50 text-purple-700 px-4 py-2 rounded-xl font-bold hover:bg-purple-100 transition-colors">
             + اختبار ساهر
           </button>
-          <button
-            onClick={() => handleCreateByMode('central')}
-            className="bg-amber-50 text-amber-700 px-4 py-2 rounded-xl font-bold hover:bg-amber-100 transition-colors"
-          >
-            + اختبار مركزي موجه
+          <button onClick={() => handleCreateByMode('central')} className="bg-amber-50 text-amber-700 px-4 py-2 rounded-xl font-bold hover:bg-amber-100 transition-colors">
+            + اختبار موجّه
           </button>
         </div>
       </div>
@@ -217,8 +290,16 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
           <p className="text-2xl font-black text-purple-700">{modeCounts.saher}</p>
         </div>
         <div className="bg-white border border-amber-100 rounded-xl p-4">
-          <p className="text-xs text-amber-600 mb-1">اختبارات مركزية موجهة</p>
+          <p className="text-xs text-amber-600 mb-1">اختبارات موجهة</p>
           <p className="text-2xl font-black text-amber-700">{modeCounts.central}</p>
+        </div>
+        <div className="bg-white border border-red-100 rounded-xl p-4">
+          <p className="text-xs text-red-500 mb-1">اختبارات بلا أسئلة</p>
+          <p className="text-2xl font-black text-red-600">{quizzesWithoutQuestions}</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <p className="text-xs text-gray-500 mb-1">اختبارات بلا مهارات مقاسة</p>
+          <p className="text-2xl font-black text-gray-800">{quizzesWithoutMeasuredSkills}</p>
         </div>
       </div>
 
@@ -236,10 +317,8 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
               className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">كل المسارات</option>
-              {paths.map((path) => (
-                <option key={path.id} value={path.id}>
-                  {path.name}
-                </option>
+              {allowedPaths.map((path) => (
+                <option key={path.id} value={path.id}>{path.name}</option>
               ))}
             </select>
 
@@ -254,13 +333,9 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
               disabled={!selectedPathId}
             >
               <option value="">كل المواد</option>
-              {subjects
-                .filter((subject) => subject.pathId === selectedPathId)
-                .map((subject) => (
-                  <option key={subject.id} value={subject.id}>
-                    {subject.name}
-                  </option>
-                ))}
+              {allowedSubjects.filter((subject) => subject.pathId === selectedPathId).map((subject) => (
+                <option key={subject.id} value={subject.id}>{subject.name}</option>
+              ))}
             </select>
           </>
         )}
@@ -276,9 +351,7 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
         >
           <option value="">كل المهارات الرئيسة</option>
           {availableSections.map((section) => (
-            <option key={section.id} value={section.id}>
-              {section.name}
-            </option>
+            <option key={section.id} value={section.id}>{section.name}</option>
           ))}
         </select>
 
@@ -290,9 +363,7 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
         >
           <option value="">كل المهارات الفرعية</option>
           {availableSubSkills.map((skill) => (
-            <option key={skill.id} value={skill.id}>
-              {skill.name}
-            </option>
+            <option key={skill.id} value={skill.id}>{skill.name}</option>
           ))}
         </select>
 
@@ -304,7 +375,7 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
           <option value="all">كل الأنماط</option>
           <option value="regular">اختبار عادي</option>
           <option value="saher">اختبار ساهر</option>
-          <option value="central">اختبار مركزي</option>
+          <option value="central">اختبار موجّه</option>
         </select>
 
         <div className="relative flex-1">
@@ -330,12 +401,16 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
                 <th className="px-6 py-4 text-sm font-bold text-gray-600">المادة</th>
                 <th className="px-6 py-4 text-sm font-bold text-gray-600">المهارات المقاسة</th>
                 <th className="px-6 py-4 text-sm font-bold text-gray-600">النمط</th>
+                <th className="px-6 py-4 text-sm font-bold text-gray-600">الحالة</th>
                 <th className="px-6 py-4 text-sm font-bold text-gray-600">الإجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredQuizzes.map((quiz) => {
                 const measuredSkills = measuredSkillNames(quiz);
+                const measuredSections = measuredSectionNames(quiz);
+                const statusMeta = getStatusMeta(quiz);
+
                 return (
                   <tr key={quiz.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
@@ -343,13 +418,16 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
                         <div className="w-10 h-10 rounded-full flex items-center justify-center bg-indigo-50 text-indigo-500">
                           <FileQuestion size={18} />
                         </div>
-                        <span className="font-bold text-gray-800">{quiz.title}</span>
+                        <div>
+                          <div className="font-bold text-gray-800">{quiz.title}</div>
+                          <div className="text-[11px] text-gray-400 mt-1">
+                            {quiz.ownerType === 'teacher' ? 'اختبار معلم' : quiz.ownerType === 'school' ? 'اختبار مدرسة' : 'اختبار المنصة'}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm text-gray-600">
-                        {quiz.type === 'bank' ? 'تدريب (بنك)' : 'اختبار محاكي'}
-                      </span>
+                      <span className="text-sm text-gray-600">{quiz.type === 'bank' ? 'تدريب (بنك)' : 'اختبار محاكي'}</span>
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm text-gray-600">{quiz.questionIds?.length || 0} سؤال</span>
@@ -363,66 +441,58 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
                       <div className="flex flex-wrap gap-2 max-w-xs">
                         {measuredSkills.length > 0 ? (
                           <>
+                            {measuredSections.slice(0, 1).map((sectionName) => (
+                              <span key={`${quiz.id}-${sectionName}`} className="px-2 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700">
+                                {sectionName}
+                              </span>
+                            ))}
                             {measuredSkills.slice(0, 3).map((skillName) => (
-                              <span
-                                key={`${quiz.id}-${skillName}`}
-                                className="px-2 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700"
-                              >
+                              <span key={`${quiz.id}-${skillName}`} className="px-2 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700">
                                 {skillName}
                               </span>
                             ))}
-                            {measuredSkills.length > 3 && (
-                              <span className="px-2 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600">
-                                +{measuredSkills.length - 3}
-                              </span>
-                            )}
+                            {measuredSkills.length > 3 && <span className="text-xs text-gray-500">+{measuredSkills.length - 3}</span>}
                           </>
                         ) : (
-                          <span className="text-xs text-gray-400">تُحدد تلقائيًا من الأسئلة</span>
+                          <span className="text-xs text-gray-400">لا توجد مهارات مقاسة بعد</span>
                         )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <span
                         className={`px-2 py-1 rounded-full text-xs font-bold ${
-                          (quiz.mode || 'regular') === 'saher'
-                            ? 'bg-purple-50 text-purple-700'
-                            : (quiz.mode || 'regular') === 'central'
-                              ? 'bg-amber-50 text-amber-700'
+                          (quiz.mode || 'regular') === 'central'
+                            ? 'bg-amber-50 text-amber-700'
+                            : (quiz.mode || 'regular') === 'saher'
+                              ? 'bg-purple-50 text-purple-700'
                               : 'bg-gray-100 text-gray-700'
                         }`}
                       >
-                        {(quiz.mode || 'regular') === 'saher'
-                          ? 'ساهر'
-                          : (quiz.mode || 'regular') === 'central'
-                            ? 'مركزي'
-                            : 'عادي'}
+                        {(quiz.mode || 'regular') === 'central' ? 'موجّه' : (quiz.mode || 'regular') === 'saher' ? 'ساهر' : 'عادي'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleDuplicate(quiz)}
-                          className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                          title="نسخ"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                          </svg>
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusMeta.className}`}>{statusMeta.label}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {canReview && quiz.approvalStatus !== 'approved' && (
+                          <button onClick={() => handleApprove(quiz)} className="px-3 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors">
+                            اعتماد
+                          </button>
+                        )}
+                        {canReview && quiz.approvalStatus !== 'rejected' && (
+                          <button onClick={() => handleReject(quiz)} className="px-3 py-1 text-xs font-bold text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+                            رفض
+                          </button>
+                        )}
+                        <button onClick={() => handleDuplicate(quiz)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="نسخ">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                         </button>
-                        <button
-                          onClick={() => handleEdit(quiz.id)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="تعديل"
-                        >
+                        <button onClick={() => handleEdit(quiz.id)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل">
                           <Edit2 size={18} />
                         </button>
-                        <button
-                          onClick={() => handleDelete(quiz.id)}
-                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                          title="حذف"
-                        >
+                        <button onClick={() => handleDelete(quiz.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="حذف">
                           <Trash2 size={18} />
                         </button>
                       </div>
@@ -432,7 +502,7 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
               })}
               {filteredQuizzes.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                     لا توجد اختبارات مطابقة للبحث.
                   </td>
                 </tr>

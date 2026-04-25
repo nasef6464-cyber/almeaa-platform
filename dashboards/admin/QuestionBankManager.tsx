@@ -8,13 +8,42 @@ interface QuestionBankManagerProps {
   subjectId?: string;
 }
 
-export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjectId }) => {
-  const { questions: globalQuestions, addQuestion, updateQuestion, deleteQuestion, paths, subjects, sections, skills } = useStore();
+const getStatusMeta = (question: Question) => {
+  if (question.approvalStatus === 'rejected') {
+    return { label: 'مرفوض', className: 'bg-red-50 text-red-600' };
+  }
 
-  const [selectedPathId, setSelectedPathId] = useState<string>('');
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string>(subjectId || '');
-  const [selectedSectionId, setSelectedSectionId] = useState<string>('');
-  const [selectedSkillId, setSelectedSkillId] = useState<string>('');
+  if (question.approvalStatus === 'pending_review') {
+    return { label: 'بانتظار المراجعة', className: 'bg-amber-50 text-amber-600' };
+  }
+
+  if (question.approvalStatus === 'approved') {
+    return { label: 'معتمد', className: 'bg-emerald-50 text-emerald-600' };
+  }
+
+  return { label: 'محتوى قديم', className: 'bg-gray-100 text-gray-600' };
+};
+
+export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjectId }) => {
+  const { user, questions: globalQuestions, addQuestion, updateQuestion, deleteQuestion, paths, subjects, sections, skills } = useStore();
+  const canReview = user.role === 'admin';
+  const managedPathIds = user.managedPathIds || [];
+  const managedSubjectIds = user.managedSubjectIds || [];
+  const allowedPaths = user.role === 'teacher'
+    ? paths.filter((path) => managedPathIds.length === 0 || managedPathIds.includes(path.id))
+    : paths;
+  const allowedSubjects = user.role === 'teacher'
+    ? subjects.filter((subject) => {
+        if (managedSubjectIds.length > 0) return managedSubjectIds.includes(subject.id);
+        if (managedPathIds.length > 0) return managedPathIds.includes(subject.pathId);
+        return true;
+      })
+    : subjects;
+
+  const [selectedPathId, setSelectedPathId] = useState('');
+  const [selectedSubjectId, setSelectedSubjectId] = useState(subjectId || '');
+  const [selectedSectionId, setSelectedSectionId] = useState('');
+  const [selectedSkillId, setSelectedSkillId] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -28,22 +57,27 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
     pathId: selectedPathId || '',
     subject: selectedSubjectId || '',
     sectionId: selectedSectionId || '',
-    skillIds: []
+    skillIds: [],
   });
 
   const availableMainSkills = useMemo(
-    () => sections.filter((section) => section.subjectId === selectedSubjectId),
-    [sections, selectedSubjectId]
+    () => sections.filter((section) => section.subjectId === selectedSubjectId && allowedSubjects.some((subject) => subject.id === section.subjectId)),
+    [allowedSubjects, sections, selectedSubjectId],
   );
 
   const availableSubSkills = useMemo(
-    () => skills
-      .filter((skill) => skill.subjectId === selectedSubjectId && (!selectedSectionId || skill.sectionId === selectedSectionId))
-      .sort((a, b) => a.name.localeCompare(b.name, 'ar')),
-    [skills, selectedSectionId, selectedSubjectId]
+    () =>
+      skills
+        .filter((skill) => skill.subjectId === selectedSubjectId && (!selectedSectionId || skill.sectionId === selectedSectionId))
+        .sort((a, b) => a.name.localeCompare(b.name, 'ar')),
+    [skills, selectedSectionId, selectedSubjectId],
   );
 
   const questions = globalQuestions.filter((question) => {
+    if (user.role === 'teacher') {
+      if (managedSubjectIds.length > 0 && !managedSubjectIds.includes(question.subject)) return false;
+      if (managedPathIds.length > 0 && question.pathId && !managedPathIds.includes(question.pathId)) return false;
+    }
     if (subjectId && question.subject !== subjectId) return false;
     if (selectedSubjectId && question.subject !== selectedSubjectId) return false;
     if (selectedSectionId && question.sectionId !== selectedSectionId) return false;
@@ -65,7 +99,7 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
       pathId: selectedPathId || '',
       subject: selectedSubjectId || '',
       sectionId: selectedSectionId || '',
-      skillIds: []
+      skillIds: [],
     });
     setIsEditing(true);
   };
@@ -82,25 +116,37 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
   };
 
   const handleDuplicate = (question: Question) => {
-    const duplicatedQuestion: Question = {
+    addQuestion({
       ...question,
       id: `q_${Date.now()}_copy`,
-      text: `${question.text} (نسخة)`
-    };
-    addQuestion(duplicatedQuestion);
+      text: `${question.text} (نسخة)`,
+      approvalStatus: 'draft',
+    });
   };
 
   const handleSave = (savedQuestion: Partial<Question>) => {
     if (currentQuestion.id) {
       updateQuestion(currentQuestion.id, { ...savedQuestion, id: currentQuestion.id } as Question);
     } else {
-      const newQuestion: Question = {
+      addQuestion({
         ...savedQuestion,
-        id: `q_${Date.now()}`
-      } as Question;
-      addQuestion(newQuestion);
+        id: `q_${Date.now()}`,
+      } as Question);
     }
     setIsEditing(false);
+  };
+
+  const handleApprove = (question: Question) => {
+    updateQuestion(question.id, {
+      approvalStatus: 'approved',
+      approvedAt: Date.now(),
+    });
+  };
+
+  const handleReject = (question: Question) => {
+    updateQuestion(question.id, {
+      approvalStatus: 'rejected',
+    });
   };
 
   if (isEditing) {
@@ -122,7 +168,7 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">مركز الأسئلة</h2>
-          <p className="text-gray-500 text-sm mt-1">إدارة جميع الأسئلة في المنصة وربطها بالمسارات والمواد والمهارات الحقيقية.</p>
+          <p className="text-gray-500 text-sm mt-1">مراجعة بنك الأسئلة واعتماد ما يُضاف قبل دخوله في الاختبارات والتحليلات.</p>
         </div>
         <button
           onClick={handleCreateNew}
@@ -138,7 +184,7 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
           <>
             <select
               value={selectedPathId}
-              onChange={event => {
+              onChange={(event) => {
                 setSelectedPathId(event.target.value);
                 setSelectedSubjectId('');
                 setSelectedSectionId('');
@@ -147,13 +193,13 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
               className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">كل المسارات</option>
-              {paths.map(path => (
+              {allowedPaths.map((path) => (
                 <option key={path.id} value={path.id}>{path.name}</option>
               ))}
             </select>
             <select
               value={selectedSubjectId}
-              onChange={event => {
+              onChange={(event) => {
                 setSelectedSubjectId(event.target.value);
                 setSelectedSectionId('');
                 setSelectedSkillId('');
@@ -162,7 +208,7 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
               disabled={!selectedPathId}
             >
               <option value="">كل المواد</option>
-              {subjects.filter(subject => subject.pathId === selectedPathId).map(subject => (
+              {allowedSubjects.filter((subject) => subject.pathId === selectedPathId).map((subject) => (
                 <option key={subject.id} value={subject.id}>{subject.name}</option>
               ))}
             </select>
@@ -171,7 +217,7 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
 
         <select
           value={selectedSectionId}
-          onChange={event => {
+          onChange={(event) => {
             setSelectedSectionId(event.target.value);
             setSelectedSkillId('');
           }}
@@ -179,19 +225,19 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
           disabled={!selectedSubjectId}
         >
           <option value="">كل المهارات الرئيسة</option>
-          {availableMainSkills.map(section => (
+          {availableMainSkills.map((section) => (
             <option key={section.id} value={section.id}>{section.name}</option>
           ))}
         </select>
 
         <select
           value={selectedSkillId}
-          onChange={event => setSelectedSkillId(event.target.value)}
+          onChange={(event) => setSelectedSkillId(event.target.value)}
           className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
           disabled={!selectedSubjectId}
         >
           <option value="">كل المهارات الفرعية</option>
-          {availableSubSkills.map(subSkill => (
+          {availableSubSkills.map((subSkill) => (
             <option key={subSkill.id} value={subSkill.id}>{subSkill.name}</option>
           ))}
         </select>
@@ -202,7 +248,7 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
             type="text"
             placeholder="ابحث في نص السؤال..."
             value={searchTerm}
-            onChange={event => setSearchTerm(event.target.value)}
+            onChange={(event) => setSearchTerm(event.target.value)}
             className="w-full pl-4 pr-10 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
@@ -216,61 +262,80 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
                 <th className="px-6 py-4 text-sm font-bold text-gray-600 w-1/2">نص السؤال</th>
                 <th className="px-6 py-4 text-sm font-bold text-gray-600">المهارات الفرعية</th>
                 <th className="px-6 py-4 text-sm font-bold text-gray-600">الصعوبة</th>
+                <th className="px-6 py-4 text-sm font-bold text-gray-600">الحالة</th>
                 <th className="px-6 py-4 text-sm font-bold text-gray-600">الإجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredQuestions.map(question => (
-                <tr key={question.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div
-                      className="text-sm text-gray-800 line-clamp-2"
-                      dangerouslySetInnerHTML={{ __html: question.text }}
-                    />
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-1">
-                      {question.skillIds?.map(skillId => {
-                        const subSkill = skills.find(skill => skill.id === skillId);
-                        return subSkill ? (
-                          <span key={skillId} className="bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md text-xs font-bold">
-                            {subSkill.name}
-                          </span>
-                        ) : null;
-                      })}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-bold ${
-                        question.difficulty === 'Easy'
-                          ? 'bg-emerald-50 text-emerald-600'
-                          : question.difficulty === 'Medium'
-                            ? 'bg-amber-50 text-amber-600'
-                            : 'bg-red-50 text-red-600'
-                      }`}
-                    >
-                      {question.difficulty === 'Easy' ? 'سهل' : question.difficulty === 'Medium' ? 'متوسط' : 'صعب'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => handleDuplicate(question)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="نسخ">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                      </button>
-                      <button onClick={() => handleEdit(question)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل">
-                        <Edit2 size={18} />
-                      </button>
-                      <button onClick={() => handleDelete(question.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="حذف">
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {filteredQuestions.map((question) => {
+                const statusMeta = getStatusMeta(question);
+                return (
+                  <tr key={question.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div>
+                        <div className="text-sm text-gray-800 line-clamp-2" dangerouslySetInnerHTML={{ __html: question.text }} />
+                        <div className="text-[11px] text-gray-400 mt-1">
+                          {question.ownerType === 'teacher' ? 'سؤال معلم' : question.ownerType === 'school' ? 'سؤال مدرسة' : 'سؤال المنصة'}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap gap-1">
+                        {question.skillIds?.map((skillId) => {
+                          const subSkill = skills.find((skill) => skill.id === skillId);
+                          return subSkill ? (
+                            <span key={skillId} className="bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md text-xs font-bold">
+                              {subSkill.name}
+                            </span>
+                          ) : null;
+                        })}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-bold ${
+                          question.difficulty === 'Easy'
+                            ? 'bg-emerald-50 text-emerald-600'
+                            : question.difficulty === 'Medium'
+                              ? 'bg-amber-50 text-amber-600'
+                              : 'bg-red-50 text-red-600'
+                        }`}
+                      >
+                        {question.difficulty === 'Easy' ? 'سهل' : question.difficulty === 'Medium' ? 'متوسط' : 'صعب'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusMeta.className}`}>{statusMeta.label}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {canReview && question.approvalStatus !== 'approved' && (
+                          <button onClick={() => handleApprove(question)} className="px-3 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors">
+                            اعتماد
+                          </button>
+                        )}
+                        {canReview && question.approvalStatus !== 'rejected' && (
+                          <button onClick={() => handleReject(question)} className="px-3 py-1 text-xs font-bold text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+                            رفض
+                          </button>
+                        )}
+                        <button onClick={() => handleDuplicate(question)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="نسخ">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        </button>
+                        <button onClick={() => handleEdit(question)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل">
+                          <Edit2 size={18} />
+                        </button>
+                        <button onClick={() => handleDelete(question.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="حذف">
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {filteredQuestions.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                     لا توجد أسئلة مطابقة للبحث.
                   </td>
                 </tr>

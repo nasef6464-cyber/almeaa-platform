@@ -43,7 +43,22 @@ const formatTodayLabel = () =>
 
 const Plan: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'daily' | 'weekly'>('daily');
-  const { recentActivity, enrolledCourses, courses, completedLessons, examResults, skills, lessons, quizzes, questions, libraryItems } = useStore();
+  const { user, recentActivity, enrolledCourses, courses, completedLessons, examResults, skills, lessons, quizzes, questions, libraryItems, hasScopedPackageAccess } = useStore();
+
+  const accessibleCourseIds = useMemo(
+    () =>
+      new Set(
+        courses
+          .filter(
+            (course) =>
+              enrolledCourses.includes(course.id) ||
+              (user.subscription?.purchasedCourses || []).includes(course.id) ||
+              hasScopedPackageAccess('courses', course.pathId || course.category, course.subjectId || course.subject),
+          )
+          .map((course) => course.id),
+      ),
+    [courses, enrolledCourses, hasScopedPackageAccess, user.subscription?.purchasedCourses],
+  );
 
   const aggregatedWeakSkills = useMemo(() => {
     const skillsMap: Record<string, { title: string; total: number; count: number; skillId?: string }> = {};
@@ -76,7 +91,7 @@ const Plan: React.FC = () => {
 
   const enrolledCourseGoals = useMemo<WeeklyGoal[]>(() => {
     return courses
-      .filter((course) => enrolledCourses.includes(course.id))
+      .filter((course) => accessibleCourseIds.has(course.id))
       .map((course) => {
         const totalLessons = course.modules?.reduce((sum, module) => sum + module.lessons.length, 0) || 0;
         const completed = course.modules?.reduce(
@@ -95,7 +110,7 @@ const Plan: React.FC = () => {
       })
       .sort((a, b) => b.progress - a.progress)
       .slice(0, 3);
-  }, [completedLessons, courses, enrolledCourses]);
+  }, [accessibleCourseIds, completedLessons, courses]);
 
   const weakSkillGoals = useMemo<WeeklyGoal[]>(() => {
     return aggregatedWeakSkills.slice(0, 3).map((skill) => ({

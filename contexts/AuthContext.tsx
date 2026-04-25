@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { api } from '../services/api';
-import { Role } from '../types';
+import { Role, User as StoreUser } from '../types';
 import { useStore } from '../store/useStore';
 
 type BackendRole = 'student' | 'teacher' | 'admin' | 'supervisor' | 'parent';
@@ -15,6 +15,12 @@ interface BackendAuthUser {
   role: BackendRole;
   points?: number;
   badges?: string[];
+  isActive?: boolean;
+  schoolId?: string | null;
+  groupIds?: string[];
+  linkedStudentIds?: string[];
+  managedPathIds?: string[];
+  managedSubjectIds?: string[];
   favorites?: string[];
   reviewLater?: string[];
   enrolledCourses?: string[];
@@ -22,6 +28,7 @@ interface BackendAuthUser {
   completedLessons?: string[];
   subscription?: {
     plan?: 'free' | 'premium';
+    expiresAt?: string;
     purchasedCourses?: string[] | string;
     purchasedPackages?: string[] | string;
   };
@@ -78,6 +85,28 @@ const buildSessionUser = (user: BackendAuthUser, token: string): SessionUser => 
   token,
 });
 
+const normalizeStoreUser = (user: BackendAuthUser): StoreUser => ({
+  id: String(user.id || user._id || user.email),
+  name: user.name,
+  email: user.email,
+  avatar: user.avatar || `https://i.pravatar.cc/150?u=${encodeURIComponent(user.email)}`,
+  role: roleMap[user.role],
+  points: user.points ?? 0,
+  badges: user.badges ?? [],
+  isActive: user.isActive ?? true,
+  schoolId: user.schoolId ?? undefined,
+  groupIds: user.groupIds ?? [],
+  linkedStudentIds: user.linkedStudentIds ?? [],
+  managedPathIds: user.managedPathIds ?? [],
+  managedSubjectIds: user.managedSubjectIds ?? [],
+  subscription: {
+    plan: user.subscription?.plan ?? 'free',
+    expiresAt: user.subscription?.expiresAt,
+    purchasedCourses: toArray(user.subscription?.purchasedCourses),
+    purchasedPackages: toArray(user.subscription?.purchasedPackages),
+  },
+});
+
 const syncStoreUser = (sessionUser: SessionUser | null, backendUser?: BackendAuthUser | null) => {
   if (!sessionUser) {
     return;
@@ -95,9 +124,13 @@ const syncStoreUser = (sessionUser: SessionUser | null, backendUser?: BackendAut
       role: roleMap[sessionUser.role],
       points: backendUser?.points ?? existing.points,
       badges: backendUser?.badges ?? existing.badges,
+      linkedStudentIds: backendUser?.linkedStudentIds ?? existing.linkedStudentIds,
+      managedPathIds: backendUser?.managedPathIds ?? existing.managedPathIds,
+      managedSubjectIds: backendUser?.managedSubjectIds ?? existing.managedSubjectIds,
       subscription: {
         ...existing.subscription,
         plan: backendUser?.subscription?.plan ?? existing.subscription.plan,
+        expiresAt: backendUser?.subscription?.expiresAt ?? existing.subscription.expiresAt,
         purchasedCourses: toArray(backendUser?.subscription?.purchasedCourses),
         purchasedPackages: toArray(backendUser?.subscription?.purchasedPackages),
       },
@@ -168,10 +201,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     Promise.all([
       api.getCurrentUser(),
       api.getQuizResults(),
+      user.role === 'admin' ? api.getAdminUsers() : Promise.resolve({ users: [] }),
     ])
-      .then(([currentUserResponse, results]) => {
+      .then(([currentUserResponse, results, usersResponse]) => {
         syncStoreUser(user, (currentUserResponse as { user?: BackendAuthUser })?.user || null);
         useStore.getState().hydrateExamResults(results as any[]);
+        if (user.role === 'admin') {
+          const normalizedUsers = ((usersResponse as { users?: BackendAuthUser[] })?.users || []).map(normalizeStoreUser);
+          useStore.getState().hydrateUsers(normalizedUsers);
+        }
       })
       .catch((error) => {
         console.warn('Failed to hydrate session data:', error);

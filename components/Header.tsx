@@ -77,6 +77,21 @@ export const Header: React.FC = () => {
   const { paths, subjects, levels } = useStore();
   const { user, signInWithGoogle, signInWithEmail, signUpWithEmail, logout } = useAuth();
 
+  const getDashboardPathForRole = (role?: string | null) => {
+    switch (role) {
+      case 'admin':
+        return '/admin-dashboard';
+      case 'teacher':
+        return '/instructor-dashboard';
+      case 'supervisor':
+        return '/supervisor-dashboard';
+      case 'parent':
+        return '/parent-dashboard';
+      default:
+        return '/dashboard';
+    }
+  };
+
   useEffect(() => {
     setIsMobileMenuOpen(false);
     setIsUserMenuOpen(false);
@@ -180,7 +195,7 @@ export const Header: React.FC = () => {
     return menu;
   }, [levels, paths, subjects]);
 
-  const isPrivilegedUser = user?.role === 'admin';
+  const isPrivilegedUser = user?.role === 'admin' || user?.role === 'teacher' || user?.role === 'supervisor';
 
   const handleEmailAuth = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -191,7 +206,7 @@ export const Header: React.FC = () => {
         ? await signUpWithEmail(email, password)
         : await signInWithEmail(email, password);
 
-      const nextPath = sessionUser.role === 'admin' ? '/admin-dashboard' : '/dashboard';
+      const nextPath = getDashboardPathForRole(sessionUser.role);
 
       setIsUserMenuOpen(false);
       setActiveDropdown(null);
@@ -319,14 +334,18 @@ export const Header: React.FC = () => {
                         <p className="text-xs text-gray-500">{user.email}</p>
                       </div>
 
-                      <UserMenuItem to="/dashboard" icon={<LayoutGrid size={18} />} label={text.dashboard} />
+                      <UserMenuItem to={getDashboardPathForRole(user.role)} icon={<LayoutGrid size={18} />} label={text.dashboard} />
                       <UserMenuItem to="/courses" icon={<BookOpen size={18} />} label={text.courses} />
                       <UserMenuItem to="/quizzes" icon={<FileText size={18} />} label={text.quizzes} />
                       <UserMenuItem to="/achievements" icon={<Award size={18} />} label={text.achievements} />
                       <UserMenuItem to="/profile" icon={<User size={18} />} label={text.profile} />
 
                       {isPrivilegedUser ? (
-                        <UserMenuItem to="/admin-dashboard" icon={<Shield size={18} />} label={text.adminPanel} />
+                        <UserMenuItem
+                          to={getDashboardPathForRole(user.role)}
+                          icon={<Shield size={18} />}
+                          label={user.role === 'admin' ? text.adminPanel : text.dashboard}
+                        />
                       ) : null}
 
                       <div className="border-t border-gray-100 mt-2 pt-2">

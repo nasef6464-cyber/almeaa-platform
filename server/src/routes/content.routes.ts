@@ -1,13 +1,18 @@
 import { Router } from "express";
+import bcrypt from "bcryptjs";
 import { StatusCodes } from "http-status-codes";
 import mongoose from "mongoose";
 import { z } from "zod";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { optionalAuth, requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { TopicModel } from "../models/Topic.js";
 import { LessonModel } from "../models/Lesson.js";
 import { LibraryItemModel } from "../models/LibraryItem.js";
 import { GroupModel } from "../models/Group.js";
+import { B2BPackageModel } from "../models/B2BPackage.js";
+import { AccessCodeModel } from "../models/AccessCode.js";
+import { UserModel } from "../models/User.js";
+import { QuizResultModel } from "../models/QuizResult.js";
 
 const topicSchema = z.object({
   id: z.string().optional(),
@@ -36,6 +41,15 @@ const lessonSchema = z.object({
   order: z.number().default(0),
   isLocked: z.boolean().default(false),
   skillIds: z.array(z.string()).min(1),
+  ownerType: z.enum(["platform", "teacher", "school"]).optional(),
+  ownerId: z.string().optional(),
+  createdBy: z.string().optional(),
+  assignedTeacherId: z.string().optional(),
+  approvalStatus: z.enum(["draft", "pending_review", "approved", "rejected"]).optional(),
+  approvedBy: z.string().optional(),
+  approvedAt: z.number().nullable().optional(),
+  reviewerNotes: z.string().optional(),
+  revenueSharePercentage: z.number().nullable().optional(),
 });
 
 const buildDocumentQuery = (value: string) => {
@@ -44,6 +58,76 @@ const buildDocumentQuery = (value: string) => {
   }
 
   return { id: value };
+};
+
+const isStaffRole = (role?: string) => role === "admin" || role === "teacher" || role === "supervisor";
+
+const getWorkflowDefaults = (authUser?: { id: string; role: string; schoolId?: string | null }) => {
+  if (!authUser) {
+    return {};
+  }
+
+  if (authUser.role === "admin") {
+    return {
+      ownerType: "platform",
+      ownerId: authUser.id,
+      createdBy: authUser.id,
+      approvalStatus: "approved",
+      approvedBy: authUser.id,
+      approvedAt: Date.now(),
+    };
+  }
+
+  if (authUser.role === "teacher") {
+    return {
+      ownerType: "teacher",
+      ownerId: authUser.id,
+      createdBy: authUser.id,
+      assignedTeacherId: authUser.id,
+      approvalStatus: "pending_review",
+      approvedBy: "",
+      approvedAt: null,
+    };
+  }
+
+  return {
+    ownerType: "school",
+    ownerId: authUser.schoolId || authUser.id,
+    createdBy: authUser.id,
+    approvalStatus: "pending_review",
+    approvedBy: "",
+    approvedAt: null,
+  };
+};
+
+const sanitizeWorkflowUpdate = (
+  payload: Record<string, unknown>,
+  authUser: { id: string; role: string; schoolId?: string | null },
+) => {
+  const nextPayload = { ...payload };
+
+  if (authUser.role !== "admin") {
+    delete nextPayload.ownerType;
+    delete nextPayload.ownerId;
+    delete nextPayload.createdBy;
+    delete nextPayload.approvedBy;
+    delete nextPayload.approvedAt;
+    delete nextPayload.reviewerNotes;
+    delete nextPayload.revenueSharePercentage;
+    if (typeof nextPayload.approvalStatus === "string" && nextPayload.approvalStatus === "approved") {
+      nextPayload.approvalStatus = "pending_review";
+    }
+  } else if (typeof nextPayload.approvalStatus === "string") {
+    if (nextPayload.approvalStatus === "approved") {
+      nextPayload.approvedBy = authUser.id;
+      nextPayload.approvedAt = Date.now();
+    } else if (nextPayload.approvalStatus === "rejected" || nextPayload.approvalStatus === "pending_review") {
+      nextPayload.approvedBy = "";
+      nextPayload.approvedAt = null;
+    }
+  }
+
+  return nextPayload;
 };
 
 const librarySchema = z.object({
@@ -57,6 +141,15 @@ const librarySchema = z.object({
   sectionId: z.string().nullable().optional(),
   skillIds: z.array(z.string()).min(1),
   url: z.string().optional(),
+  ownerType: z.enum(["platform", "teacher", "school"]).optional(),
+  ownerId: z.string().optional(),
+  createdBy: z.string().optional(),
+  assignedTeacherId: z.string().optional(),
+  approvalStatus: z.enum(["draft", "pending_review", "approved", "rejected"]).optional(),
+  approvedBy: z.string().optional(),
+  approvedAt: z.number().nullable().optional(),
+  reviewerNotes: z.string().optional(),
+  revenueSharePercentage: z.number().nullable().optional(),
 });
 
 const groupSchema = z.object({
@@ -67,22 +160,76 @@ const groupSchema = z.object({
   supervisorIds: z.array(z.string()).default([]),
   studentIds: z.array(z.string()).default([]),
   courseIds: z.array(z.string()).default([]),
+  totalStudents: z.number().optional(),
+  totalSupervisors: z.number().optional(),
+  totalCourses: z.number().optional(),
   metadata: z.record(z.any()).optional(),
+});
+
+const b2bPackageSchema = z.object({
+  id: z.string().optional(),
+  schoolId: z.string().min(1),
+  name: z.string().min(1),
+  courseIds: z.array(z.string()).default([]),
+  contentTypes: z.array(z.enum(["courses", "foundation", "banks", "tests", "library", "all"])).default(["all"]),
+  pathIds: z.array(z.string()).default([]),
+  subjectIds: z.array(z.string()).default([]),
+  type: z.enum(["free_access", "discounted"]).default("free_access"),
+  discountPercentage: z.number().nullable().optional(),
+  maxStudents: z.number().min(0).default(0),
+  status: z.enum(["active", "expired"]).default("active"),
+  createdAt: z.number().optional(),
+});
+
+const accessCodeSchema = z.object({
+  id: z.string().optional(),
+  code: z.string().min(1),
+  schoolId: z.string().min(1),
+  packageId: z.string().min(1),
+  maxUses: z.number().min(1).default(1),
+  currentUses: z.number().min(0).default(0),
+  expiresAt: z.number(),
+  createdAt: z.number().optional(),
+});
+
+const schoolImportRowSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+  classId: z.string().optional(),
+  className: z.string().optional(),
+  password: z.string().min(6).optional(),
+});
+
+const schoolImportSchema = z.object({
+  rows: z.array(schoolImportRowSchema).min(1),
 });
 
 export const contentRouter = Router();
 
 contentRouter.get(
   "/bootstrap",
-  asyncHandler(async (_req, res) => {
-    const [topics, lessons, libraryItems, groups] = await Promise.all([
+  optionalAuth,
+  asyncHandler(async (req, res) => {
+    const lessonFilter = isStaffRole(req.authUser?.role)
+      ? {}
+      : {
+          $or: [{ approvalStatus: "approved" }, { approvalStatus: { $exists: false } }, { approvalStatus: null }],
+        };
+    const libraryFilter = isStaffRole(req.authUser?.role)
+      ? {}
+      : {
+          $or: [{ approvalStatus: "approved" }, { approvalStatus: { $exists: false } }, { approvalStatus: null }],
+        };
+    const [topics, lessons, libraryItems, groups, b2bPackages, accessCodes] = await Promise.all([
       TopicModel.find().sort({ subjectId: 1, order: 1 }),
-      LessonModel.find().sort({ createdAt: -1 }),
-      LibraryItemModel.find().sort({ createdAt: -1 }),
+      LessonModel.find(lessonFilter).sort({ createdAt: -1 }),
+      LibraryItemModel.find(libraryFilter).sort({ createdAt: -1 }),
       GroupModel.find().sort({ createdAt: -1 }),
+      B2BPackageModel.find().sort({ createdAt: -1 }),
+      AccessCodeModel.find().sort({ createdAt: -1 }),
     ]);
 
-    res.json({ topics, lessons, libraryItems, groups });
+    res.json({ topics, lessons, libraryItems, groups, b2bPackages, accessCodes });
   }),
 );
 
@@ -136,7 +283,15 @@ contentRouter.post(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = lessonSchema.parse(req.body);
-    const created = await LessonModel.create(payload);
+    const workflowDefaults = getWorkflowDefaults(req.authUser!);
+    const created = await LessonModel.create({
+      ...payload,
+      ...workflowDefaults,
+      approvalStatus:
+        req.authUser?.role === "admin"
+          ? payload.approvalStatus || workflowDefaults.approvalStatus
+          : workflowDefaults.approvalStatus,
+    });
     res.status(StatusCodes.CREATED).json(created);
   }),
 );
@@ -147,7 +302,8 @@ contentRouter.patch(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = lessonSchema.partial().parse(req.body);
-    const updated = await LessonModel.findOneAndUpdate(buildDocumentQuery(req.params.id), payload, {
+    const sanitizedPayload = sanitizeWorkflowUpdate(payload as Record<string, unknown>, req.authUser!);
+    const updated = await LessonModel.findOneAndUpdate(buildDocumentQuery(req.params.id), sanitizedPayload, {
       new: true,
     });
 
@@ -180,7 +336,15 @@ contentRouter.post(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = librarySchema.parse(req.body);
-    const created = await LibraryItemModel.create(payload);
+    const workflowDefaults = getWorkflowDefaults(req.authUser!);
+    const created = await LibraryItemModel.create({
+      ...payload,
+      ...workflowDefaults,
+      approvalStatus:
+        req.authUser?.role === "admin"
+          ? payload.approvalStatus || workflowDefaults.approvalStatus
+          : workflowDefaults.approvalStatus,
+    });
     res.status(StatusCodes.CREATED).json(created);
   }),
 );
@@ -191,7 +355,8 @@ contentRouter.patch(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = librarySchema.partial().parse(req.body);
-    const updated = await LibraryItemModel.findOneAndUpdate(buildDocumentQuery(req.params.id), payload, {
+    const sanitizedPayload = sanitizeWorkflowUpdate(payload as Record<string, unknown>, req.authUser!);
+    const updated = await LibraryItemModel.findOneAndUpdate(buildDocumentQuery(req.params.id), sanitizedPayload, {
       new: true,
     });
 
@@ -226,5 +391,358 @@ contentRouter.post(
     const payload = groupSchema.parse(req.body);
     const created = await GroupModel.create(payload);
     res.status(StatusCodes.CREATED).json(created);
+  }),
+);
+
+contentRouter.patch(
+  "/groups/:id",
+  requireAuth,
+  requireRole(["admin", "teacher", "supervisor"]),
+  asyncHandler(async (req, res) => {
+    const payload = groupSchema.partial().parse(req.body);
+    const updated = await GroupModel.findOneAndUpdate(buildDocumentQuery(req.params.id), payload, {
+      new: true,
+    });
+
+    if (!updated) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Group not found" });
+    }
+
+    return res.json(updated);
+  }),
+);
+
+contentRouter.delete(
+  "/groups/:id",
+  requireAuth,
+  requireRole(["admin", "teacher", "supervisor"]),
+  asyncHandler(async (req, res) => {
+    const deleted = await GroupModel.findOneAndDelete(buildDocumentQuery(req.params.id));
+
+    if (!deleted) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Group not found" });
+    }
+
+    return res.json({ success: true });
+  }),
+);
+
+contentRouter.post(
+  "/b2b-packages",
+  requireAuth,
+  requireRole(["admin", "supervisor"]),
+  asyncHandler(async (req, res) => {
+    const payload = b2bPackageSchema.parse(req.body);
+    const created = await B2BPackageModel.create(payload);
+    res.status(StatusCodes.CREATED).json(created);
+  }),
+);
+
+contentRouter.patch(
+  "/b2b-packages/:id",
+  requireAuth,
+  requireRole(["admin", "supervisor"]),
+  asyncHandler(async (req, res) => {
+    const payload = b2bPackageSchema.partial().parse(req.body);
+    const updated = await B2BPackageModel.findOneAndUpdate(buildDocumentQuery(req.params.id), payload, {
+      new: true,
+    });
+
+    if (!updated) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Package not found" });
+    }
+
+    return res.json(updated);
+  }),
+);
+
+contentRouter.delete(
+  "/b2b-packages/:id",
+  requireAuth,
+  requireRole(["admin", "supervisor"]),
+  asyncHandler(async (req, res) => {
+    const deleted = await B2BPackageModel.findOneAndDelete(buildDocumentQuery(req.params.id));
+
+    if (!deleted) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Package not found" });
+    }
+
+    await AccessCodeModel.deleteMany({ packageId: deleted.id || String(deleted._id) });
+    return res.json({ success: true });
+  }),
+);
+
+contentRouter.post(
+  "/access-codes",
+  requireAuth,
+  requireRole(["admin", "supervisor"]),
+  asyncHandler(async (req, res) => {
+    const payload = accessCodeSchema.parse(req.body);
+    const created = await AccessCodeModel.create(payload);
+    res.status(StatusCodes.CREATED).json(created);
+  }),
+);
+
+contentRouter.patch(
+  "/access-codes/:id",
+  requireAuth,
+  requireRole(["admin", "supervisor"]),
+  asyncHandler(async (req, res) => {
+    const payload = accessCodeSchema.partial().parse(req.body);
+    const updated = await AccessCodeModel.findOneAndUpdate(buildDocumentQuery(req.params.id), payload, {
+      new: true,
+    });
+
+    if (!updated) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Access code not found" });
+    }
+
+    return res.json(updated);
+  }),
+);
+
+contentRouter.delete(
+  "/access-codes/:id",
+  requireAuth,
+  requireRole(["admin", "supervisor"]),
+  asyncHandler(async (req, res) => {
+    const deleted = await AccessCodeModel.findOneAndDelete(buildDocumentQuery(req.params.id));
+
+    if (!deleted) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Access code not found" });
+    }
+
+    return res.json({ success: true });
+  }),
+);
+
+contentRouter.get(
+  "/schools/:id/report",
+  requireAuth,
+  requireRole(["admin", "supervisor"]),
+  asyncHandler(async (req, res) => {
+    const school = await GroupModel.findOne({
+      ...buildDocumentQuery(req.params.id),
+      type: "SCHOOL",
+    });
+
+    if (!school) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "School not found" });
+    }
+
+    const schoolId = school.id || String(school._id);
+
+    const [classes, packages, codes, students] = await Promise.all([
+      GroupModel.find({ type: "CLASS", parentId: schoolId }).sort({ createdAt: -1 }),
+      B2BPackageModel.find({ schoolId }).sort({ createdAt: -1 }),
+      AccessCodeModel.find({ schoolId }).sort({ createdAt: -1 }),
+      UserModel.find({ schoolId }).sort({ createdAt: -1 }),
+    ]);
+
+    const studentIds = students.map((student) => student.id || String(student._id));
+    const quizResults = studentIds.length
+      ? await QuizResultModel.find({ userId: { $in: studentIds } }).sort({ createdAt: -1 })
+      : [];
+
+    const averageScore = quizResults.length
+      ? Math.round(
+          quizResults.reduce((sum, result) => sum + (Number(result.score) || 0), 0) / quizResults.length,
+        )
+      : 0;
+
+    const weakSkillMap = new Map<
+      string,
+      {
+        skillId?: string;
+        skill: string;
+        subjectId?: string;
+        sectionId?: string;
+        attempts: number;
+        masteryTotal: number;
+      }
+    >();
+
+    quizResults.forEach((result) => {
+      const skills = Array.isArray(result.skillsAnalysis) ? result.skillsAnalysis : [];
+      skills.forEach((gap: any) => {
+        const key = String(gap?.skillId || gap?.skill || gap?.sectionId || "unknown");
+        const current = weakSkillMap.get(key) || {
+          skillId: gap?.skillId,
+          skill: String(gap?.skill || "مهارة غير مسماة"),
+          subjectId: gap?.subjectId,
+          sectionId: gap?.sectionId,
+          attempts: 0,
+          masteryTotal: 0,
+        };
+
+        current.attempts += 1;
+        current.masteryTotal += Number(gap?.mastery) || 0;
+        weakSkillMap.set(key, current);
+      });
+    });
+
+    const weakestSkills = Array.from(weakSkillMap.values())
+      .map((item) => ({
+        skillId: item.skillId,
+        skill: item.skill,
+        subjectId: item.subjectId,
+        sectionId: item.sectionId,
+        attempts: item.attempts,
+        mastery: item.attempts > 0 ? Math.round(item.masteryTotal / item.attempts) : 0,
+      }))
+      .sort((a, b) => a.mastery - b.mastery || b.attempts - a.attempts)
+      .slice(0, 8);
+
+    const classSummaries = classes.map((group) => {
+      const classId = group.id || String(group._id);
+      const classStudents = students.filter((student) => (student.groupIds || []).includes(classId));
+      const classStudentIds = new Set(classStudents.map((student) => student.id || String(student._id)));
+      const classResults = quizResults.filter((result) => classStudentIds.has(String(result.userId)));
+      const classAverageScore = classResults.length
+        ? Math.round(classResults.reduce((sum, result) => sum + (Number(result.score) || 0), 0) / classResults.length)
+        : 0;
+
+      return {
+        id: classId,
+        name: group.name,
+        studentCount: classStudents.length,
+        supervisorCount: Array.isArray(group.supervisorIds) ? group.supervisorIds.length : 0,
+        quizAttempts: classResults.length,
+        averageScore: classAverageScore,
+      };
+    });
+
+    return res.json({
+      school: {
+        id: schoolId,
+        name: school.name,
+      },
+      metrics: {
+        totalStudents: students.length,
+        activeStudents: students.filter((student) => student.isActive !== false).length,
+        totalClasses: classes.length,
+        activePackages: packages.filter((pkg) => pkg.status === "active").length,
+        activeCodes: codes.filter((code) => Number(code.expiresAt) > Date.now()).length,
+        quizAttempts: quizResults.length,
+        averageScore,
+      },
+      classSummaries,
+      weakestSkills,
+    });
+  }),
+);
+
+contentRouter.post(
+  "/schools/:id/import-students",
+  requireAuth,
+  requireRole(["admin", "supervisor"]),
+  asyncHandler(async (req, res) => {
+    const payload = schoolImportSchema.parse(req.body);
+    const school = await GroupModel.findOne({
+      ...buildDocumentQuery(req.params.id),
+      type: "SCHOOL",
+    });
+
+    if (!school) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "School not found" });
+    }
+
+    const schoolId = school.id || String(school._id);
+    const existingClasses = await GroupModel.find({ type: "CLASS", parentId: schoolId }).sort({ createdAt: -1 });
+    const classById = new Map(existingClasses.map((item) => [item.id || String(item._id), item]));
+    const classByName = new Map(existingClasses.map((item) => [item.name.trim().toLowerCase(), item]));
+    const credentials: Array<{ name: string; email: string; password: string; className?: string }> = [];
+    const importedUsers: any[] = [];
+
+    for (const row of payload.rows) {
+      let targetClass = row.classId ? classById.get(row.classId) : undefined;
+
+      if (!targetClass && row.className?.trim()) {
+        targetClass = classByName.get(row.className.trim().toLowerCase());
+      }
+
+      if (!targetClass && row.className?.trim()) {
+        targetClass = await GroupModel.create({
+          id: `class_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          name: row.className.trim(),
+          type: "CLASS",
+          parentId: schoolId,
+          ownerId: req.authUser?.id,
+          supervisorIds: [],
+          studentIds: [],
+          courseIds: [],
+          createdAt: Date.now(),
+          totalStudents: 0,
+          totalSupervisors: 0,
+          totalCourses: 0,
+        });
+
+        const createdClassId = targetClass.id || String(targetClass._id);
+        classById.set(createdClassId, targetClass);
+        classByName.set(targetClass.name.trim().toLowerCase(), targetClass);
+      }
+
+      const generatedPassword = row.password || `Nn@${Math.floor(100000 + Math.random() * 900000)}`;
+      const passwordHash = await bcrypt.hash(generatedPassword, 10);
+      const normalizedEmail = row.email.toLowerCase().trim();
+      const classId = targetClass ? targetClass.id || String(targetClass._id) : undefined;
+
+      const user = await UserModel.findOneAndUpdate(
+        { email: normalizedEmail },
+        {
+          name: row.name.trim(),
+          email: normalizedEmail,
+          passwordHash,
+          role: "student",
+          isActive: true,
+          schoolId,
+          groupIds: classId ? [classId] : [],
+        },
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true,
+        },
+      );
+
+      importedUsers.push(user);
+      credentials.push({
+        name: row.name.trim(),
+        email: normalizedEmail,
+        password: generatedPassword,
+        className: targetClass?.name,
+      });
+    }
+
+    const studentIds = importedUsers.map((user) => user.id || String(user._id));
+
+    await GroupModel.findOneAndUpdate(
+      buildDocumentQuery(schoolId),
+      {
+        $addToSet: { studentIds: { $each: studentIds } },
+        $set: { totalStudents: await UserModel.countDocuments({ schoolId }) },
+      },
+      { new: true },
+    );
+
+    const latestClasses = await GroupModel.find({ type: "CLASS", parentId: schoolId });
+    await Promise.all(
+      latestClasses.map(async (group) => {
+        const classId = group.id || String(group._id);
+        const count = await UserModel.countDocuments({ groupIds: classId });
+        await GroupModel.findOneAndUpdate(buildDocumentQuery(classId), { $set: { totalStudents: count } });
+      }),
+    );
+
+    return res.status(StatusCodes.CREATED).json({
+      summary: {
+        totalRows: payload.rows.length,
+        imported: credentials.length,
+        classesTouched: Array.from(
+          new Set(credentials.map((item) => item.className).filter(Boolean)),
+        ).length,
+      },
+      credentials,
+    });
   }),
 );

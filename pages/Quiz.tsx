@@ -1,15 +1,35 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, ArrowLeft, Clock, CheckCircle, AlertTriangle, Gauge, ChevronRight, Save, Trash2, Heart, PlayCircle, FileQuestion } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { VideoModal } from '../components/VideoModal';
 import { ProgressBar } from '../components/ui/ProgressBar';
 import { useStore } from '../store/useStore';
 
 const DEFAULT_TIME_MINUTES = 20;
+const QUIZ_PROGRESS_KEY = 'quiz_progress';
+const QUIZ_PROGRESS_SNAPSHOT_KEY = 'quiz_progress_save';
+const OPTION_LABELS = ['أ', 'ب', 'ج', 'د', 'هـ', 'و'];
+
+interface SavedQuizSnapshot {
+  entryMode: 'prepared' | 'self';
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+  selectedPathId: string;
+  selectedSubjectId: string;
+  selectedSectionId: string;
+  questionTypeFilter: 'all' | 'mcq' | 'true_false';
+  questionCount: number;
+  timeLimitMinutes: number;
+  currentQuestion: number;
+  answers: { [key: number]: number };
+  timeLeft: number;
+  activePreparedQuizId: string;
+  sessionQuestions: ReturnType<typeof useStore.getState>['questions'];
+}
 
 const Quiz: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     saveExamResult,
     toggleFavorite: toggleStoreFavorite,
@@ -43,6 +63,51 @@ const Quiz: React.FC = () => {
   const [answers, setAnswers] = useState<{ [key: number]: number }>({});
   const [showVideo, setShowVideo] = useState(false);
   const [showExitDialog, setShowExitDialog] = useState(false);
+  const [savedSnapshot, setSavedSnapshot] = useState<SavedQuizSnapshot | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusTone, setStatusTone] = useState<'success' | 'error' | 'info'>('info');
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const mode = params.get('mode');
+    const nextEntryMode = mode === 'self' ? 'self' : mode === 'prepared' ? 'prepared' : null;
+    if (nextEntryMode) {
+      setEntryMode(nextEntryMode);
+    }
+
+    const pathId = params.get('pathId');
+    const subjectId = params.get('subjectId');
+    const sectionId = params.get('sectionId');
+    const level = params.get('difficulty');
+    const nextQuestionCount = Number(params.get('questionCount') || '');
+    const nextTimeLimit = Number(params.get('timeLimit') || '');
+    const autoStart = params.get('autostart') === '1';
+
+    if (pathId !== null) {
+      setSelectedPathId(pathId);
+    }
+    if (subjectId !== null) {
+      setSelectedSubjectId(subjectId);
+    }
+    if (sectionId !== null) {
+      setSelectedSectionId(sectionId);
+    }
+    if (level === 'Easy' || level === 'Medium' || level === 'Hard') {
+      setDifficulty(level);
+    }
+    if (!Number.isNaN(nextQuestionCount) && nextQuestionCount > 0) {
+      setQuestionCount(Math.max(5, Math.min(60, nextQuestionCount)));
+    }
+    if (!Number.isNaN(nextTimeLimit) && nextTimeLimit > 0) {
+      setTimeLimitMinutes(Math.max(5, Math.min(180, nextTimeLimit)));
+    }
+
+    if (autoStart && mode === 'self') {
+      window.setTimeout(() => {
+        startSelfQuiz();
+      }, 0);
+    }
+  }, [location.search]);
 
   const availableSubjects = useMemo(
     () => subjects.filter((subject) => !selectedPathId || subject.pathId === selectedPathId),
@@ -92,8 +157,39 @@ const Quiz: React.FC = () => {
     toggleStoreFavorite(questionId);
   };
 
+  const showStatus = (message: string, tone: 'success' | 'error' | 'info' = 'info') => {
+    setStatusMessage(message);
+    setStatusTone(tone);
+  };
+
+  const clearSavedSnapshot = () => {
+    localStorage.removeItem(QUIZ_PROGRESS_SNAPSHOT_KEY);
+    setSavedSnapshot(null);
+  };
+
+  const restoreSavedSnapshot = () => {
+    if (!savedSnapshot) return;
+
+    setEntryMode(savedSnapshot.entryMode);
+    setDifficulty(savedSnapshot.difficulty);
+    setSelectedPathId(savedSnapshot.selectedPathId);
+    setSelectedSubjectId(savedSnapshot.selectedSubjectId);
+    setSelectedSectionId(savedSnapshot.selectedSectionId);
+    setQuestionTypeFilter(savedSnapshot.questionTypeFilter);
+    setQuestionCount(savedSnapshot.questionCount);
+    setTimeLimitMinutes(savedSnapshot.timeLimitMinutes);
+    setActivePreparedQuizId(savedSnapshot.activePreparedQuizId);
+    setSessionQuestions(savedSnapshot.sessionQuestions);
+    setCurrentQuestion(savedSnapshot.currentQuestion);
+    setAnswers(savedSnapshot.answers);
+    setTimeLeft(savedSnapshot.timeLeft);
+    setSelectedAnswer(savedSnapshot.answers[savedSnapshot.currentQuestion] ?? null);
+    setQuizStarted(savedSnapshot.sessionQuestions.length > 0);
+    showStatus('تمت استعادة آخر تقدم محفوظ في اختبار ساهر.', 'success');
+  };
+
   useEffect(() => {
-    const savedProgress = localStorage.getItem('quiz_progress');
+    const savedProgress = localStorage.getItem(QUIZ_PROGRESS_KEY);
     if (!savedProgress) return;
     const parsed = JSON.parse(savedProgress) as {
       currentQuestion?: number;
@@ -106,9 +202,22 @@ const Quiz: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const snapshotRaw = localStorage.getItem(QUIZ_PROGRESS_SNAPSHOT_KEY);
+    if (!snapshotRaw) return;
+    try {
+      const parsed = JSON.parse(snapshotRaw) as SavedQuizSnapshot;
+      if (parsed?.sessionQuestions?.length) {
+        setSavedSnapshot(parsed);
+      }
+    } catch {
+      localStorage.removeItem(QUIZ_PROGRESS_SNAPSHOT_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!quizStarted || questions.length === 0) return;
     localStorage.setItem(
-      'quiz_progress',
+      QUIZ_PROGRESS_KEY,
       JSON.stringify({
         currentQuestion,
         answers,
@@ -171,27 +280,30 @@ const Quiz: React.FC = () => {
 
     const sourcePool = strictPool.length > 0 ? strictPool : relaxedPool.length > 0 ? relaxedPool : fallbackPool;
     if (sourcePool.length === 0) {
-      alert('لا توجد أسئلة مطابقة للخيارات الحالية. جرّب تغيير المسار أو المادة.');
+      showStatus('لا توجد أسئلة مطابقة للخيارات الحالية. جرّب تغيير المسار أو المادة أو مستوى الصعوبة.', 'error');
       return;
     }
 
     const shuffled = [...sourcePool].sort(() => 0.5 - Math.random());
     const picked = shuffled.slice(0, Math.max(5, Math.min(questionCount, shuffled.length)));
 
+    setStatusMessage(null);
     setSessionQuestions(picked);
     setTimeLeft(Math.max(5, timeLimitMinutes) * 60);
     setCurrentQuestion(0);
     setAnswers({});
     setSelectedAnswer(null);
     setQuizStarted(true);
+    navigate('/quiz', { replace: true });
   };
 
   const handleStart = () => {
     if (entryMode === 'prepared') {
       if (!activePreparedQuizId) {
-        alert('اختر اختبارًا من الاختبارات الجاهزة أولًا.');
+        showStatus('اختر اختبارًا من الاختبارات الجاهزة أولًا.', 'error');
         return;
       }
+      setStatusMessage(null);
       navigate(`/quiz/${activePreparedQuizId}`);
       return;
     }
@@ -315,7 +427,8 @@ const Quiz: React.FC = () => {
       questionReview,
     });
 
-    localStorage.removeItem('quiz_progress');
+    localStorage.removeItem(QUIZ_PROGRESS_KEY);
+    clearSavedSnapshot();
     navigate('/results');
   };
 
@@ -346,15 +459,30 @@ const Quiz: React.FC = () => {
   };
 
   const handleSaveProgress = () => {
-    localStorage.setItem(
-      'quiz_progress_save',
-      JSON.stringify({
-        currentQuestion,
-        answers,
-        timeLeft,
-      }),
-    );
-    alert('تم حفظ تقدمك بنجاح!');
+    if (!quizStarted || questions.length === 0) {
+      showStatus('ابدأ الاختبار أولًا حتى يمكن حفظ تقدمك.', 'error');
+      return;
+    }
+
+    const snapshot: SavedQuizSnapshot = {
+      entryMode,
+      difficulty,
+      selectedPathId,
+      selectedSubjectId,
+      selectedSectionId,
+      questionTypeFilter,
+      questionCount,
+      timeLimitMinutes,
+      currentQuestion,
+      answers,
+      timeLeft,
+      activePreparedQuizId,
+      sessionQuestions: questions,
+    };
+
+    localStorage.setItem(QUIZ_PROGRESS_SNAPSHOT_KEY, JSON.stringify(snapshot));
+    setSavedSnapshot(snapshot);
+    showStatus('تم حفظ تقدمك ويمكنك استعادته لاحقًا من نفس الصفحة.', 'success');
   };
 
   if (!quizStarted) {
@@ -380,6 +508,45 @@ const Quiz: React.FC = () => {
               اختبار ذاتي
             </button>
           </div>
+
+          {statusMessage && (
+            <div
+              className={`rounded-xl border px-4 py-3 text-sm font-medium ${
+                statusTone === 'success'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                  : statusTone === 'error'
+                    ? 'bg-red-50 border-red-200 text-red-700'
+                    : 'bg-blue-50 border-blue-200 text-blue-700'
+              }`}
+            >
+              {statusMessage}
+            </div>
+          )}
+
+          {savedSnapshot && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <h3 className="font-bold text-amber-900">يوجد تقدم محفوظ لاختبار سابق</h3>
+                <p className="text-sm text-amber-700 mt-1">
+                  يمكنك استكمال آخر جلسة محفوظة بنفس الأسئلة والإجابات والوقت المتبقي.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={restoreSavedSnapshot}
+                  className="px-4 py-2 rounded-lg bg-amber-600 text-white font-bold hover:bg-amber-700 transition-colors"
+                >
+                  استعادة التقدم
+                </button>
+                <button
+                  onClick={clearSavedSnapshot}
+                  className="px-4 py-2 rounded-lg bg-white text-amber-700 border border-amber-300 font-bold hover:bg-amber-100 transition-colors"
+                >
+                  حذف النسخة
+                </button>
+              </div>
+            </div>
+          )}
 
           {entryMode === 'prepared' ? (
             <div className="space-y-4">
@@ -600,6 +767,20 @@ const Quiz: React.FC = () => {
       </header>
 
       <main className="flex-1 p-4 max-w-3xl mx-auto w-full flex flex-col justify-center">
+        {statusMessage && (
+          <div
+            className={`mb-4 rounded-xl border px-4 py-3 text-sm font-medium ${
+              statusTone === 'success'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                : statusTone === 'error'
+                  ? 'bg-red-50 border-red-200 text-red-700'
+                  : 'bg-blue-50 border-blue-200 text-blue-700'
+            }`}
+          >
+            {statusMessage}
+          </div>
+        )}
+
         <div className="mb-4">
           <div className="flex justify-between text-sm text-gray-600 mb-1">
             <span>التقدم</span>
@@ -642,7 +823,7 @@ const Quiz: React.FC = () => {
               ({currentQuestion + 1}) {questions[currentQuestion].text}
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 dir-rtl">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 dir-rtl">
               {questions[currentQuestion].options.map((option, idx) => {
                 const isSelected = selectedAnswer === idx || answers[currentQuestion] === idx;
                 let borderClass = 'border-gray-200 hover:border-gray-300 bg-white';
@@ -656,9 +837,16 @@ const Quiz: React.FC = () => {
                   <button
                     key={idx}
                     onClick={() => handleAnswerSelect(idx)}
-                    className={`p-4 rounded-xl border-2 transition-all flex items-center justify-between ${borderClass}`}
+                    className={`min-h-[112px] p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center text-center gap-3 shadow-sm ${borderClass}`}
                   >
-                    <span className="font-bold text-lg">{option}</span>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center text-lg font-black ${
+                        isSelected ? 'border-current' : 'border-gray-300'
+                      }`}>
+                        {OPTION_LABELS[idx] || String(idx + 1)}
+                      </div>
+                    </div>
+                    <span className="font-bold text-lg leading-relaxed">{option}</span>
                     <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
                       isSelected && idx === questions[currentQuestion].correctOptionIndex ? 'border-emerald-500 bg-emerald-500' :
                       isSelected ? 'border-red-500 bg-red-500' : 'border-gray-300'

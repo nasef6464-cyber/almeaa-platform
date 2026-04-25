@@ -1,9 +1,60 @@
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, AlertTriangle, Play, ChevronLeft, Target, PieChart, TrendingUp, Award, BookOpen, Video, Clock, CheckCircle, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { useStore } from '../store/useStore';
+import { api } from '../services/api';
+import { Role } from '../types';
+
+interface ScopedAnalyticsOverview {
+    scope: {
+        role: string;
+        studentCount: number;
+        groupCount: number;
+        quizAttempts: number;
+    };
+    weakestStudents: Array<{
+        id: string;
+        name: string;
+        averageScore: number;
+        attempts: number;
+        weakSkillCount: number;
+        schoolName?: string;
+        groupNames?: string[];
+        weakestSkills?: Array<{ skill: string; mastery: number }>;
+        recommendedAction?: string;
+    }>;
+    weakestSkills: Array<{
+        skillId?: string;
+        skill: string;
+        section?: string;
+        mastery: number;
+        affectedStudents: number;
+        attempts: number;
+        recommendedAction?: string;
+    }>;
+    subjectSummaries: Array<{
+        subjectId?: string;
+        subjectName: string;
+        mastery: number;
+        weakStudents: number;
+    }>;
+    assignedFollowUps: Array<{
+        id: string;
+        title: string;
+        mode: 'regular' | 'saher' | 'central';
+        dueDate?: string;
+    }>;
+}
+
+const roleScopeTitle: Record<string, string> = {
+    admin: 'نطاق المنصة بالكامل',
+    supervisor: 'نطاق المجموعات والمدرسة التابعة لك',
+    teacher: 'نطاق الطلاب المرتبطين بك',
+    parent: 'الأبناء المرتبطون بك',
+    student: 'نطاقك الشخصي',
+};
 
 interface SkillRecommendation {
     lessonTitle?: string;
@@ -63,7 +114,41 @@ const getSkillRecommendation = (
 };
 
 const Reports: React.FC = () => {
-    const { examResults, skills, lessons, quizzes, libraryItems, questions } = useStore();
+    const { examResults, skills, lessons, quizzes, libraryItems, questions, user } = useStore();
+    const [scopedAnalytics, setScopedAnalytics] = useState<ScopedAnalyticsOverview | null>(null);
+    const [scopedAnalyticsLoading, setScopedAnalyticsLoading] = useState(false);
+
+    useEffect(() => {
+        if (!user?.email || user.role === Role.STUDENT) {
+            setScopedAnalytics(null);
+            return;
+        }
+
+        let cancelled = false;
+        setScopedAnalyticsLoading(true);
+
+        api.getQuizAnalyticsOverview()
+            .then((response) => {
+                if (!cancelled) {
+                    setScopedAnalytics(response as ScopedAnalyticsOverview);
+                }
+            })
+            .catch((error) => {
+                console.warn('Failed to load scoped analytics overview', error);
+                if (!cancelled) {
+                    setScopedAnalytics(null);
+                }
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setScopedAnalyticsLoading(false);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [user?.email, user.role]);
 
     // Calculate Performance Analysis
     const stats = useMemo(() => {
@@ -129,8 +214,10 @@ const Reports: React.FC = () => {
 
     const weakestSkill = aggregatedSkills.length > 0 ? aggregatedSkills[0] : null;
     const weakestSkillRecommendation = getSkillRecommendation(weakestSkill || undefined, skills, lessons, quizzes, libraryItems, questions);
+    const isStudentView = user.role === Role.STUDENT;
+    const hasStudentAnalytics = examResults.length > 0;
 
-    if (examResults.length === 0) {
+    if (isStudentView && examResults.length === 0) {
         return (
             <div className="space-y-6 pb-20 animate-fade-in">
                 <header className="flex items-center gap-4">
@@ -171,6 +258,147 @@ const Reports: React.FC = () => {
                 </div>
             </header>
 
+            {!isStudentView && (
+                <Card className="p-6 border-0 shadow-sm bg-white">
+                    <div className="flex items-start justify-between gap-4 mb-5">
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-900">لوحة المتابعة حسب الدور</h2>
+                            <p className="text-sm text-gray-500 mt-1">
+                                {roleScopeTitle[user.role] || 'نطاقك الحالي'} - لمتابعة الطلاب الضعاف والمهارات الأضعف وخطط التدخل.
+                            </p>
+                        </div>
+                        <div className="text-xs px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 font-bold">
+                            {user.role === Role.ADMIN ? 'مدير' : user.role === Role.SUPERVISOR ? 'مشرف' : user.role === Role.TEACHER ? 'معلم' : 'ولي أمر'}
+                        </div>
+                    </div>
+
+                    {scopedAnalyticsLoading ? (
+                        <div className="text-sm text-gray-500">جارٍ تحميل التقارير المجمعة...</div>
+                    ) : scopedAnalytics ? (
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="rounded-2xl bg-gray-50 p-4">
+                                    <div className="text-xs text-gray-500 mb-1">الطلاب داخل النطاق</div>
+                                    <div className="text-2xl font-black text-gray-900">{scopedAnalytics.scope.studentCount}</div>
+                                </div>
+                                <div className="rounded-2xl bg-amber-50 p-4">
+                                    <div className="text-xs text-amber-600 mb-1">محاولات الاختبار</div>
+                                    <div className="text-2xl font-black text-amber-700">{scopedAnalytics.scope.quizAttempts}</div>
+                                </div>
+                                <div className="rounded-2xl bg-rose-50 p-4">
+                                    <div className="text-xs text-rose-600 mb-1">الطلاب الأضعف</div>
+                                    <div className="text-2xl font-black text-rose-700">{scopedAnalytics.weakestStudents.length}</div>
+                                </div>
+                                <div className="rounded-2xl bg-purple-50 p-4">
+                                    <div className="text-xs text-purple-600 mb-1">اختبارات المتابعة</div>
+                                    <div className="text-2xl font-black text-purple-700">{scopedAnalytics.assignedFollowUps.length}</div>
+                                </div>
+                            </div>
+
+                            <div className="grid lg:grid-cols-2 gap-6">
+                                <div className="space-y-3">
+                                    <div className="font-bold text-gray-900">الطلاب الأضعف حاليًا</div>
+                                    {scopedAnalytics.weakestStudents.length > 0 ? scopedAnalytics.weakestStudents.slice(0, 5).map((student) => (
+                                        <div key={student.id} className="border border-gray-100 rounded-xl p-4 bg-gray-50/60">
+                                            <div className="flex items-center justify-between gap-3 mb-2">
+                                                <div>
+                                                    <div className="font-bold text-gray-900">{student.name}</div>
+                                                    <div className="text-xs text-gray-500">
+                                                        {student.schoolName || 'بدون مدرسة'}
+                                                        {student.groupNames?.length ? ` - ${student.groupNames.join('، ')}` : ''}
+                                                    </div>
+                                                </div>
+                                                <div className={`text-lg font-black ${student.averageScore < 50 ? 'text-rose-600' : 'text-amber-600'}`}>
+                                                    {student.averageScore}%
+                                                </div>
+                                            </div>
+                                            <div className="text-xs text-gray-600 space-y-1">
+                                                <div>عدد المحاولات: <span className="font-bold">{student.attempts}</span></div>
+                                                <div>المهارات الضعيفة: <span className="font-bold">{student.weakSkillCount}</span></div>
+                                                {student.weakestSkills?.length ? (
+                                                    <div>
+                                                        أبرز نقاط الضعف:
+                                                        <span className="font-bold"> {student.weakestSkills.map((skill) => `${skill.skill} (${skill.mastery}%)`).join(' - ')}</span>
+                                                    </div>
+                                                ) : null}
+                                                {student.recommendedAction ? <div className="text-indigo-700">الإجراء المقترح: <span className="font-bold">{student.recommendedAction}</span></div> : null}
+                                            </div>
+                                        </div>
+                                    )) : (
+                                        <div className="border border-dashed border-gray-200 rounded-xl p-4 text-sm text-gray-500">لا توجد بيانات طلاب مرتبطة بهذا النطاق بعد.</div>
+                                    )}
+                                </div>
+
+                                <div className="space-y-3">
+                                    <div className="font-bold text-gray-900">المهارات الأضعف على مستوى النطاق</div>
+                                    {scopedAnalytics.weakestSkills.length > 0 ? scopedAnalytics.weakestSkills.slice(0, 6).map((skill) => (
+                                        <div key={`${skill.skillId || skill.skill}`} className="border border-gray-100 rounded-xl p-4 bg-white">
+                                            <div className="flex items-center justify-between gap-3 mb-2">
+                                                <div>
+                                                    <div className="font-bold text-gray-900">{skill.skill}</div>
+                                                    <div className="text-xs text-gray-500">{skill.section || 'مهارة فرعية'}</div>
+                                                </div>
+                                                <div className={`text-lg font-black ${skill.mastery < 50 ? 'text-rose-600' : 'text-amber-600'}`}>{skill.mastery}%</div>
+                                            </div>
+                                            <div className="text-xs text-gray-600 space-y-1">
+                                                <div>طلاب متأثرون: <span className="font-bold">{skill.affectedStudents}</span></div>
+                                                <div>محاولات مرتبطة: <span className="font-bold">{skill.attempts}</span></div>
+                                                {skill.recommendedAction ? <div className="text-indigo-700">التدخل المقترح: <span className="font-bold">{skill.recommendedAction}</span></div> : null}
+                                            </div>
+                                        </div>
+                                    )) : (
+                                        <div className="border border-dashed border-gray-200 rounded-xl p-4 text-sm text-gray-500">لا توجد مهارات ضعيفة مجمعة حتى الآن.</div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="grid lg:grid-cols-2 gap-6">
+                                <div className="space-y-3">
+                                    <div className="font-bold text-gray-900">المواد التي تحتاج تدخلًا</div>
+                                    {scopedAnalytics.subjectSummaries.length > 0 ? scopedAnalytics.subjectSummaries.slice(0, 6).map((subject) => (
+                                        <div key={subject.subjectId || subject.subjectName} className="border border-gray-100 rounded-xl p-4 bg-gray-50/50 flex items-center justify-between gap-3">
+                                            <div>
+                                                <div className="font-bold text-gray-900">{subject.subjectName}</div>
+                                                <div className="text-xs text-gray-500">طلاب ضعفاء: {subject.weakStudents}</div>
+                                            </div>
+                                            <div className={`text-lg font-black ${subject.mastery < 50 ? 'text-rose-600' : 'text-amber-600'}`}>{subject.mastery}%</div>
+                                        </div>
+                                    )) : (
+                                        <div className="border border-dashed border-gray-200 rounded-xl p-4 text-sm text-gray-500">لا توجد مواد تحتاج تدخلًا ظاهرًا الآن.</div>
+                                    )}
+                                </div>
+
+                                <div className="space-y-3">
+                                    <div className="font-bold text-gray-900">اختبارات المتابعة الموجهة</div>
+                                    {scopedAnalytics.assignedFollowUps.length > 0 ? scopedAnalytics.assignedFollowUps.slice(0, 5).map((quiz) => (
+                                        <div key={quiz.id} className="border border-gray-100 rounded-xl p-4 bg-white flex items-center justify-between gap-3">
+                                            <div>
+                                                <div className="font-bold text-gray-900">{quiz.title}</div>
+                                                <div className="text-xs text-gray-500">
+                                                    {quiz.mode === 'central' ? 'اختبار مركزي موجه' : 'اختبار ساهر جاهز'}
+                                                    {quiz.dueDate ? ` - حتى ${new Date(quiz.dueDate).toLocaleDateString('ar-SA')}` : ''}
+                                                </div>
+                                            </div>
+                                            <Link to={`/quiz/${quiz.id}`} className="px-3 py-2 rounded-lg bg-gray-900 text-white text-sm font-bold hover:bg-gray-800">
+                                                فتح
+                                            </Link>
+                                        </div>
+                                    )) : (
+                                        <div className="border border-dashed border-gray-200 rounded-xl p-4 text-sm text-gray-500">لا توجد اختبارات متابعة موجهة داخل هذا النطاق حاليًا.</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="border border-dashed border-gray-200 rounded-xl p-4 text-sm text-gray-500">
+                            لا توجد بيانات مجمعة كافية لهذا الدور حتى الآن. إن كان الدور ولي أمر، اربطه أولًا بالطلاب من إدارة المستخدمين.
+                        </div>
+                    )}
+                </Card>
+            )}
+
+            {isStudentView && hasStudentAnalytics && (
+            <>
             {/* 1. Performance Analysis (A) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card className="p-6 flex flex-col items-center text-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-white border-0 shadow-md">
@@ -329,6 +557,8 @@ const Reports: React.FC = () => {
                     })}
                 </div>
             </Card>
+            </>
+            )}
         </div>
     );
 };

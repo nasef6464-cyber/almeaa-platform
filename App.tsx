@@ -1,5 +1,5 @@
 
-import React, { Suspense, useEffect } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import { Loader2 } from 'lucide-react';
@@ -47,6 +47,7 @@ const LoadingFallback = () => (
 
 const App: React.FC = () => {
   useFirebaseSync();
+  const [bootstrapReady, setBootstrapReady] = useState(false);
   const hydrateCourses = useStore((state) => state.hydrateCourses);
   const hydrateQuestions = useStore((state) => state.hydrateQuestions);
   const hydrateQuizzes = useStore((state) => state.hydrateQuizzes);
@@ -58,7 +59,7 @@ const App: React.FC = () => {
 
     const bootstrapAppData = async () => {
       try {
-        const [courses, questions, quizzes, taxonomy, content] = await Promise.all([
+        const [coursesResult, questionsResult, quizzesResult, taxonomyResult, contentResult] = await Promise.allSettled([
           adapter.getCourses(),
           adapter.getQuestions(),
           adapter.getQuizzes(),
@@ -70,24 +71,44 @@ const App: React.FC = () => {
           return;
         }
 
-        hydrateCourses(courses);
-        hydrateQuestions(questions);
-        hydrateQuizzes(quizzes);
-        hydrateTaxonomy({
-          paths: taxonomy.paths as any[],
-          levels: taxonomy.levels as any[],
-          subjects: taxonomy.subjects as any[],
-          sections: taxonomy.sections as any[],
-          skills: taxonomy.skills as any[],
-        });
-        hydrateContentBootstrap({
-          topics: content.topics as any[],
-          lessons: content.lessons as any[],
-          libraryItems: content.libraryItems as any[],
-          groups: content.groups as any[],
-        });
+        if (coursesResult.status === 'fulfilled') {
+          hydrateCourses(coursesResult.value);
+        }
+
+        if (questionsResult.status === 'fulfilled') {
+          hydrateQuestions(questionsResult.value);
+        }
+
+        if (quizzesResult.status === 'fulfilled') {
+          hydrateQuizzes(quizzesResult.value);
+        }
+
+        if (taxonomyResult.status === 'fulfilled') {
+          hydrateTaxonomy({
+            paths: taxonomyResult.value.paths as any[],
+            levels: taxonomyResult.value.levels as any[],
+            subjects: taxonomyResult.value.subjects as any[],
+            sections: taxonomyResult.value.sections as any[],
+            skills: taxonomyResult.value.skills as any[],
+          });
+        }
+
+        if (contentResult.status === 'fulfilled') {
+          hydrateContentBootstrap({
+            topics: contentResult.value.topics as any[],
+            lessons: contentResult.value.lessons as any[],
+            libraryItems: contentResult.value.libraryItems as any[],
+            groups: contentResult.value.groups as any[],
+            b2bPackages: contentResult.value.b2bPackages as any[],
+            accessCodes: contentResult.value.accessCodes as any[],
+          });
+        }
       } catch (error) {
         console.warn('App bootstrap fallback active:', error);
+      } finally {
+        if (mounted) {
+          setBootstrapReady(true);
+        }
       }
     };
 
@@ -97,6 +118,18 @@ const App: React.FC = () => {
       mounted = false;
     };
   }, [hydrateContentBootstrap, hydrateCourses, hydrateQuestions, hydrateQuizzes, hydrateTaxonomy]);
+
+  if (!bootstrapReady) {
+    return <LoadingFallback />;
+  }
+
+  const staffDashboard = (
+    <RequireRole allowedRoles={['admin', 'teacher', 'supervisor']}>
+      <Suspense fallback={<LoadingFallback />}>
+        <AdminDashboard />
+      </Suspense>
+    </RequireRole>
+  );
 
   return (
     <AuthProvider>
@@ -109,13 +142,17 @@ const App: React.FC = () => {
             <Route path="/results" element={<Results />} />
             
             {/* Admin Routes */}
-            <Route path="/admin-dashboard" element={
-              <RequireRole allowedRoles={['admin']}>
-                <Suspense fallback={<LoadingFallback />}>
-                  <AdminDashboard />
-                </Suspense>
-              </RequireRole>
-            } />
+            <Route path="/admin-dashboard" element={staffDashboard} />
+            <Route path="/instructor-dashboard" element={staffDashboard} />
+            <Route path="/supervisor-dashboard" element={staffDashboard} />
+            <Route
+              path="/parent-dashboard"
+              element={
+                <RequireRole allowedRoles={['parent']}>
+                  <Dashboard />
+                </RequireRole>
+              }
+            />
 
             {/* Routes with Main Layout */}
             <Route path="*" element={

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { StatusCodes } from "http-status-codes";
 import { z } from "zod";
 import { CourseModel } from "../models/Course.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { optionalAuth, requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const courseSchema = z.object({
@@ -34,22 +34,123 @@ const courseSchema = z.object({
   dripContentEnabled: z.boolean().optional(),
   certificateEnabled: z.boolean().optional(),
   skills: z.array(z.string()).optional(),
+  ownerType: z.enum(["platform", "teacher", "school"]).optional(),
+  ownerId: z.string().optional(),
+  createdBy: z.string().optional(),
+  assignedTeacherId: z.string().optional(),
+  approvalStatus: z.enum(["draft", "pending_review", "approved", "rejected"]).optional(),
+  approvedBy: z.string().optional(),
+  approvedAt: z.number().nullable().optional(),
+  reviewerNotes: z.string().optional(),
+  revenueSharePercentage: z.number().nullable().optional(),
 });
+
+const isStaffRole = (role?: string) => role === "admin" || role === "teacher" || role === "supervisor";
+
+const getWorkflowDefaults = (authUser?: { id: string; role: string; schoolId?: string | null }) => {
+  if (!authUser) {
+    return {};
+  }
+
+  if (authUser.role === "admin") {
+    return {
+      ownerType: "platform",
+      ownerId: authUser.id,
+      createdBy: authUser.id,
+      approvalStatus: "approved",
+      approvedBy: authUser.id,
+      approvedAt: Date.now(),
+    };
+  }
+
+  if (authUser.role === "teacher") {
+    return {
+      ownerType: "teacher",
+      ownerId: authUser.id,
+      createdBy: authUser.id,
+      assignedTeacherId: authUser.id,
+      approvalStatus: "pending_review",
+      approvedBy: "",
+      approvedAt: null,
+    };
+  }
+
+  return {
+    ownerType: "school",
+    ownerId: authUser.schoolId || authUser.id,
+    createdBy: authUser.id,
+    approvalStatus: "pending_review",
+    approvedBy: "",
+    approvedAt: null,
+  };
+};
+
+const sanitizeWorkflowUpdate = (
+  payload: Record<string, unknown>,
+  authUser: { id: string; role: string; schoolId?: string | null },
+) => {
+  const nextPayload = { ...payload };
+
+  if (authUser.role !== "admin") {
+    delete nextPayload.ownerType;
+    delete nextPayload.ownerId;
+    delete nextPayload.createdBy;
+    delete nextPayload.approvedBy;
+    delete nextPayload.approvedAt;
+    delete nextPayload.reviewerNotes;
+    delete nextPayload.revenueSharePercentage;
+    if (typeof nextPayload.approvalStatus === "string" && nextPayload.approvalStatus === "approved") {
+      nextPayload.approvalStatus = "pending_review";
+    }
+    if (nextPayload.isPublished === true) {
+      nextPayload.isPublished = false;
+    }
+  } else {
+    if (typeof nextPayload.approvalStatus === "string") {
+      if (nextPayload.approvalStatus === "approved") {
+        nextPayload.approvedBy = authUser.id;
+        nextPayload.approvedAt = Date.now();
+      } else if (nextPayload.approvalStatus === "rejected" || nextPayload.approvalStatus === "pending_review") {
+        nextPayload.approvedBy = "";
+        nextPayload.approvedAt = null;
+        nextPayload.isPublished = false;
+      }
+    }
+  }
+
+  return nextPayload;
+};
+
+const buildCourseVisibilityFilter = (authUser?: { role?: string; id?: string }) => {
+  if (isStaffRole(authUser?.role)) {
+    return {};
+  }
+
+  return {
+    isPublished: true,
+    $or: [{ approvalStatus: "approved" }, { approvalStatus: { $exists: false } }, { approvalStatus: null }],
+  };
+};
 
 export const courseRouter = Router();
 
 courseRouter.get(
   "/",
+  optionalAuth,
   asyncHandler(async (_req, res) => {
-    const items = await CourseModel.find().sort({ createdAt: -1 });
+    const items = await CourseModel.find(buildCourseVisibilityFilter(_req.authUser)).sort({ createdAt: -1 });
     res.json(items);
   }),
 );
 
 courseRouter.get(
   "/:id",
+  optionalAuth,
   asyncHandler(async (req, res) => {
-    const item = await CourseModel.findById(req.params.id);
+    const item = await CourseModel.findOne({
+      _id: req.params.id,
+      ...buildCourseVisibilityFilter(req.authUser),
+    });
     if (!item) {
       return res.status(StatusCodes.NOT_FOUND).json({ message: "Course not found" });
     }
@@ -63,8 +164,15 @@ courseRouter.post(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = courseSchema.parse(req.body);
+    const workflowDefaults = getWorkflowDefaults(req.authUser!);
     const created = await CourseModel.create({
       ...payload,
+      ...workflowDefaults,
+      approvalStatus:
+        req.authUser?.role === "admin"
+          ? payload.approvalStatus || workflowDefaults.approvalStatus
+          : workflowDefaults.approvalStatus,
+      isPublished: req.authUser?.role === "admin" ? payload.isPublished : false,
       ...(payload.id ? { _id: payload.id } : {}),
     });
     res.status(StatusCodes.CREATED).json(created);
@@ -77,7 +185,8 @@ courseRouter.patch(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = courseSchema.partial().parse(req.body);
-    const updated = await CourseModel.findByIdAndUpdate(req.params.id, payload, { new: true });
+    const sanitizedPayload = sanitizeWorkflowUpdate(payload as Record<string, unknown>, req.authUser!);
+    const updated = await CourseModel.findByIdAndUpdate(req.params.id, sanitizedPayload, { new: true });
     if (!updated) {
       return res.status(StatusCodes.NOT_FOUND).json({ message: "Course not found" });
     }

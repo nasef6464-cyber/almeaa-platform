@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, Edit2, Trash2, Video, Lock, Unlock, ChevronDown, ChevronUp, GripVertical, Save, X, Target, Layers, CornerDownLeft, HelpCircle, Link2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Video, Lock, Unlock, ChevronDown, ChevronUp, GripVertical, Save, X, Target, Layers, CornerDownLeft, HelpCircle, Link2, FileText, BarChart3 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { Lesson, Skill, CategorySection } from '../../types';
 import { UnifiedLessonBuilder } from './builders/UnifiedLessonBuilder';
@@ -16,6 +16,8 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
     skills,
     lessons,
     questions,
+    quizzes,
+    libraryItems,
     addSection,
     updateSection,
     deleteSection,
@@ -86,6 +88,26 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
     [questions, relatedSubSkills]
   );
 
+  const totalLinkedQuizzes = useMemo(
+    () =>
+      quizzes.filter((quiz) => {
+        const directSkillIds = quiz.skillIds || [];
+        const measuredQuestionSkillIds = (quiz.questionIds || []).flatMap((questionId) => {
+          const question = questions.find((item) => item.id === questionId);
+          return question?.skillIds || [];
+        });
+        return [...directSkillIds, ...measuredQuestionSkillIds].some((skillId) =>
+          relatedSubSkills.some((skill) => skill.id === skillId)
+        );
+      }).length,
+    [quizzes, questions, relatedSubSkills]
+  );
+
+  const totalLinkedLibraryItems = useMemo(
+    () => libraryItems.filter((item) => (item.skillIds || []).some((skillId) => relatedSubSkills.some((skill) => skill.id === skillId))).length,
+    [libraryItems, relatedSubSkills]
+  );
+
   const getSubjectName = (subjectIdValue: string) => subjects.find((subject) => subject.id === subjectIdValue)?.name || 'غير محدد';
   const getPathNameBySubject = (subjectIdValue: string) => {
     const subject = subjects.find((item) => item.id === subjectIdValue);
@@ -94,6 +116,16 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
 
   const getLessonsForSubSkill = (subSkillId: string) => lessons.filter((lesson) => lesson.skillIds?.includes(subSkillId));
   const getQuestionsForSubSkill = (subSkillId: string) => questions.filter((question) => question.skillIds?.includes(subSkillId));
+  const getQuizzesForSubSkill = (subSkillId: string) =>
+    quizzes.filter((quiz) => {
+      if ((quiz.skillIds || []).includes(subSkillId)) return true;
+      return (quiz.questionIds || []).some((questionId) => {
+        const question = questions.find((item) => item.id === questionId);
+        return question?.skillIds?.includes(subSkillId);
+      });
+    });
+  const getLibraryItemsForSubSkill = (subSkillId: string) =>
+    libraryItems.filter((item) => item.skillIds?.includes(subSkillId));
 
   const openAddMainSkillModal = () => {
     setEditingMainSkill({ name: '', subjectId: subjectId || selectedSubjectId });
@@ -327,7 +359,7 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
           <div className="text-gray-500 text-sm mb-1">المهارات الرئيسة</div>
           <div className="text-2xl font-bold text-indigo-600">{mainSkills.length}</div>
@@ -343,6 +375,14 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
           <div className="text-gray-500 text-sm mb-1">الأسئلة المرتبطة</div>
           <div className="text-2xl font-bold text-amber-600">{totalLinkedQuestions}</div>
+        </div>
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <div className="text-gray-500 text-sm mb-1">Ø§Ù„Ø§Ø®ØªØ¨Ø§Ø±Ø§Øª Ø§Ù„Ù…Ø±ØªØ¨Ø·Ø©</div>
+          <div className="text-2xl font-bold text-purple-600">{totalLinkedQuizzes}</div>
+        </div>
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <div className="text-gray-500 text-sm mb-1">Ù…Ù„ÙØ§Øª Ø§Ù„Ù…Ø±Ø§Ø¬Ø¹Ø©</div>
+          <div className="text-2xl font-bold text-gray-700">{totalLinkedLibraryItems}</div>
         </div>
       </div>
 
@@ -405,6 +445,8 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
                     {mainSubSkills.map((subSkill) => {
                       const subSkillLessons = getLessonsForSubSkill(subSkill.id);
                       const subSkillQuestions = getQuestionsForSubSkill(subSkill.id);
+                      const subSkillQuizzes = getQuizzesForSubSkill(subSkill.id);
+                      const subSkillLibraryItems = getLibraryItemsForSubSkill(subSkill.id);
 
                       return (
                         <div key={subSkill.id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -417,7 +459,7 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
                               <div>
                                 <h5 className="font-bold text-gray-800">{subSkill.name}</h5>
                                 <p className="text-xs text-gray-500">
-                                  {subSkillLessons.length} درس · {subSkillQuestions.length} سؤال
+                                  {subSkillLessons.length} درس · {subSkillQuestions.length} سؤال · {subSkillQuizzes.length} اختبار · {subSkillLibraryItems.length} ملف
                                 </p>
                               </div>
                             </div>
@@ -492,6 +534,66 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
                                     )}
                                     {subSkillQuestions.length > 8 && (
                                       <div className="text-xs text-gray-500 text-center">+ {subSkillQuestions.length - 8} سؤال إضافي</div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="border border-gray-100 rounded-xl p-4">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <h6 className="font-bold text-gray-800 flex items-center gap-2">
+                                      <BarChart3 size={16} className="text-purple-500" />
+                                      الاختبارات المرتبطة
+                                    </h6>
+                                    <div className="text-xs font-bold text-purple-600">{subSkillQuizzes.length} اختبار</div>
+                                  </div>
+                                  <div className="space-y-2">
+                                    {subSkillQuizzes.length > 0 ? subSkillQuizzes.slice(0, 6).map((quiz) => (
+                                      <div key={quiz.id} className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                                        <div className="min-w-0">
+                                          <div className="text-sm font-bold text-gray-800 truncate">{quiz.title}</div>
+                                          <div className="text-xs text-gray-500">
+                                            {quiz.mode === 'saher' ? 'ساهر' : quiz.mode === 'central' ? 'مركزي' : 'عادي'} · {quiz.questionIds.length} سؤال
+                                          </div>
+                                        </div>
+                                        <span className="px-2 py-1 rounded-lg text-[11px] font-bold bg-purple-50 text-purple-700">
+                                          مقاسة
+                                        </span>
+                                      </div>
+                                    )) : (
+                                      <div className="text-center py-6 text-sm text-gray-400 border border-dashed border-gray-200 rounded-lg">لا توجد اختبارات مرتبطة.</div>
+                                    )}
+                                    {subSkillQuizzes.length > 6 && (
+                                      <div className="text-xs text-gray-500 text-center">+ {subSkillQuizzes.length - 6} اختبار إضافي</div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="border border-gray-100 rounded-xl p-4">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <h6 className="font-bold text-gray-800 flex items-center gap-2">
+                                      <FileText size={16} className="text-gray-600" />
+                                      ملفات المراجعة
+                                    </h6>
+                                    <div className="text-xs font-bold text-gray-600">{subSkillLibraryItems.length} ملف</div>
+                                  </div>
+                                  <div className="space-y-2">
+                                    {subSkillLibraryItems.length > 0 ? subSkillLibraryItems.slice(0, 6).map((item) => (
+                                      <div key={item.id} className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                                        <div className="min-w-0">
+                                          <div className="text-sm font-bold text-gray-800 truncate">{item.title}</div>
+                                          <div className="text-xs text-gray-500">
+                                            {item.type === 'pdf' ? 'PDF' : item.type === 'video' ? 'فيديو' : 'ملف'}
+                                          </div>
+                                        </div>
+                                        <span className="px-2 py-1 rounded-lg text-[11px] font-bold bg-gray-100 text-gray-700">
+                                          داعم
+                                        </span>
+                                      </div>
+                                    )) : (
+                                      <div className="text-center py-6 text-sm text-gray-400 border border-dashed border-gray-200 rounded-lg">لا توجد ملفات مراجعة مرتبطة.</div>
+                                    )}
+                                    {subSkillLibraryItems.length > 6 && (
+                                      <div className="text-xs text-gray-500 text-center">+ {subSkillLibraryItems.length - 6} ملف إضافي</div>
                                     )}
                                   </div>
                                 </div>

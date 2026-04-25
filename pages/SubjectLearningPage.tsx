@@ -202,6 +202,48 @@ export const SubjectLearningPage: React.FC = () => {
         : [],
     [activeTopic, quizzes],
   );
+  const relatedLessonSuggestions = useMemo(
+    () =>
+      activeTopic
+        ? lessons
+            .filter((lesson) => {
+              const matchesPath = pathId ? lesson.pathId === pathId : true;
+              const matchesSubject = subjectId ? lesson.subjectId === subjectId : true;
+              const matchesSection = activeTopic.sectionId ? lesson.sectionId === activeTopic.sectionId : true;
+              const notAlreadyAttached = !activeTopic.lessonIds?.includes(lesson.id);
+              return matchesPath && matchesSubject && matchesSection && notAlreadyAttached;
+            })
+            .sort((a, b) => (a.order || 0) - (b.order || 0))
+            .slice(0, 3)
+        : [],
+    [activeTopic, lessons, pathId, subjectId],
+  );
+  const relatedQuizSuggestions = useMemo(
+    () =>
+      activeTopic
+        ? subjectQuizzes
+            .filter((quiz) => {
+              const matchesSection = activeTopic.sectionId ? quiz.sectionId === activeTopic.sectionId : true;
+              const notAlreadyAttached = !activeTopic.quizIds?.includes(quiz.id);
+              return quiz.isPublished !== false && matchesSection && notAlreadyAttached;
+            })
+            .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+            .slice(0, 3)
+        : [],
+    [activeTopic, subjectQuizzes],
+  );
+  const relatedLibrarySuggestions = useMemo(
+    () =>
+      activeTopic
+        ? subjectLibrary
+            .filter((item) => {
+              const matchesSection = activeTopic.sectionId ? item.sectionId === activeTopic.sectionId : true;
+              return matchesSection && Boolean(item.url);
+            })
+            .slice(0, 2)
+        : [],
+    [activeTopic, subjectLibrary],
+  );
 
   const renderTabs = () => (
     <div className="flex flex-wrap justify-center gap-3 mb-12">
@@ -525,10 +567,72 @@ export const SubjectLearningPage: React.FC = () => {
                   {topicModalTab === 'lessons' && (
                     <div className="space-y-4">
                       {activeTopicLessons.length === 0 ? (
-                        <div className="text-center py-16 px-4 bg-white rounded-2xl border border-gray-100 border-dashed">
-                          <Video size={48} className="mx-auto text-gray-300 mb-4" />
-                          <h3 className="text-lg font-bold text-gray-900 mb-2">لا توجد شروحات متاحة</h3>
-                          <p className="text-gray-500 max-w-sm mx-auto">سيتم إضافة مقاطع الفيديو والدروس التأسيسية لهذا الموضوع قريبًا.</p>
+                        <div className="bg-white rounded-2xl border border-gray-100 border-dashed overflow-hidden">
+                          <div className="text-center py-10 px-4 border-b border-gray-100">
+                            <Video size={48} className="mx-auto text-gray-300 mb-4" />
+                            <h3 className="text-lg font-bold text-gray-900 mb-2">لا توجد شروحات مرتبطة مباشرة بهذا الموضوع</h3>
+                            <p className="text-gray-500 max-w-md mx-auto">
+                              لا يوجد درس مسحوب لهذا الموضوع حاليًا، لكن يمكنك البدء من أقرب شرح أو ملف مراجعة متاح في نفس المادة.
+                            </p>
+                          </div>
+
+                          <div className="p-4 sm:p-6 space-y-4 bg-gray-50/60">
+                            {relatedLessonSuggestions.length > 0 && (
+                              <div>
+                                <div className="flex items-center gap-2 mb-3 text-sm font-bold text-gray-700">
+                                  <Play size={16} className="text-indigo-600" />
+                                  أقرب شروحات متاحة الآن
+                                </div>
+                                <div className="grid gap-3">
+                                  {relatedLessonSuggestions.map((lesson) => (
+                                    <button
+                                      key={lesson.id}
+                                      onClick={() => lesson.videoUrl && setVideoData({ url: lesson.videoUrl, title: lesson.title })}
+                                      className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-right hover:border-indigo-200 hover:shadow-sm transition-all"
+                                    >
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                          <h4 className="font-bold text-gray-800">{lesson.title}</h4>
+                                          <p className="text-xs text-gray-500 mt-1">مدة الدرس: {lesson.duration || 'غير محدد'}</p>
+                                        </div>
+                                        <span className="shrink-0 px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold">
+                                          مشاهدة
+                                        </span>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {relatedLibrarySuggestions.length > 0 && (
+                              <div>
+                                <div className="flex items-center gap-2 mb-3 text-sm font-bold text-gray-700">
+                                  <FileText size={16} className="text-emerald-600" />
+                                  ملفات مراجعة داعمة
+                                </div>
+                                <div className="grid gap-3">
+                                  {relatedLibrarySuggestions.map((item) => (
+                                    <button
+                                      key={item.id}
+                                      onClick={() => item.url && window.open(item.url, '_blank', 'noopener,noreferrer')}
+                                      className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-right hover:border-emerald-200 hover:shadow-sm transition-all"
+                                    >
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                          <h4 className="font-bold text-gray-800">{item.title}</h4>
+                                          <p className="text-xs text-gray-500 mt-1">{item.size} · ملف مراجعة</p>
+                                        </div>
+                                        <span className="shrink-0 px-3 py-2 bg-emerald-50 text-emerald-600 rounded-lg text-xs font-bold">
+                                          فتح الملف
+                                        </span>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ) : activeTopicLessons.map((lesson) => (
                         <div key={lesson.id} className="bg-white p-4 rounded-xl border border-gray-100 flex items-center justify-between hover:shadow-md transition-all group">
@@ -579,10 +683,72 @@ export const SubjectLearningPage: React.FC = () => {
                   {topicModalTab === 'quizzes' && (
                     <div className="space-y-4">
                       {activeTopicQuizzes.length === 0 ? (
-                        <div className="text-center py-16 px-4 bg-white rounded-2xl border border-gray-100 border-dashed">
-                          <Target size={48} className="mx-auto text-gray-300 mb-4" />
-                          <h3 className="text-lg font-bold text-gray-900 mb-2">لا توجد تدريبات قصيرة</h3>
-                          <p className="text-gray-500 max-w-sm mx-auto">لم يتم إضافة اختبارات قصيرة لهذا الموضوع بعد. تساهم التدريبات في قياس مدى استيعابك للشروحات.</p>
+                        <div className="bg-white rounded-2xl border border-gray-100 border-dashed overflow-hidden">
+                          <div className="text-center py-10 px-4 border-b border-gray-100">
+                            <Target size={48} className="mx-auto text-gray-300 mb-4" />
+                            <h3 className="text-lg font-bold text-gray-900 mb-2">لا توجد تدريبات قصيرة مرتبطة مباشرة بهذا الموضوع</h3>
+                            <p className="text-gray-500 max-w-md mx-auto">
+                              يمكنك البدء من اختبار قريب في نفس المادة، أو مراجعة ملف داعم قبل العودة لهذا الجزء.
+                            </p>
+                          </div>
+
+                          <div className="p-4 sm:p-6 space-y-4 bg-gray-50/60">
+                            {relatedQuizSuggestions.length > 0 && (
+                              <div>
+                                <div className="flex items-center gap-2 mb-3 text-sm font-bold text-gray-700">
+                                  <HelpCircle size={16} className="text-amber-600" />
+                                  اختبارات متاحة من نفس المادة
+                                </div>
+                                <div className="grid gap-3">
+                                  {relatedQuizSuggestions.map((quiz) => (
+                                    <Link
+                                      key={quiz.id}
+                                      to={`/quiz/${quiz.id}`}
+                                      className="bg-white border border-gray-200 rounded-xl px-4 py-3 hover:border-amber-200 hover:shadow-sm transition-all"
+                                    >
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                          <h4 className="font-bold text-gray-800">{quiz.title}</h4>
+                                          <p className="text-xs text-gray-500 mt-1">{quiz.questionIds?.length || 0} سؤال</p>
+                                        </div>
+                                        <span className="shrink-0 px-3 py-2 bg-amber-50 text-amber-600 rounded-lg text-xs font-bold">
+                                          ابدأ الآن
+                                        </span>
+                                      </div>
+                                    </Link>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {relatedLibrarySuggestions.length > 0 && (
+                              <div>
+                                <div className="flex items-center gap-2 mb-3 text-sm font-bold text-gray-700">
+                                  <FileText size={16} className="text-emerald-600" />
+                                  راجع أولًا ثم ارجع للتدريب
+                                </div>
+                                <div className="grid gap-3">
+                                  {relatedLibrarySuggestions.map((item) => (
+                                    <button
+                                      key={item.id}
+                                      onClick={() => item.url && window.open(item.url, '_blank', 'noopener,noreferrer')}
+                                      className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-right hover:border-emerald-200 hover:shadow-sm transition-all"
+                                    >
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                          <h4 className="font-bold text-gray-800">{item.title}</h4>
+                                          <p className="text-xs text-gray-500 mt-1">{item.size}</p>
+                                        </div>
+                                        <span className="shrink-0 px-3 py-2 bg-emerald-50 text-emerald-600 rounded-lg text-xs font-bold">
+                                          فتح الملف
+                                        </span>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ) : activeTopicQuizzes.map((quiz) => (
                         <div key={quiz.id} className="bg-white p-5 rounded-xl border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:shadow-md transition-all">

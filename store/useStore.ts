@@ -1,558 +1,9 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { api } from '../services/api';
-import { User, Activity, QuestionAttempt, QuizResult, Question, Role, Group, Skill, CategoryPath, CategorySubject, CategorySection, B2BPackage, AccessCode, Course, NestedSkill, LibraryItem, Quiz, Lesson, Topic } from '../types';
-import { currentUser } from '../services/mockData';
-
-// Initial mock questions
-const initialQuestions: Question[] = [
-    {
-        id: 'q1',
-        text: "الشركة (أ) نسبة الموظفين غير السعوديين فيها 30%، والشركة (ب) عدد موظفيها نصف عدد موظفين الشركة (أ). وكانت نسبة الموظفين الغير سعوديين فيها 40%. فما نسبة الموظفين الغير سعوديين في الشركتين معاً؟",
-        options: ["33.3%", "30%", "25%", "66.6%"],
-        correctOptionIndex: 0,
-        videoUrl: "https://www.youtube.com/embed/M5QGkOGZubQ",
-        skillIds: ['sk1'],
-        subject: 'qudrat_kammi',
-        difficulty: 'Medium',
-        type: 'mcq'
-    },
-    {
-        id: 'q2',
-        text: "إذا كان س = ٨ × ٧ ... (١٠) فما قيمة س؟",
-        options: ["٥٦", "٤٢", "١٥", "٤٨"],
-        correctOptionIndex: 0,
-        videoUrl: "https://www.youtube.com/embed/e6rglsLy1Ys",
-        skillIds: ['sk2'],
-        subject: 'qudrat_kammi',
-        difficulty: 'Easy',
-        type: 'mcq'
-    }
-];
-
-const initialLibraryItems: LibraryItem[] = [
-  { id: '1', title: 'تجميعات 1445 - كمي', size: '5.1 MB', downloads: 3400, type: 'pdf', subjectId: 'qudrat_kammi' },
-  { id: '2', title: 'ملخص قوانين الهندسة', size: '2.5 MB', downloads: 1250, type: 'pdf', subjectId: 'qudrat_kammi' },
-  { id: '3', title: 'أهم 100 سؤال في الجبر', size: '3.2 MB', downloads: 2100, type: 'pdf', subjectId: 'qudrat_kammi' },
-];
-
-const initialNestedSkills: NestedSkill[] = [
-  {
-    id: 'skill_quant_1',
-    name: 'العمليات الحسابية الأساسية',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_1_1', name: 'جمع', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_1_2', name: 'طرح', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_1_3', name: 'ضرب', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_1_4', name: 'قسمة مطولة', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_2',
-    name: 'الأعداد الصحيحة',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_2_1', name: 'الأولية', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_2_2', name: 'القواسم', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_2_3', name: 'المضاعفات', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_2_4', name: 'وقابلية القسمة', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_3',
-    name: 'الكسور',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_3_1', name: 'الاعتيادية', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_3_2', name: 'العشرية', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_3_3', name: 'المقارنة', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_3_4', name: 'والعمليات عليها', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_4',
-    name: 'النسبة المئوية',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_4_1', name: 'الربح', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_4_2', name: 'الخسارة', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_4_3', name: 'الزيادة', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_4_4', name: 'والنقصان', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_5',
-    name: 'التناسب',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_5_1', name: 'الطردي', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_5_2', name: 'العكسي', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_5_3', name: 'والضرب التبادلي "المقص"', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_6',
-    name: 'المعدلات الزمنية',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_6_1', name: 'السرعة', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_6_2', name: 'المسافة', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_6_3', name: 'الزمن', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_6_4', name: 'ومسائل اللحاق', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_7',
-    name: 'المعادلات والمتباينات',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_7_1', name: 'الدرجة الأولى والثانية', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_8',
-    name: 'القوى والأسس',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_8_1', name: 'قوانين الضرب والقسمة والأسس السالبة والكسرية', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_9',
-    name: 'الجذور',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_9_1', name: 'التبسيط', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_9_2', name: 'العمليات', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_9_3', name: 'ونطق المقام', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_10',
-    name: 'المقادير الجبرية',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_10_1', name: 'فك الأقواس', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_10_2', name: 'التحليل', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_10_3', name: 'والفرق بين مربعين', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_11',
-    name: 'المتتابعات',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_11_1', name: 'اكتشاف الأنماط الحسابية والهندسية والعددية', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_12',
-    name: 'الزوايا',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_12_1', name: 'المتجاورة', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_12_2', name: 'المتقابلة بالرأس', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_12_3', name: 'وزوايا التوازي', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_13',
-    name: 'المثلثات',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_13_1', name: 'المساحة', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_13_2', name: 'المحيط', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_13_3', name: 'فيثاغورس', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_13_4', name: 'والمثلثات المشهورة', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_14',
-    name: 'الأشكال الرباعية',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_14_1', name: 'المربع', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_14_2', name: 'المستطيل', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_14_3', name: 'المعين', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_14_4', name: 'وشبه المنحرف', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_15',
-    name: 'الدائرة',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_15_1', name: 'المساحة', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_15_2', name: 'المحيط', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_15_3', name: 'ونصف القطر', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_16',
-    name: 'المجسمات (الهندسة الفراغية)',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_16_1', name: 'المكعب', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_16_2', name: 'الأسطوانة', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_16_3', name: 'ومتوازي المستطيلات', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_17',
-    name: 'المستوى الإحداثي',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_17_1', name: 'المسافة بين نقطتين', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_17_2', name: 'المنتصف', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_17_3', name: 'والميل', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_18',
-    name: 'مقاييس النزعة المركزية',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_18_1', name: 'المتوسط', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_18_2', name: 'الوسيط', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_18_3', name: 'المنوال', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_18_4', name: 'والمدى', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_19',
-    name: 'تفسير البيانات',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_19_1', name: 'الجداول', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_19_2', name: 'الرسوم البيانية', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_19_3', name: 'والقطاعات الدائرية', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_20',
-    name: 'الاحتمالات',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_20_1', name: 'مبدأ العد', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_20_2', name: 'التباديل والتوافيق البسيطة', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_21',
-    name: 'مسائل الأعمار',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_21_1', name: 'حساب العمر في الماضي والمستقبل', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_22',
-    name: 'المصافحات والجوائز',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_22_1', name: 'قوانين عدد المصافحات والهدايا', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_23',
-    name: 'مسائل الساعات',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_23_1', name: 'الزاوية بين العقارب وتحويلات الوقت', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_24',
-    name: 'الأيام والشهور (الدورية)',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_24_1', name: 'باقي القسمة على 7', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_25',
-    name: 'العمل المشترك',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_25_1', name: 'مسائل الصنابير', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_25_2', name: 'الخزانات', description: '', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_quant_25_3', name: 'والعمال', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_26',
-    name: 'المساحات المظللة',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_26_1', name: 'طرح مساحات الأشكال المتداخلة', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_27',
-    name: 'تشابه المثلثات',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_27_1', name: 'استخدام التناسب لإيجاد الأضلاع', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_28',
-    name: 'تطبيقات الدائرة',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_28_1', name: 'المسافة وعدد دورات العجلات', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_29',
-    name: 'النماذج المدمجة',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_29_1', name: 'تركيب أكثر من شكل هندسي معاً', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_30',
-    name: 'استراتيجية تجريب الخيارات',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_30_1', name: 'استخدام الحلول للوصول للمطلوب', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_31',
-    name: 'الاستبعاد المنطقي',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_31_1', name: 'حذف الإجابات المستحيلة', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_32',
-    name: 'التعويض بالأرقام',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_32_1', name: 'استخدام 1، 0، -1 لتبسيط الجبر', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_33',
-    name: 'التقريب والتقدير',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_33_1', name: 'تبسيط الأرقام العشرية الصعبة', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_34',
-    name: 'الرسم التوضيحي',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_34_1', name: 'تحويل المسألة اللفظية لرسمة', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_quant_35',
-    name: 'استراتيجيات المقارنة',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_quant',
-    subSkills: [
-      { id: 'subskill_quant_35_1', name: 'تبسيط القيمتين قبل المقارنة', description: '', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_verbal_1',
-    name: 'التناظر اللفظي',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_verbal',
-    subSkills: [
-      { id: 'subskill_verbal_1_1', name: 'تحديد نوع العلاقة', description: 'القدرة على استخراج الرابط المنطقي بين الكلمتين', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_1_2', name: 'تحديد اتجاه العلاقة', description: 'ضبط البداية والنهاية من اليمين لليسار أو العكس', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_1_3', name: 'بناء جملة الربط', description: 'صياغة جملة تربط بين الكلمتين لاختبار صحة الخيارات', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_1_4', name: 'المفاضلة بين العلاقات', description: 'التمييز بين الخيارات عند تشابه نوع العلاقة', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_verbal_2',
-    name: 'إكمال الجمل',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_verbal',
-    subSkills: [
-      { id: 'subskill_verbal_2_1', name: 'تحليل السياق العام', description: 'تحديد ما إذا كان سياق الجملة إيجابياً أم سلبياً', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_2_2', name: 'الروابط والكلمات المفتاحية', description: 'التعامل مع أدوات الربط مثل: لكن، بلف، رغم، بالرغم', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_2_3', name: 'استراتيجية الفراغ الأسهل', description: 'البدء بالفراغ الأكثر وضوحاً لاستبعاد الخيارات الخاطئة', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_2_4', name: 'التوافق الدلالي والنحوي', description: 'مطابقة الكلمات المختارة مع المعنى اللغوي للجملة', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_verbal_3',
-    name: 'الخطأ السياقي',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_verbal',
-    subSkills: [
-      { id: 'subskill_verbal_3_1', name: 'فهم المعنى الإجمالي', description: 'إدراك الحكمة أو المبدأ الذي تقوم عليه الجملة', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_3_2', name: 'تحديد الكلمة الشاذة', description: 'تمييز الكلمة التي أفسدت منطق الجملة ولا تتناسب مع سياقها', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_3_3', name: 'المقارنة بين أطراف الجملة', description: 'الربط بين صدر الجملة وعجزها لاكتشاف التناقض', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_3_4', name: 'استراتيجية تجربة العكس', description: 'تبديل الكلمة المشكوك فيها بضدها لاختبار استقامة المعنى', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_verbal_4',
-    name: 'استيعاب المقروء',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_verbal',
-    subSkills: [
-      { id: 'subskill_verbal_4_1', name: 'الاستخراج المباشر', description: 'إيجاد المعلومات المنصوص عليها صراحة في النص', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_4_2', name: 'الاستنتاج والتحليل', description: 'فهم المعلومات الضمنية وما وراء السطور', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_4_3', name: 'تحديد العنوان والأفكار الرئيسية', description: 'اختيار العنوان الأشمل أو الفكرة المركزية لكل فقرة', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_4_4', name: 'علاقات الجمل والفقرات', description: 'تحديد العلاقات: تعليل، نتيجة، تفصيل، تفسير، تضاد', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_4_5', name: 'عودة الضمائر', description: 'تحديد الكلمة التي يعود عليها الضمير في النص', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_4_6', name: 'الحسابات الزمنية والعددية', description: 'تحويل السنوات إلى قرون وعقود، وحساب النسب الواردة', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_4_7', name: 'تحديد أسلوب ونبرة الكاتب', description: 'تمييز موقف الكاتب: حيادي، مؤيد، معارض، نقدي', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_verbal_5',
-    name: 'المفردة الشاذة / الارتباط والاختلاف',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_verbal',
-    subSkills: [
-      { id: 'subskill_verbal_5_1', name: 'التصنيف الدلالي', description: 'تحديد الحقل اللغوي الذي تنتمي إليه الكلمات', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_5_2', name: 'تحديد الرابط المشترك', description: 'إيجاد العلاقة التي تجمع ثلاث كلمات دون الرابعة', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_5_3', name: 'الارتباط والاختلاف', description: 'تمييز قوة العلاقة بين زوج من الكلمات مقارنة بالآخرين', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  },
-  {
-    id: 'skill_verbal_6',
-    name: 'استراتيجيات الحل اللفظي',
-    description: '',
-    isLocked: false,
-    pathId: 'p_qudrat',
-    subjectId: 'sub_verbal',
-    subSkills: [
-      { id: 'subskill_verbal_6_1', name: 'الاستبعاد المنطقي', description: 'حذف الخيارات المستحيلة لتقليل احتمالية الخطأ', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_6_2', name: 'تجزئة الجمل الطويلة', description: 'تقسيم الجمل والقطع المعقدة لتسهيل الفهم', isLocked: false, lessons: [], quizzes: [] },
-      { id: 'subskill_verbal_6_3', name: 'إدارة الوقت', description: 'الالتزام بالزمن المحدد لكل سؤال في الأقسام اللفظية', isLocked: false, lessons: [], quizzes: [] }
-    ]
-  }
-];
+import { User, Activity, QuestionAttempt, QuizResult, Question, Role, Group, Skill, CategoryPath, CategorySubject, CategorySection, B2BPackage, AccessCode, Course, NestedSkill, LibraryItem, Quiz, Lesson, Topic, PackageContentType } from '../types';
 
 interface AppState {
     user: User;
@@ -590,6 +41,7 @@ interface AppState {
     recentActivity: Activity[];
     
     // Actions
+    hydrateUsers: (users: User[]) => void;
     hydrateCourses: (courses: Course[]) => void;
     hydrateQuestions: (questions: Question[]) => void;
     hydrateQuizzes: (quizzes: Quiz[]) => void;
@@ -605,9 +57,13 @@ interface AppState {
         lessons?: Lesson[];
         libraryItems?: LibraryItem[];
         groups?: Group[];
+        b2bPackages?: B2BPackage[];
+        accessCodes?: AccessCode[];
     }) => void;
     hydrateExamResults: (results: QuizResult[]) => void;
     enrollCourse: (courseId: string) => void;
+    completePurchase: (payload: { courseId?: string; packageId?: string; includedCourseIds?: string[] }) => Promise<void>;
+    redeemAccessCode: (code: string) => Promise<void>;
     enrollPath: (pathId: string) => void;
     unenrollPath: (pathId: string) => void;
     markLessonComplete: (lessonId: string, courseId: string, lessonTitle: string) => void;
@@ -617,6 +73,8 @@ interface AppState {
     toggleReviewLater: (questionId: string) => void;
     addActivity: (activity: Omit<Activity, 'id' | 'date'>) => void;
     checkAccess: (contentId: string, isPremiumContent: boolean) => boolean;
+    hasScopedPackageAccess: (contentType: PackageContentType, pathId?: string, subjectId?: string) => boolean;
+    getMatchingPackage: (contentType: PackageContentType, pathId?: string, subjectId?: string) => B2BPackage | null;
     changeRole: (role: Role) => void;
 
     // Admin Actions
@@ -739,128 +197,65 @@ const getLegacyTopicIdsFromNestedSkills = (skills: NestedSkill[]): Set<string> =
     return ids;
 };
 
-// Initial user with subscription
-const initialUser: User = {
-    ...currentUser,
+const createGuestUser = (): User => ({
+    id: 'guest',
+    name: 'Ø­Ø³Ø§Ø¨ Ø¶ÙŠÙ',
+    avatar: 'https://i.pravatar.cc/150?u=guest',
+    role: Role.STUDENT,
+    points: 0,
+    badges: [],
+    groupIds: [],
     subscription: {
         plan: 'free',
         purchasedCourses: [],
         purchasedPackages: []
     }
+});
+
+const packageMatchesScope = (
+    pkg: B2BPackage,
+    contentType: PackageContentType,
+    pathId?: string,
+    subjectId?: string,
+) => {
+    if (pkg.status !== 'active') {
+        return false;
+    }
+
+    const contentTypes = Array.isArray(pkg.contentTypes) && pkg.contentTypes.length ? pkg.contentTypes : ['all'];
+    const matchesType = contentTypes.includes('all') || contentTypes.includes(contentType);
+    if (!matchesType) {
+        return false;
+    }
+
+    const pathIds = Array.isArray(pkg.pathIds) ? pkg.pathIds : [];
+    const subjectIds = Array.isArray(pkg.subjectIds) ? pkg.subjectIds : [];
+    const matchesPath = !pathId || pathIds.length === 0 || pathIds.includes(pathId);
+    const matchesSubject = !subjectId || subjectIds.length === 0 || subjectIds.includes(subjectId);
+
+    return matchesPath && matchesSubject;
 };
 
 export const useStore = create<AppState>()(
     persist(
         (set, get) => ({
-            user: { ...initialUser, groupIds: ['g1'] },
-            users: [
-                { ...initialUser, email: 'student@example.com', isActive: true, groupIds: ['g1'] },
-                { id: 'u2', name: 'أحمد المشرف', email: 'supervisor@example.com', avatar: 'https://i.pravatar.cc/150?u=u2', role: Role.SUPERVISOR, points: 0, badges: [], subscription: { plan: 'free', purchasedCourses: [], purchasedPackages: [] }, isActive: true, groupIds: ['g1'] },
-                { id: 'u3', name: 'سارة المعلمة', email: 'teacher@example.com', avatar: 'https://i.pravatar.cc/150?u=u3', role: Role.TEACHER, points: 0, badges: [], subscription: { plan: 'free', purchasedCourses: [], purchasedPackages: [] }, isActive: true },
-                { id: 'u4', name: 'خالد (ولي أمر)', email: 'parent@example.com', avatar: 'https://i.pravatar.cc/150?u=u4', role: Role.PARENT, points: 0, badges: [], subscription: { plan: 'free', purchasedCourses: [], purchasedPackages: [] }, isActive: true },
-                { id: 'u5', name: 'المدير العام', email: 'admin@example.com', avatar: 'https://i.pravatar.cc/150?u=u5', role: Role.ADMIN, points: 0, badges: [], subscription: { plan: 'free', purchasedCourses: [], purchasedPackages: [] }, isActive: true },
-            ],
-            groups: [
-                { 
-                    id: 'g1', 
-                    name: 'مجموعة القدرات - أ', 
-                    type: 'CLASS',
-                    ownerId: 'u5',
-                    supervisorIds: ['u2'], 
-                    studentIds: ['user1'], 
-                    courseIds: ['c1'],
-                    createdAt: Date.now(),
-                    totalStudents: 1,
-                    totalSupervisors: 1,
-                    totalCourses: 1
-                },
-                { 
-                    id: 's1', 
-                    name: 'مدرسة المبدعين', 
-                    type: 'SCHOOL',
-                    ownerId: 'u5',
-                    supervisorIds: ['u2'], 
-                    studentIds: ['user1'], 
-                    courseIds: ['c1', 'c3'],
-                    createdAt: Date.now() - 86400000,
-                    totalStudents: 1,
-                    totalSupervisors: 1,
-                    totalCourses: 2
-                }
-            ],
-            b2bPackages: [
-                {
-                    id: 'pkg1',
-                    schoolId: 's1',
-                    name: 'باقة القدرات الشاملة',
-                    courseIds: ['c1', 'c2'],
-                    type: 'free_access',
-                    maxStudents: 200,
-                    status: 'active',
-                    createdAt: Date.now()
-                }
-            ],
-            accessCodes: [
-                {
-                    id: 'code1',
-                    code: 'ALNOOR-2026',
-                    schoolId: 's1',
-                    packageId: 'pkg1',
-                    maxUses: 200,
-                    currentUses: 150,
-                    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
-                    createdAt: Date.now()
-                }
-            ],
+            user: createGuestUser(),
+            users: [],
+            groups: [],
+            b2bPackages: [],
+            accessCodes: [],
             courses: [],
-            questions: initialQuestions,
+            questions: [],
             quizzes: [],
             lessons: [],
-            topics: buildLegacyTopicsFromNestedSkills(initialNestedSkills),
-            paths: [
-                { id: 'p_qudrat', name: 'مسار القدرات' },
-                { id: 'p_tahsili', name: 'مسار التحصيلي' },
-                { id: 'p_nafes', name: 'مسار نافس' }
-            ],
-            levels: [
-                { id: 'l_primary3', name: 'الصف الثالث الابتدائي', pathId: 'p_nafes' },
-                { id: 'l_primary6', name: 'الصف السادس الابتدائي', pathId: 'p_nafes' },
-                { id: 'l_middle3', name: 'الصف الثالث المتوسط', pathId: 'p_nafes' }
-            ],
-            subjects: [
-                { id: 'sub_quant', pathId: 'p_qudrat', name: 'الكمي' },
-                { id: 'sub_verbal', pathId: 'p_qudrat', name: 'اللفظي' },
-                { id: 'sub_math', pathId: 'p_tahsili', name: 'رياضيات' },
-                { id: 'sub_physics', pathId: 'p_tahsili', name: 'فيزياء' },
-                { id: 'sub_chemistry', pathId: 'p_tahsili', name: 'كيمياء' },
-                { id: 'sub_biology', pathId: 'p_tahsili', name: 'أحياء' },
-                { id: 'sub_step_english', pathId: 'p_step', name: 'اللغة الإنجليزية' },
-                // Nafes Subjects
-                { id: 'sub_nafes_math_p3', pathId: 'p_nafes', levelId: 'l_primary3', name: 'الرياضيات' },
-                { id: 'sub_nafes_science_p3', pathId: 'p_nafes', levelId: 'l_primary3', name: 'العلوم' },
-                { id: 'sub_nafes_reading_p3', pathId: 'p_nafes', levelId: 'l_primary3', name: 'القراءة' },
-                { id: 'sub_nafes_math_p6', pathId: 'p_nafes', levelId: 'l_primary6', name: 'الرياضيات' },
-                { id: 'sub_nafes_science_p6', pathId: 'p_nafes', levelId: 'l_primary6', name: 'العلوم' },
-                { id: 'sub_nafes_reading_p6', pathId: 'p_nafes', levelId: 'l_primary6', name: 'القراءة' },
-                { id: 'sub_nafes_math_m3', pathId: 'p_nafes', levelId: 'l_middle3', name: 'الرياضيات' },
-                { id: 'sub_nafes_science_m3', pathId: 'p_nafes', levelId: 'l_middle3', name: 'العلوم' },
-                { id: 'sub_nafes_reading_m3', pathId: 'p_nafes', levelId: 'l_middle3', name: 'القراءة' }
-            ],
-            sections: [
-                { id: 'sec_arithmetic', subjectId: 'sub_quant', name: 'الحساب' },
-                { id: 'sec_algebra', subjectId: 'sub_quant', name: 'الجبر' },
-                { id: 'sec_geometry', subjectId: 'sub_quant', name: 'الهندسة' },
-                { id: 'sec_reading', subjectId: 'sub_verbal', name: 'استيعاب المقروء' },
-                { id: 'sec_nafes_math_1', subjectId: 'sub_nafes_math', name: 'الأعداد والعمليات' },
-                { id: 'sec_nafes_science_1', subjectId: 'sub_nafes_science', name: 'علوم الحياة' }
-            ],
-            skills: [
-                { id: 'sk1', name: 'الكسور العشرية', pathId: 'p_qudrat', subjectId: 'sub_quant', sectionId: 'sec_arithmetic', description: 'العمليات الحسابية على الكسور العشرية', lessonIds: ['l1'], questionIds: ['q1', 'q5'], createdAt: Date.now() },
-                { id: 'sk2', name: 'المعادلات التربيعية', pathId: 'p_qudrat', subjectId: 'sub_quant', sectionId: 'sec_algebra', description: 'حل المعادلات من الدرجة الثانية', lessonIds: ['l1'], questionIds: ['q2', 'q4'], createdAt: Date.now() },
-                { id: 'sk3', name: 'استيعاب المقروء', pathId: 'p_qudrat', subjectId: 'sub_verbal', sectionId: 'sec_reading', description: 'فهم النصوص واستنتاج المعاني', lessonIds: ['l3'], questionIds: [], createdAt: Date.now() },
-            ],
-            nestedSkills: initialNestedSkills,
-            libraryItems: initialLibraryItems,
+            topics: [],
+            paths: [],
+            levels: [],
+            subjects: [],
+            sections: [],
+            skills: [],
+            nestedSkills: [],
+            libraryItems: [],
             addLibraryItem: (item) => {
                 api.createLibraryItem(item).catch(console.error);
                 set((state) => ({ libraryItems: [item, ...state.libraryItems] }));
@@ -878,38 +273,32 @@ export const useStore = create<AppState>()(
                 }));
             },
             enrolledCourses: [],
-            enrolledPaths: ['p_qudrat'], // Default enrolled path
-            completedLessons: ['l1', 'l2'], // Some initial progress
+            enrolledPaths: [],
+            completedLessons: [],
             examResults: [],
-            questionAttempts: [
-                { questionId: 'q1', selectedOptionIndex: 0, isCorrect: true, timeSpentSeconds: 45, date: new Date().toISOString() },
-                { questionId: 'q1', selectedOptionIndex: 1, isCorrect: false, timeSpentSeconds: 30, date: new Date().toISOString() },
-                { questionId: 'q1', selectedOptionIndex: 0, isCorrect: true, timeSpentSeconds: 60, date: new Date().toISOString() },
-                { questionId: 'q2', selectedOptionIndex: 2, isCorrect: false, timeSpentSeconds: 20, date: new Date().toISOString() },
-                { questionId: 'q2', selectedOptionIndex: 1, isCorrect: false, timeSpentSeconds: 25, date: new Date().toISOString() },
-                { questionId: 'q5', selectedOptionIndex: 1, isCorrect: true, timeSpentSeconds: 15, date: new Date().toISOString() },
-                { questionId: 'q5', selectedOptionIndex: 1, isCorrect: true, timeSpentSeconds: 10, date: new Date().toISOString() },
-                { questionId: 'q5', selectedOptionIndex: 1, isCorrect: true, timeSpentSeconds: 12, date: new Date().toISOString() },
-                { questionId: 'q5', selectedOptionIndex: 0, isCorrect: false, timeSpentSeconds: 40, date: new Date().toISOString() },
-            ],
+            questionAttempts: [],
             favorites: [],
             reviewLater: [],
             recentActivity: [],
+
+            hydrateUsers: (users) => set(() => ({
+                users
+            })),
 
             hydrateCourses: (courses) => set(() => ({
                 courses
             })),
 
-            hydrateQuestions: (questions) => set((state) => ({
-                questions: questions.length > 0 ? questions : state.questions
+            hydrateQuestions: (questions) => set(() => ({
+                questions
             })),
 
-            hydrateQuizzes: (quizzes) => set((state) => ({
-                quizzes: quizzes.length > 0 ? quizzes : state.quizzes
+            hydrateQuizzes: (quizzes) => set(() => ({
+                quizzes
             })),
 
             hydrateTaxonomy: (payload) => set((state) => ({
-                paths: payload.paths && payload.paths.length > 0
+                paths: payload.paths !== undefined
                   ? payload.paths
                       .map((path: any) => ({
                         ...path,
@@ -917,7 +306,7 @@ export const useStore = create<AppState>()(
                       }))
                       .filter((path: any) => path.id && path.name)
                   : state.paths,
-                levels: payload.levels && payload.levels.length > 0
+                levels: payload.levels !== undefined
                   ? payload.levels
                       .map((level: any) => ({
                         ...level,
@@ -926,7 +315,7 @@ export const useStore = create<AppState>()(
                       }))
                       .filter((level: any) => level.id && level.pathId)
                   : state.levels,
-                subjects: payload.subjects && payload.subjects.length > 0
+                subjects: payload.subjects !== undefined
                   ? payload.subjects
                       .map((subject: any) => ({
                         ...subject,
@@ -935,7 +324,7 @@ export const useStore = create<AppState>()(
                       }))
                       .filter((subject: any) => subject.id && subject.pathId && subject.name)
                   : state.subjects,
-                sections: payload.sections && payload.sections.length > 0
+                sections: payload.sections !== undefined
                   ? payload.sections
                       .map((section: any) => ({
                         ...section,
@@ -944,7 +333,7 @@ export const useStore = create<AppState>()(
                       }))
                       .filter((section: any) => section.id && section.subjectId && section.name)
                   : state.sections,
-                skills: payload.skills && payload.skills.length > 0
+                skills: payload.skills !== undefined
                   ? payload.skills
                       .map((skill: any) => ({
                         ...skill,
@@ -961,7 +350,7 @@ export const useStore = create<AppState>()(
             })),
 
             hydrateContentBootstrap: (payload) => set((state) => ({
-                topics: payload.topics && payload.topics.length > 0
+                topics: payload.topics !== undefined
                   ? payload.topics
                       .map((topic: any) => ({
                         ...topic,
@@ -969,7 +358,7 @@ export const useStore = create<AppState>()(
                       }))
                       .filter((topic: any) => topic.id && topic.subjectId && topic.title)
                   : state.topics,
-                lessons: payload.lessons && payload.lessons.length > 0
+                lessons: payload.lessons !== undefined
                   ? payload.lessons
                       .map((lesson: any) => ({
                         ...lesson,
@@ -978,7 +367,7 @@ export const useStore = create<AppState>()(
                       }))
                       .filter((lesson: any) => lesson.id && lesson.title)
                   : state.lessons,
-                libraryItems: payload.libraryItems && payload.libraryItems.length > 0
+                libraryItems: payload.libraryItems !== undefined
                   ? payload.libraryItems
                       .map((item: any) => ({
                         ...item,
@@ -989,7 +378,7 @@ export const useStore = create<AppState>()(
                       }))
                       .filter((item: any) => item.id && item.title)
                   : state.libraryItems,
-                groups: payload.groups && payload.groups.length > 0
+                groups: payload.groups !== undefined
                   ? payload.groups
                       .map((group: any) => ({
                         ...group,
@@ -997,25 +386,110 @@ export const useStore = create<AppState>()(
                       }))
                       .filter((group: any) => group.id && group.name)
                   : state.groups,
+                b2bPackages: payload.b2bPackages !== undefined
+                  ? payload.b2bPackages
+                      .map((pkg: any) => ({
+                        ...pkg,
+                        id: String(pkg?.id || pkg?._id || ''),
+                        schoolId: String(pkg?.schoolId || ''),
+                        courseIds: Array.isArray(pkg?.courseIds) ? pkg.courseIds.map(String) : [],
+                        contentTypes: Array.isArray(pkg?.contentTypes) && pkg.contentTypes.length ? pkg.contentTypes.map(String) : ['all'],
+                        pathIds: Array.isArray(pkg?.pathIds) ? pkg.pathIds.map(String) : [],
+                        subjectIds: Array.isArray(pkg?.subjectIds) ? pkg.subjectIds.map(String) : [],
+                      }))
+                      .filter((pkg: any) => pkg.id && pkg.schoolId && pkg.name)
+                  : state.b2bPackages,
+                accessCodes: payload.accessCodes !== undefined
+                  ? payload.accessCodes
+                      .map((code: any) => ({
+                        ...code,
+                        id: String(code?.id || code?._id || ''),
+                        schoolId: String(code?.schoolId || ''),
+                        packageId: String(code?.packageId || ''),
+                      }))
+                      .filter((code: any) => code.id && code.schoolId && code.packageId && code.code)
+                  : state.accessCodes,
             })),
 
             hydrateExamResults: (results) => set(() => ({
                 examResults: results
             })),
 
-            enrollCourse: (courseId) => set((state) => {
-                if (state.enrolledCourses.includes(courseId)) return state;
-                return {
-                    enrolledCourses: [...state.enrolledCourses, courseId],
+            enrollCourse: (courseId) => {
+                const state = get();
+                if (state.enrolledCourses.includes(courseId)) return;
+
+                set((current) => ({
+                    enrolledCourses: [...current.enrolledCourses, courseId],
+                    user: {
+                        ...current.user,
+                        subscription: {
+                            ...current.user.subscription!,
+                            purchasedCourses: Array.from(new Set([...(current.user.subscription?.purchasedCourses || []), courseId])),
+                        },
+                    },
+                }));
+
+                if (state.user?.email) {
+                    api.completePurchase({ courseId }).catch(console.error);
+                }
+            },
+
+            completePurchase: async (payload) => {
+                const response = await api.completePurchase(payload) as { user?: any };
+                const backendUser = response?.user;
+                if (!backendUser) {
+                    return;
+                }
+
+                set((state) => ({
                     user: {
                         ...state.user,
                         subscription: {
-                            ...state.user.subscription!,
-                            purchasedCourses: [...(state.user.subscription?.purchasedCourses || []), courseId]
-                        }
-                    }
-                };
-            }),
+                            ...state.user.subscription,
+                            plan: backendUser?.subscription?.plan ?? state.user.subscription?.plan ?? 'free',
+                            expiresAt: backendUser?.subscription?.expiresAt ?? state.user.subscription?.expiresAt,
+                            purchasedCourses: Array.isArray(backendUser?.subscription?.purchasedCourses)
+                                ? backendUser.subscription.purchasedCourses.map(String)
+                                : state.user.subscription?.purchasedCourses || [],
+                            purchasedPackages: Array.isArray(backendUser?.subscription?.purchasedPackages)
+                                ? backendUser.subscription.purchasedPackages.map(String)
+                                : state.user.subscription?.purchasedPackages || [],
+                        },
+                    },
+                    enrolledCourses: Array.isArray(backendUser?.enrolledCourses)
+                        ? backendUser.enrolledCourses.map(String)
+                        : state.enrolledCourses,
+                }));
+            },
+
+            redeemAccessCode: async (code) => {
+                const response = await api.redeemAccessCode({ code }) as { user?: any };
+                const backendUser = response?.user;
+                if (!backendUser) {
+                    return;
+                }
+
+                set((state) => ({
+                    user: {
+                        ...state.user,
+                        subscription: {
+                            ...state.user.subscription,
+                            plan: backendUser?.subscription?.plan ?? state.user.subscription?.plan ?? 'free',
+                            expiresAt: backendUser?.subscription?.expiresAt ?? state.user.subscription?.expiresAt,
+                            purchasedCourses: Array.isArray(backendUser?.subscription?.purchasedCourses)
+                                ? backendUser.subscription.purchasedCourses.map(String)
+                                : state.user.subscription?.purchasedCourses || [],
+                            purchasedPackages: Array.isArray(backendUser?.subscription?.purchasedPackages)
+                                ? backendUser.subscription.purchasedPackages.map(String)
+                                : state.user.subscription?.purchasedPackages || [],
+                        },
+                    },
+                    enrolledCourses: Array.isArray(backendUser?.enrolledCourses)
+                        ? backendUser.enrolledCourses.map(String)
+                        : state.enrolledCourses,
+                }));
+            },
 
             enrollPath: (pathId) => set((state) => {
                 if (state.enrolledPaths?.includes(pathId)) return state;
@@ -1037,7 +511,7 @@ export const useStore = create<AppState>()(
                 const newActivity: Activity = {
                     id: Date.now().toString(),
                     type: 'lesson_complete',
-                    title: `أكملت درس: ${lessonTitle}`,
+                    title: `Ø£ÙƒÙ…Ù„Øª Ø¯Ø±Ø³: ${lessonTitle}`,
                     date: new Date().toISOString(),
                     link: `/course/${courseId}`
                 };
@@ -1058,7 +532,7 @@ export const useStore = create<AppState>()(
                 const newActivity: Activity = {
                     id: Date.now().toString(),
                     type: 'quiz_complete',
-                    title: `أنهيت اختبار: ${result.quizTitle} بنتيجة ${result.score}%`,
+                    title: `Ø£Ù†Ù‡ÙŠØª Ø§Ø®ØªØ¨Ø§Ø±: ${result.quizTitle} Ø¨Ù†ØªÙŠØ¬Ø© ${result.score}%`,
                     date: new Date().toISOString(),
                     link: `/results`
                 };
@@ -1136,9 +610,29 @@ export const useStore = create<AppState>()(
                 const state = get();
                 if (!isPremiumContent) return true;
                 if (state.user.subscription.plan === 'premium') return true;
+                if (state.enrolledCourses.includes(contentId)) return true;
                 if (state.user.subscription.purchasedCourses.includes(contentId)) return true;
                 if (state.user.subscription.purchasedPackages.includes(contentId)) return true;
                 return false;
+            },
+            hasScopedPackageAccess: (contentType, pathId, subjectId) => {
+                const state = get();
+                if (state.user.subscription.plan === 'premium') return true;
+
+                const purchasedPackageIds = new Set(state.user.subscription?.purchasedPackages || []);
+                return state.b2bPackages.some((pkg) => purchasedPackageIds.has(pkg.id) && packageMatchesScope(pkg, contentType, pathId, subjectId));
+            },
+            getMatchingPackage: (contentType, pathId, subjectId) => {
+                const state = get();
+                const prioritizedPackages = [...state.b2bPackages]
+                    .filter((pkg) => packageMatchesScope(pkg, contentType, pathId, subjectId))
+                    .sort((a, b) => {
+                        const aSpecificity = (a.subjectIds?.length || 0) * 4 + (a.pathIds?.length || 0) * 2 + (a.contentTypes?.includes('all') ? 0 : 1);
+                        const bSpecificity = (b.subjectIds?.length || 0) * 4 + (b.pathIds?.length || 0) * 2 + (b.contentTypes?.includes('all') ? 0 : 1);
+                        return bSpecificity - aSpecificity;
+                    });
+
+                return prioritizedPackages[0] || null;
             },
 
             changeRole: (role) => set((state) => ({
@@ -1149,15 +643,23 @@ export const useStore = create<AppState>()(
                 users: [...state.users, user]
             })),
 
-            updateUser: (userId, data) => set((state) => ({
-                users: state.users.map(u => u.id === userId ? { ...u, ...data } : u),
-                // Also update current user if it's the same
-                user: state.user.id === userId ? { ...state.user, ...data } : state.user
-            })),
+            updateUser: (userId, data) => set((state) => {
+                api.updateAdminUser(userId, data).catch(console.error);
+                return {
+                    users: state.users.map(u => u.id === userId ? { ...u, ...data } : u),
+                    // Also update current user if it's the same
+                    user: state.user.id === userId ? { ...state.user, ...data } : state.user
+                };
+            }),
 
-            toggleUserStatus: (userId) => set((state) => ({
-                users: state.users.map(u => u.id === userId ? { ...u, isActive: !u.isActive } : u)
-            })),
+            toggleUserStatus: (userId) => set((state) => {
+                const targetUser = state.users.find(u => u.id === userId);
+                const nextStatus = !(targetUser?.isActive ?? true);
+                api.updateAdminUser(userId, { isActive: nextStatus }).catch(console.error);
+                return {
+                    users: state.users.map(u => u.id === userId ? { ...u, isActive: nextStatus } : u)
+                };
+            }),
 
             // Course Actions
             addCourse: (course) => {
@@ -1260,15 +762,22 @@ export const useStore = create<AppState>()(
             },
 
             // Group Actions
-            createGroup: (group) => set((state) => ({
-                groups: [...state.groups, group]
-            })),
+            createGroup: (group) => set((state) => {
+                api.createGroup(group).catch(console.error);
+                return {
+                    groups: [...state.groups, group]
+                };
+            }),
 
-            updateGroup: (groupId, data) => set((state) => ({
-                groups: state.groups.map(g => g.id === groupId ? { ...g, ...data } : g)
-            })),
+            updateGroup: (groupId, data) => set((state) => {
+                api.updateGroup(groupId, data).catch(console.error);
+                return {
+                    groups: state.groups.map(g => g.id === groupId ? { ...g, ...data } : g)
+                };
+            }),
 
             deleteGroup: (groupId) => set((state) => {
+                api.deleteGroup(groupId).catch(console.error);
                 const newGroups = state.groups.filter(g => g.id !== groupId);
                 const newUsers = state.users.map(u => ({
                     ...u,
@@ -1286,44 +795,96 @@ export const useStore = create<AppState>()(
             }),
 
             assignStudentToGroup: (userId, groupId) => set((state) => {
-                const group = state.groups.find(g => g.id === groupId);
-                if (!group) return state;
+                const targetGroup = state.groups.find(g => g.id === groupId);
+                const currentUser = state.users.find(u => u.id === userId);
+                if (!targetGroup || !currentUser) return state;
 
+                let nextSchoolId = currentUser.schoolId;
+                let nextGroupIds = [...(currentUser.groupIds || [])];
+                let groupsToPersist = new Set<string>();
                 let newGroups = [...state.groups];
-                let newUsers = [...state.users];
 
-                // If SCHOOL, remove from other schools first
-                if (group.type === 'SCHOOL') {
-                    const currentSchoolId = newUsers.find(u => u.id === userId)?.schoolId;
-                    if (currentSchoolId && currentSchoolId !== groupId) {
-                        newGroups = newGroups.map(g => 
-                            g.id === currentSchoolId 
-                            ? { ...g, studentIds: g.studentIds.filter(id => id !== userId), totalStudents: Math.max(0, (g.totalStudents || 1) - 1) } 
-                            : g
-                        );
+                const removeUserFromGroup = (targetId: string, student = true) => {
+                    newGroups = newGroups.map(group => {
+                        if (group.id !== targetId) return group;
+                        groupsToPersist.add(group.id);
+                        return student
+                            ? { ...group, studentIds: group.studentIds.filter(id => id !== userId), totalStudents: Math.max(0, (group.totalStudents || group.studentIds.length || 1) - 1) }
+                            : { ...group, supervisorIds: group.supervisorIds.filter(id => id !== userId), totalSupervisors: Math.max(0, (group.totalSupervisors || group.supervisorIds.length || 1) - 1) };
+                    });
+                };
+
+                const addUserToGroup = (targetId: string, student = true) => {
+                    newGroups = newGroups.map(group => {
+                        if (group.id !== targetId) return group;
+                        if (student && group.studentIds.includes(userId)) return group;
+                        if (!student && group.supervisorIds.includes(userId)) return group;
+                        groupsToPersist.add(group.id);
+                        return student
+                            ? { ...group, studentIds: [...group.studentIds, userId], totalStudents: (group.totalStudents || group.studentIds.length || 0) + 1 }
+                            : { ...group, supervisorIds: [...group.supervisorIds, userId], totalSupervisors: (group.totalSupervisors || group.supervisorIds.length || 0) + 1 };
+                    });
+                };
+
+                const clearSchoolClassMemberships = (schoolId?: string) => {
+                    if (!schoolId) return;
+                    const schoolClassIds = state.groups
+                        .filter(group => group.type === 'CLASS' && group.parentId === schoolId)
+                        .map(group => group.id);
+
+                    schoolClassIds.forEach(classId => removeUserFromGroup(classId, true));
+                    nextGroupIds = nextGroupIds.filter(id => !schoolClassIds.includes(id));
+                };
+
+                if (targetGroup.type === 'SCHOOL') {
+                    if (currentUser.schoolId && currentUser.schoolId !== targetGroup.id) {
+                        removeUserFromGroup(currentUser.schoolId, true);
+                        clearSchoolClassMemberships(currentUser.schoolId);
                     }
+
+                    nextSchoolId = targetGroup.id;
+                    addUserToGroup(targetGroup.id, true);
+                } else {
+                    if (targetGroup.parentId && currentUser.schoolId !== targetGroup.parentId) {
+                        if (currentUser.schoolId) {
+                            removeUserFromGroup(currentUser.schoolId, true);
+                            clearSchoolClassMemberships(currentUser.schoolId);
+                        }
+                        nextSchoolId = targetGroup.parentId;
+                        addUserToGroup(targetGroup.parentId, true);
+                    }
+
+                    if (!nextGroupIds.includes(targetGroup.id)) {
+                        nextGroupIds = [...nextGroupIds, targetGroup.id];
+                    }
+                    addUserToGroup(targetGroup.id, true);
                 }
 
-                // Add to group
-                newGroups = newGroups.map(g => {
-                    if (g.id === groupId && !g.studentIds.includes(userId)) {
-                        return { ...g, studentIds: [...g.studentIds, userId], totalStudents: (g.totalStudents || 0) + 1 };
+                const normalizedGroupIds = Array.from(new Set(nextGroupIds));
+                api.updateAdminUser(userId, {
+                    schoolId: nextSchoolId || null,
+                    groupIds: normalizedGroupIds,
+                }).catch(console.error);
+
+                Array.from(groupsToPersist).forEach(persistedGroupId => {
+                    const persistedGroup = newGroups.find(group => group.id === persistedGroupId);
+                    if (persistedGroup) {
+                        api.updateGroup(persistedGroup.id, {
+                            studentIds: persistedGroup.studentIds,
+                            totalStudents: persistedGroup.totalStudents,
+                            supervisorIds: persistedGroup.supervisorIds,
+                            totalSupervisors: persistedGroup.totalSupervisors,
+                        }).catch(console.error);
                     }
-                    return g;
                 });
 
-                // Add to user
-                newUsers = newUsers.map(u => {
-                    if (u.id === userId) {
-                        return {
-                            ...u,
-                            schoolId: group.type === 'SCHOOL' ? groupId : u.schoolId,
-                            groupIds: group.type !== 'SCHOOL' && !u.groupIds?.includes(groupId) 
-                                ? [...(u.groupIds || []), groupId] 
-                                : u.groupIds
-                        };
-                    }
-                    return u;
+                const newUsers = state.users.map(existingUser => {
+                    if (existingUser.id !== userId) return existingUser;
+                    return {
+                        ...existingUser,
+                        schoolId: nextSchoolId,
+                        groupIds: normalizedGroupIds,
+                    };
                 });
 
                 return {
@@ -1334,22 +895,64 @@ export const useStore = create<AppState>()(
             }),
 
             removeStudentFromGroup: (userId, groupId) => set((state) => {
-                const newGroups = state.groups.map(g => {
-                    if (g.id === groupId) {
-                        return { ...g, studentIds: g.studentIds.filter(id => id !== userId), totalStudents: Math.max(0, (g.totalStudents || 1) - 1) };
-                    }
-                    return g;
-                });
+                const targetGroup = state.groups.find(group => group.id === groupId);
+                const currentUser = state.users.find(user => user.id === userId);
+                if (!targetGroup || !currentUser) return state;
 
-                const newUsers = state.users.map(u => {
-                    if (u.id === userId) {
+                let nextSchoolId = currentUser.schoolId;
+                let nextGroupIds = [...(currentUser.groupIds || [])];
+                let groupsToPersist = new Set<string>();
+
+                const newGroups = state.groups.map(group => {
+                    if (group.id !== groupId) return group;
+                    groupsToPersist.add(group.id);
+                    return {
+                        ...group,
+                        studentIds: group.studentIds.filter(id => id !== userId),
+                        totalStudents: Math.max(0, (group.totalStudents || group.studentIds.length || 1) - 1),
+                    };
+                }).map(group => {
+                    if (targetGroup.type === 'SCHOOL' && group.type === 'CLASS' && group.parentId === groupId && group.studentIds.includes(userId)) {
+                        groupsToPersist.add(group.id);
                         return {
-                            ...u,
-                            schoolId: u.schoolId === groupId ? undefined : u.schoolId,
-                            groupIds: u.groupIds?.filter(id => id !== groupId) || []
+                            ...group,
+                            studentIds: group.studentIds.filter(id => id !== userId),
+                            totalStudents: Math.max(0, (group.totalStudents || group.studentIds.length || 1) - 1),
                         };
                     }
-                    return u;
+                    return group;
+                });
+
+                if (targetGroup.type === 'SCHOOL') {
+                    nextSchoolId = undefined;
+                    const relatedClassIds = state.groups.filter(group => group.type === 'CLASS' && group.parentId === groupId).map(group => group.id);
+                    nextGroupIds = nextGroupIds.filter(id => !relatedClassIds.includes(id));
+                } else {
+                    nextGroupIds = nextGroupIds.filter(id => id !== groupId);
+                }
+
+                api.updateAdminUser(userId, {
+                    schoolId: nextSchoolId || null,
+                    groupIds: nextGroupIds,
+                }).catch(console.error);
+
+                Array.from(groupsToPersist).forEach(persistedGroupId => {
+                    const persistedGroup = newGroups.find(group => group.id === persistedGroupId);
+                    if (persistedGroup) {
+                        api.updateGroup(persistedGroup.id, {
+                            studentIds: persistedGroup.studentIds,
+                            totalStudents: persistedGroup.totalStudents,
+                        }).catch(console.error);
+                    }
+                });
+
+                const newUsers = state.users.map(existingUser => {
+                    if (existingUser.id !== userId) return existingUser;
+                    return {
+                        ...existingUser,
+                        schoolId: nextSchoolId,
+                        groupIds: nextGroupIds,
+                    };
                 });
 
                 return {
@@ -1360,61 +963,153 @@ export const useStore = create<AppState>()(
             }),
 
             assignSupervisorToGroup: (userId, groupId) => set((state) => {
-                const newGroups = state.groups.map(g => {
-                    if (g.id === groupId && !g.supervisorIds.includes(userId)) {
-                        return { ...g, supervisorIds: [...g.supervisorIds, userId], totalSupervisors: (g.totalSupervisors || 0) + 1 };
+                const targetGroup = state.groups.find(group => group.id === groupId);
+                const currentUser = state.users.find(user => user.id === userId);
+                if (!targetGroup || !currentUser) return state;
+
+                const nextGroupIds = currentUser.groupIds?.includes(groupId)
+                    ? (currentUser.groupIds || [])
+                    : [...(currentUser.groupIds || []), groupId];
+
+                api.updateAdminUser(userId, {
+                    groupIds: nextGroupIds,
+                }).catch(console.error);
+
+                const newGroups = state.groups.map(group => {
+                    if (group.id === groupId && !group.supervisorIds.includes(userId)) {
+                        const updated = { ...group, supervisorIds: [...group.supervisorIds, userId], totalSupervisors: (group.totalSupervisors || group.supervisorIds.length || 0) + 1 };
+                        api.updateGroup(group.id, {
+                            supervisorIds: updated.supervisorIds,
+                            totalSupervisors: updated.totalSupervisors,
+                        }).catch(console.error);
+                        return updated;
                     }
-                    return g;
+                    return group;
                 });
-                return { groups: newGroups };
+
+                const newUsers = state.users.map(existingUser => existingUser.id === userId ? { ...existingUser, groupIds: nextGroupIds } : existingUser);
+                return {
+                    groups: newGroups,
+                    users: newUsers,
+                    user: newUsers.find(u => u.id === state.user.id) || state.user,
+                };
             }),
 
             removeSupervisorFromGroup: (userId, groupId) => set((state) => {
-                const newGroups = state.groups.map(g => {
-                    if (g.id === groupId) {
-                        return { ...g, supervisorIds: g.supervisorIds.filter(id => id !== userId), totalSupervisors: Math.max(0, (g.totalSupervisors || 1) - 1) };
+                const currentUser = state.users.find(user => user.id === userId);
+                if (!currentUser) return state;
+
+                const nextGroupIds = (currentUser.groupIds || []).filter(id => id !== groupId);
+                api.updateAdminUser(userId, {
+                    groupIds: nextGroupIds,
+                }).catch(console.error);
+
+                const newGroups = state.groups.map(group => {
+                    if (group.id === groupId) {
+                        const updated = { ...group, supervisorIds: group.supervisorIds.filter(id => id !== userId), totalSupervisors: Math.max(0, (group.totalSupervisors || group.supervisorIds.length || 1) - 1) };
+                        api.updateGroup(group.id, {
+                            supervisorIds: updated.supervisorIds,
+                            totalSupervisors: updated.totalSupervisors,
+                        }).catch(console.error);
+                        return updated;
                     }
-                    return g;
+                    return group;
                 });
-                return { groups: newGroups };
+
+                const newUsers = state.users.map(existingUser => existingUser.id === userId ? { ...existingUser, groupIds: nextGroupIds } : existingUser);
+                return {
+                    groups: newGroups,
+                    users: newUsers,
+                    user: newUsers.find(u => u.id === state.user.id) || state.user,
+                };
             }),
 
             assignCourseToGroup: (courseId, groupId) => set((state) => {
-                const newGroups = state.groups.map(g => {
-                    if (g.id === groupId && !g.courseIds.includes(courseId)) {
-                        return { ...g, courseIds: [...g.courseIds, courseId], totalCourses: (g.totalCourses || 0) + 1 };
+                const newGroups = state.groups.map(group => {
+                    if (group.id === groupId && !group.courseIds.includes(courseId)) {
+                        const updated = { ...group, courseIds: [...group.courseIds, courseId], totalCourses: (group.totalCourses || group.courseIds.length || 0) + 1 };
+                        api.updateGroup(group.id, {
+                            courseIds: updated.courseIds,
+                            totalCourses: updated.totalCourses,
+                        }).catch(console.error);
+                        return updated;
                     }
-                    return g;
+                    return group;
                 });
                 return { groups: newGroups };
             }),
 
             removeCourseFromGroup: (courseId, groupId) => set((state) => {
-                const newGroups = state.groups.map(g => {
-                    if (g.id === groupId) {
-                        return { ...g, courseIds: g.courseIds.filter(id => id !== courseId), totalCourses: Math.max(0, (g.totalCourses || 1) - 1) };
+                const newGroups = state.groups.map(group => {
+                    if (group.id === groupId) {
+                        const updated = { ...group, courseIds: group.courseIds.filter(id => id !== courseId), totalCourses: Math.max(0, (group.totalCourses || group.courseIds.length || 1) - 1) };
+                        api.updateGroup(group.id, {
+                            courseIds: updated.courseIds,
+                            totalCourses: updated.totalCourses,
+                        }).catch(console.error);
+                        return updated;
                     }
-                    return g;
+                    return group;
                 });
                 return { groups: newGroups };
             }),
 
             // B2B Actions
-            createB2BPackage: (pkg) => set((state) => ({
-                b2bPackages: [...state.b2bPackages, pkg]
-            })),
-            updateB2BPackage: (id, data) => set((state) => ({
-                b2bPackages: state.b2bPackages.map(p => p.id === id ? { ...p, ...data } : p)
-            })),
-            deleteB2BPackage: (id) => set((state) => ({
-                b2bPackages: state.b2bPackages.filter(p => p.id !== id)
-            })),
-            createAccessCode: (code) => set((state) => ({
-                accessCodes: [...state.accessCodes, code]
-            })),
-            deleteAccessCode: (id) => set((state) => ({
-                accessCodes: state.accessCodes.filter(c => c.id !== id)
-            })),
+            createB2BPackage: (pkg) => set((state) => {
+                const normalizedPackage: B2BPackage = {
+                    ...pkg,
+                    contentTypes: Array.isArray(pkg.contentTypes) && pkg.contentTypes.length ? pkg.contentTypes : ['all'],
+                    pathIds: Array.isArray(pkg.pathIds) ? pkg.pathIds : [],
+                    subjectIds: Array.isArray(pkg.subjectIds) ? pkg.subjectIds : [],
+                };
+                api.createB2BPackage(normalizedPackage).catch(console.error);
+                return {
+                    b2bPackages: [...state.b2bPackages, normalizedPackage]
+                };
+            }),
+            updateB2BPackage: (id, data) => set((state) => {
+                const normalizedData: Partial<B2BPackage> = {
+                    ...data,
+                    ...(data.contentTypes ? { contentTypes: data.contentTypes as PackageContentType[] } : {}),
+                    ...(data.pathIds ? { pathIds: data.pathIds } : {}),
+                    ...(data.subjectIds ? { subjectIds: data.subjectIds } : {}),
+                };
+                api.updateB2BPackage(id, normalizedData).catch(console.error);
+                return {
+                    b2bPackages: state.b2bPackages.map((p): B2BPackage => {
+                        if (p.id !== id) {
+                            return p;
+                        }
+
+                        return {
+                            ...p,
+                            ...normalizedData,
+                            contentTypes: normalizedData.contentTypes ?? p.contentTypes,
+                            pathIds: normalizedData.pathIds ?? p.pathIds,
+                            subjectIds: normalizedData.subjectIds ?? p.subjectIds,
+                        };
+                    })
+                };
+            }),
+            deleteB2BPackage: (id) => set((state) => {
+                api.deleteB2BPackage(id).catch(console.error);
+                return {
+                    b2bPackages: state.b2bPackages.filter(p => p.id !== id),
+                    accessCodes: state.accessCodes.filter(code => code.packageId !== id)
+                };
+            }),
+            createAccessCode: (code) => set((state) => {
+                api.createAccessCode(code).catch(console.error);
+                return {
+                    accessCodes: [...state.accessCodes, code]
+                };
+            }),
+            deleteAccessCode: (id) => set((state) => {
+                api.deleteAccessCode(id).catch(console.error);
+                return {
+                    accessCodes: state.accessCodes.filter(c => c.id !== id)
+                };
+            }),
 
             // Taxonomy Actions
             addPath: (path) => {
@@ -1597,19 +1292,33 @@ export const useStore = create<AppState>()(
         }),
         {
             name: 'learning-platform-storage', // unique name
-            version: 1,
+            version: 2,
             partialize: (state) => Object.fromEntries(
-                Object.entries(state).filter(([key]) => !['paths', 'levels', 'subjects', 'sections', 'skills', 'nestedSkills', 'libraryItems', 'questions', 'users', 'courses', 'topics', 'lessons', 'quizzes'].includes(key))
+                Object.entries(state).filter(([key]) => !['paths', 'levels', 'subjects', 'sections', 'skills', 'nestedSkills', 'libraryItems', 'questions', 'users', 'courses', 'topics', 'lessons', 'quizzes', 'groups', 'b2bPackages', 'accessCodes'].includes(key))
             ),
-            migrate: (persistedState: any, version: number) => {
-                if (version === 0) {
-                    persistedState.nestedSkills = initialNestedSkills;
-                    // Ensure new fields and topics are initialized
-                    if (!persistedState.topics || persistedState.topics.length === 0) {
-                        persistedState.topics = buildLegacyTopicsFromNestedSkills(initialNestedSkills);
-                    }
+            migrate: (persistedState: any) => {
+                if (!persistedState || typeof persistedState !== 'object') {
+                    return persistedState;
                 }
-                return persistedState;
+
+                return {
+                    ...persistedState,
+                    courses: [],
+                    questions: [],
+                    quizzes: [],
+                    lessons: [],
+                    topics: [],
+                    groups: [],
+                    b2bPackages: [],
+                    accessCodes: [],
+                    paths: [],
+                    levels: [],
+                    subjects: [],
+                    sections: [],
+                    skills: [],
+                    nestedSkills: [],
+                    libraryItems: [],
+                };
             }
         }
     )

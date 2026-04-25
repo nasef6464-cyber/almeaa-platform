@@ -90,7 +90,14 @@ export const SkillsManager: React.FC = () => {
             const questionIds = skillQuestions.map(q => q.id);
             const lessonCount = lessons.filter(lesson => lesson.skillIds?.includes(skill.id)).length;
             const libraryCount = libraryItems.filter(item => item.skillIds?.includes(skill.id)).length;
-            const quizCount = quizzes.filter(quiz => quiz.skillIds?.includes(skill.id)).length;
+            const quizCount = quizzes.filter(quiz => {
+                const directSkillMatch = quiz.skillIds?.includes(skill.id);
+                const measuredByQuestion = (quiz.questionIds || []).some(questionId => {
+                    const question = questions.find(q => q.id === questionId);
+                    return question?.skillIds?.includes(skill.id);
+                });
+                return directSkillMatch || measuredByQuestion;
+            }).length;
             
             // Find all attempts for these questions
             const attempts = questionAttempts.filter(a => questionIds.includes(a.questionId));
@@ -185,7 +192,7 @@ export const SkillsManager: React.FC = () => {
                 actionHint:
                     item.weakCount === 0
                         ? 'المسار مستقر حاليًا، استمر في المتابعة الدورية.'
-                        : item.averageMastery < 50
+                        : (item.skillsCount > 0 ? Math.round(item.masterySum / item.skillsCount) : 0) < 50
                             ? 'راجع المواد الأضعف داخل هذا المسار وزِد الشرح العلاجي والاختبارات الموجهة.'
                             : 'ركّز على المهارات الضعيفة داخل هذا المسار واربطها بتدريب إضافي سريع.',
             }))
@@ -223,7 +230,7 @@ export const SkillsManager: React.FC = () => {
                 actionHint:
                     item.weakCount === 0
                         ? 'المادة متوازنة حاليًا، ويمكن الاكتفاء بالمتابعة.'
-                        : item.averageMastery < 50
+                        : (item.skillsCount > 0 ? Math.round(item.masterySum / item.skillsCount) : 0) < 50
                             ? 'هذه المادة تحتاج شرحًا إضافيًا واختبارًا علاجيًا على المهارات الأضعف.'
                             : 'أضف تدريبًا قصيرًا أو ملف مراجعة للمهارات المتوسطة داخل هذه المادة.',
             }))
@@ -287,6 +294,24 @@ export const SkillsManager: React.FC = () => {
         [selectedSkill, sections]
     );
 
+    const linkedLessons = useMemo(() => {
+        if (!selectedSkill) return [];
+        return lessons.filter(lesson =>
+            lesson.subjectId === selectedSkill.subjectId &&
+            (!lesson.sectionId || lesson.sectionId === selectedSkill.sectionId) &&
+            (lesson.skillIds || []).includes(selectedSkill.id)
+        );
+    }, [lessons, selectedSkill]);
+
+    const linkedQuestions = useMemo(() => {
+        if (!selectedSkill) return [];
+        return questions.filter(question =>
+            question.subject === selectedSkill.subjectId &&
+            (!question.sectionId || question.sectionId === selectedSkill.sectionId) &&
+            (question.skillIds || []).includes(selectedSkill.id)
+        );
+    }, [questions, selectedSkill]);
+
     const linkableLessons = useMemo(() => {
         if (!selectedSkill) return [];
         return lessons.filter(lesson =>
@@ -301,9 +326,15 @@ export const SkillsManager: React.FC = () => {
         return quizzes.filter(quiz =>
             quiz.subjectId === selectedSkill.subjectId &&
             (!quiz.sectionId || quiz.sectionId === selectedSkill.sectionId) &&
-            (quiz.skillIds || []).includes(selectedSkill.id)
+            (
+                (quiz.skillIds || []).includes(selectedSkill.id) ||
+                (quiz.questionIds || []).some(questionId => {
+                    const question = questions.find(item => item.id === questionId);
+                    return question?.skillIds?.includes(selectedSkill.id);
+                })
+            )
         );
-    }, [quizzes, selectedSkill]);
+    }, [quizzes, questions, selectedSkill]);
 
     const linkedLibraryItems = useMemo(() => {
         if (!selectedSkill) return [];
@@ -313,6 +344,29 @@ export const SkillsManager: React.FC = () => {
             (item.skillIds || []).includes(selectedSkill.id)
         );
     }, [libraryItems, selectedSkill]);
+
+    const selectedSkillChecklist = useMemo(() => {
+        if (!selectedSkill) return [];
+
+        const actions: string[] = [];
+        if (linkedLessons.length === 0) {
+            actions.push('هذه المهارة تحتاج شرحًا أو درس فيديو مرتبطًا بها.');
+        }
+        if (linkedQuestions.length < 3) {
+            actions.push('زد عدد الأسئلة المرتبطة حتى يصبح القياس أدق داخل الاختبارات.');
+        }
+        if (linkedQuizzes.length === 0) {
+            actions.push('أنشئ اختبارًا ساهرًا أو اختبارًا مركزيًا لهذه المهارة لبدء القياس العلاجي.');
+        }
+        if (linkedLibraryItems.length === 0) {
+            actions.push('أضف ملف مراجعة أو ملخصًا داعمًا ليستفيد الطالب في الخطة العلاجية.');
+        }
+        if (actions.length === 0) {
+            actions.push('تغطية المهارة جيدة حاليًا، والأولوية الآن للمتابعة والتحسين التدريجي.');
+        }
+
+        return actions;
+    }, [linkedLessons.length, linkedLibraryItems.length, linkedQuestions.length, linkedQuizzes.length, selectedSkill]);
 
     if (selectedSkill) {
         return (
@@ -435,15 +489,27 @@ export const SkillsManager: React.FC = () => {
                             <BookOpen className="text-blue-500" size={24} />
                             <div>
                                 <p className="text-sm text-gray-500">الدروس المرتبطة</p>
-                                <p className="text-xl font-bold text-gray-900">{selectedSkill.lessonIds?.length || 0}</p>
+                                <p className="text-xl font-bold text-gray-900">{linkedLessons.length}</p>
                             </div>
                         </div>
                         <div className="bg-emerald-50 p-4 rounded-lg flex items-center gap-4">
                             <HelpCircle className="text-emerald-500" size={24} />
                             <div>
                                 <p className="text-sm text-gray-500">الأسئلة المرتبطة</p>
-                                <p className="text-xl font-bold text-gray-900">{selectedSkill.questionIds?.length || 0}</p>
+                                <p className="text-xl font-bold text-gray-900">{linkedQuestions.length}</p>
                             </div>
+                        </div>
+                    </div>
+
+                    <div className="mb-8 rounded-xl border border-amber-100 bg-amber-50 p-4">
+                        <h3 className="font-bold text-gray-900 mb-3">أولوية التطوير لهذه المهارة</h3>
+                        <div className="space-y-2">
+                            {selectedSkillChecklist.map((item, index) => (
+                                <div key={`${selectedSkill.id}-check-${index}`} className="text-sm text-gray-700 flex items-start gap-2">
+                                    <span className="mt-1 w-2 h-2 rounded-full bg-amber-500 flex-shrink-0"></span>
+                                    <span>{item}</span>
+                                </div>
+                            ))}
                         </div>
                     </div>
 
@@ -455,7 +521,7 @@ export const SkillsManager: React.FC = () => {
                         </h3>
                         <div className="space-y-3">
                             {linkableLessons.map(lesson => {
-                                const isLinked = selectedSkill.lessonIds?.includes(lesson.id);
+                                const isLinked = linkedLessons.some(item => item.id === lesson.id);
                                 return (
                                     <div key={lesson.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
                                         <span className="text-sm font-medium text-gray-800">{lesson.title}</span>
@@ -961,6 +1027,17 @@ export const SkillsManager: React.FC = () => {
                                                     </div>
                                                     <div className="text-[11px] text-gray-400">
                                                         {report.lessonCount} درس • {report.questionCount} سؤال • {report.quizCount} اختبار • {report.libraryCount} ملف
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2 text-[11px]">
+                                                        <span className={`px-2 py-1 rounded ${report.lessonCount === 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'}`}>
+                                                            {report.lessonCount === 0 ? 'ينقصها شرح' : 'الشرح موجود'}
+                                                        </span>
+                                                        <span className={`px-2 py-1 rounded ${report.quizCount === 0 ? 'bg-amber-50 text-amber-700' : 'bg-purple-50 text-purple-700'}`}>
+                                                            {report.quizCount === 0 ? 'ينقصها اختبار' : 'الاختبار موجود'}
+                                                        </span>
+                                                        <span className={`px-2 py-1 rounded ${report.libraryCount === 0 ? 'bg-gray-100 text-gray-600' : 'bg-slate-100 text-slate-700'}`}>
+                                                            {report.libraryCount === 0 ? 'ينقصها ملف مراجعة' : 'الملف موجود'}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </td>

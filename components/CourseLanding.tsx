@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Course } from '../types';
 import { 
     Star, Clock, Users, BookOpen, CheckCircle, Lock, 
@@ -9,6 +10,7 @@ import {
 import { PaymentModal } from './PaymentModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { CustomVideoPlayer } from './CustomVideoPlayer';
+import { useStore } from '../store/useStore';
 
 interface CourseLandingProps {
     course: Course;
@@ -19,6 +21,31 @@ export const CourseLanding: React.FC<CourseLandingProps> = ({ course }) => {
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'overview' | 'syllabus' | 'reviews'>('overview');
     const [expandedModules, setExpandedModules] = useState<string[]>(course.modules?.map(m => m.id) || []);
+    const { user, enrolledCourses, hasScopedPackageAccess, getMatchingPackage } = useStore();
+    const hasPackageAccess = hasScopedPackageAccess('courses', course.pathId || course.category, course.subjectId || course.subject);
+    const matchedPackage = getMatchingPackage('courses', course.pathId || course.category, course.subjectId || course.subject);
+    const hasAccess =
+        enrolledCourses.includes(course.id) ||
+        (user.subscription?.purchasedCourses || []).includes(course.id) ||
+        hasPackageAccess ||
+        course.isPurchased;
+    const purchaseItem = matchedPackage
+        ? {
+            id: matchedPackage.id,
+            packageId: matchedPackage.id,
+            purchaseType: 'package',
+            title: matchedPackage.name,
+            description: `هذه الباقة تفتح الدورات المرتبطة بـ ${course.subject || course.category}.`,
+            contentTypes: matchedPackage.contentTypes,
+            pathIds: matchedPackage.pathIds,
+            subjectIds: matchedPackage.subjectIds,
+            includedCourseIds: matchedPackage.courseIds,
+            courseIds: matchedPackage.courseIds,
+            price: course.price,
+            currency: course.currency,
+        }
+        : course;
+    const purchaseType = matchedPackage ? 'package' : 'course';
 
     const toggleModule = (id: string) => {
         setExpandedModules(prev => 
@@ -96,6 +123,14 @@ export const CourseLanding: React.FC<CourseLandingProps> = ({ course }) => {
                     >
                         {course.modules?.map((module) => (
                             <div key={module.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                {hasAccess && (
+                                    <Link
+                                        to={`/course/${course.id}`}
+                                        className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 mb-4 transform hover:-translate-y-1 active:scale-95 flex items-center justify-center"
+                                    >
+                                        ابدأ التعلم الآن
+                                    </Link>
+                                )}
                                 <button 
                                     onClick={() => toggleModule(module.id)}
                                     className="w-full flex items-center justify-between p-5 md:p-6 bg-gray-50/50 hover:bg-gray-50 transition-colors"
@@ -322,7 +357,7 @@ export const CourseLanding: React.FC<CourseLandingProps> = ({ course }) => {
 
                                 <button 
                                     onClick={() => setIsPaymentModalOpen(true)}
-                                    className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 mb-4 transform hover:-translate-y-1 active:scale-95"
+                                    className={`w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 mb-4 transform hover:-translate-y-1 active:scale-95 ${hasAccess ? 'hidden' : ''}`}
                                 >
                                     اشترك الآن
                                 </button>
@@ -372,8 +407,8 @@ export const CourseLanding: React.FC<CourseLandingProps> = ({ course }) => {
             <PaymentModal 
                 isOpen={isPaymentModalOpen} 
                 onClose={() => setIsPaymentModalOpen(false)} 
-                item={course}
-                type="course"
+                item={purchaseItem}
+                type={purchaseType}
             />
         </div>
     );

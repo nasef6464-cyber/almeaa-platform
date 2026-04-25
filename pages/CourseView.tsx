@@ -14,7 +14,7 @@ const CourseView: React.FC = () => {
     const [course, setCourse] = useState<Course | null>(null);
     const [loading, setLoading] = useState(true);
     const [isPlaying, setIsPlaying] = useState(false);
-    const { enrolledCourses } = useStore();
+    const { user, enrolledCourses, hasScopedPackageAccess } = useStore();
 
     useEffect(() => {
         let mounted = true;
@@ -67,7 +67,11 @@ const CourseView: React.FC = () => {
         );
     }
 
-    const isEnrolled = enrolledCourses.includes(course.id);
+    const hasPackageAccess = hasScopedPackageAccess('courses', course.pathId || course.category, course.subjectId || course.subject);
+    const isEnrolled =
+        enrolledCourses.includes(course.id) ||
+        (user.subscription?.purchasedCourses || []).includes(course.id) ||
+        hasPackageAccess;
 
     if (isEnrolled) {
         if (isPlaying) {

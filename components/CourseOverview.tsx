@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SimulatedTestExperience } from './SimulatedTestExperience';
+import { PaymentModal } from './PaymentModal';
 import { useStore } from '../store/useStore';
 import { useNavigate } from 'react-router-dom';
 
@@ -22,10 +23,15 @@ type TabType = 'description' | 'syllabus' | 'tests' | 'qa' | 'files';
 export const CourseOverview: React.FC<CourseOverviewProps> = ({ course, onContinue }) => {
     const [activeTab, setActiveTab] = useState<TabType>('syllabus');
     const [newQuestion, setNewQuestion] = useState('');
-    const { enrolledCourses, enrollCourse, completedLessons, quizzes } = useStore();
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const { user, enrolledCourses, enrollCourse, completedLessons, quizzes, libraryItems, hasScopedPackageAccess, getMatchingPackage } = useStore();
     const navigate = useNavigate();
+    const matchedCoursePackage = getMatchingPackage('courses', course.pathId || course.category, course.subjectId || course.subject);
 
-    const isEnrolled = enrolledCourses.includes(course.id);
+    const isEnrolled =
+        enrolledCourses.includes(course.id) ||
+        (user.subscription?.purchasedCourses || []).includes(course.id) ||
+        hasScopedPackageAccess('courses', course.pathId || course.category, course.subjectId || course.subject);
     
     // Calculate real progress
     const totalLessons = course.modules?.reduce((acc, mod) => acc + mod.lessons.length, 0) || 1;
@@ -57,9 +63,48 @@ export const CourseOverview: React.FC<CourseOverviewProps> = ({ course, onContin
                 questions: quiz.questionIds.length,
                 type: quiz.mode === 'central' ? 'comprehensive' : quiz.mode === 'saher' ? 'simulated' : 'trial',
                 level: quiz.mode === 'central' ? 'مركزي' : quiz.mode === 'saher' ? 'ساهر' : 'تدريبي',
-                isLocked: false,
+                isLocked: !isEnrolled,
             }));
-    }, [course.pathId, course.skills, course.subjectId, quizzes]);
+    }, [course.pathId, course.skills, course.subjectId, isEnrolled, quizzes]);
+    const fallbackTests = useMemo(() => {
+        const relatedIds = new Set(relatedTests.map((test) => test.id));
+
+        return quizzes
+            .filter((quiz) => {
+                if (quiz.isPublished === false || quiz.type === 'bank' || relatedIds.has(quiz.id)) {
+                    return false;
+                }
+
+                const sameSubject = quiz.subjectId && course.subjectId && quiz.subjectId === course.subjectId;
+                const samePath = quiz.pathId && course.pathId && quiz.pathId === course.pathId;
+
+                return Boolean(sameSubject && samePath);
+            })
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .slice(0, 3)
+            .map((quiz) => ({
+                id: quiz.id,
+                title: quiz.title,
+                duration: `${quiz.settings.timeLimit || 30} دقيقة`,
+                questions: quiz.questionIds.length,
+                type: quiz.mode === 'central' ? 'comprehensive' : quiz.mode === 'saher' ? 'simulated' : 'trial',
+                level: quiz.mode === 'central' ? 'مركزي' : quiz.mode === 'saher' ? 'ساهر' : 'تدريبي',
+                isLocked: !isEnrolled,
+            }));
+    }, [course.pathId, course.subjectId, isEnrolled, quizzes, relatedTests]);
+    const relatedFiles = useMemo(() => {
+        const courseSkillIds = new Set(course.skills || []);
+
+        return libraryItems
+            .filter((item) => {
+                const sameSubject = item.subjectId && course.subjectId && item.subjectId === course.subjectId;
+                const samePath = item.pathId && course.pathId && item.pathId === course.pathId;
+                const hasSharedSkill = (item.skillIds || []).some((skillId) => courseSkillIds.has(skillId));
+
+                return Boolean(item.url && ((sameSubject && samePath) || hasSharedSkill));
+            })
+            .slice(0, 4);
+    }, [course.pathId, course.skills, course.subjectId, libraryItems]);
 
     const handleEnroll = () => {
         enrollCourse(course.id);
@@ -146,12 +191,32 @@ export const CourseOverview: React.FC<CourseOverviewProps> = ({ course, onContin
                         {relatedTests.length > 0 ? (
                             <SimulatedTestExperience
                                 tests={relatedTests}
+                                onLockedClick={() => setShowPaymentModal(true)}
                                 onStartTest={(test) => navigate(`/quiz/${test.id}`)}
                             />
                         ) : (
-                            <div className="text-center py-12">
-                                <BarChart size={48} className="mx-auto text-gray-200 mb-4" />
-                                <p className="text-gray-400">لا توجد اختبارات مرتبطة بهذه الدورة بعد.</p>
+                            <div className="bg-gray-50 rounded-3xl border border-dashed border-gray-200 overflow-hidden">
+                                <div className="text-center py-10 px-4 border-b border-gray-100 bg-white">
+                                    <BarChart size={48} className="mx-auto text-gray-200 mb-4" />
+                                    <p className="text-gray-700 font-bold mb-2">لا توجد اختبارات مربوطة مباشرة بهذه الدورة بعد</p>
+                                    <p className="text-sm text-gray-500 max-w-md mx-auto">
+                                        لكن يوجد اختبارات من نفس المادة يمكنك البدء بها الآن حتى تكتمل رحلة التدريب.
+                                    </p>
+                                </div>
+
+                                <div className="p-4 sm:p-6">
+                                    {fallbackTests.length > 0 ? (
+                                        <SimulatedTestExperience
+                                            tests={fallbackTests}
+                                            onLockedClick={() => setShowPaymentModal(true)}
+                                            onStartTest={(test) => navigate(`/quiz/${test.id}`)}
+                                        />
+                                    ) : (
+                                        <div className="text-center py-8 text-sm text-gray-500">
+                                            لا توجد اختبارات بديلة من نفس المادة حاليًا.
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </motion.div>
@@ -243,9 +308,48 @@ export const CourseOverview: React.FC<CourseOverviewProps> = ({ course, onContin
                             </div>
                         ))}
                         {(!course.files || course.files.length === 0) && (
-                            <div className="col-span-2 text-center py-12">
-                                <FileText size={48} className="mx-auto text-gray-200 mb-4" />
-                                <p className="text-gray-400">لا توجد ملفات متاحة لهذه الدورة حالياً.</p>
+                            <div className="col-span-2 bg-gray-50 rounded-3xl border border-dashed border-gray-200 overflow-hidden">
+                                <div className="text-center py-10 px-4 border-b border-gray-100 bg-white">
+                                    <FileText size={48} className="mx-auto text-gray-200 mb-4" />
+                                    <p className="text-gray-700 font-bold mb-2">لا توجد ملفات مرفوعة مباشرة لهذه الدورة حاليًا</p>
+                                    <p className="text-sm text-gray-500 max-w-md mx-auto">
+                                        هذه أقرب ملفات مراجعة من نفس المادة أو المهارات المرتبطة بالدورة.
+                                    </p>
+                                </div>
+
+                                <div className="p-4 sm:p-6 grid md:grid-cols-2 gap-4">
+                                    {relatedFiles.length > 0 ? relatedFiles.map((file) => (
+                                        <div key={file.id} className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center justify-between group hover:bg-indigo-50 transition-colors">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center text-rose-500 shadow-sm">
+                                                    <FileText size={24} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold text-gray-800 group-hover:text-indigo-600 transition-colors">{file.title}</p>
+                                                    <p className="text-[10px] text-gray-400">{file.size}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => file.url && window.open(file.url, '_blank', 'noopener,noreferrer')}
+                                                    className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
+                                                >
+                                                    <Eye size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => file.url && window.open(file.url, '_blank', 'noopener,noreferrer')}
+                                                    className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
+                                                >
+                                                    <Download size={18} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )) : (
+                                        <div className="col-span-2 text-center py-8 text-sm text-gray-500">
+                                            لا توجد ملفات بديلة من نفس المادة حاليًا.
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </motion.div>
@@ -428,6 +532,29 @@ export const CourseOverview: React.FC<CourseOverviewProps> = ({ course, onContin
                     </div>
                 </div>
             </div>
+            <PaymentModal
+                isOpen={showPaymentModal}
+                onClose={() => setShowPaymentModal(false)}
+                item={
+                    matchedCoursePackage
+                        ? {
+                            id: matchedCoursePackage.id,
+                            packageId: matchedCoursePackage.id,
+                            purchaseType: 'package',
+                            title: matchedCoursePackage.name,
+                            description: `هذه الباقة تفتح الدورات والاختبارات المرتبطة بـ ${course.subject || course.category}.`,
+                            contentTypes: matchedCoursePackage.contentTypes,
+                            pathIds: matchedCoursePackage.pathIds,
+                            subjectIds: matchedCoursePackage.subjectIds,
+                            includedCourseIds: matchedCoursePackage.courseIds,
+                            courseIds: matchedCoursePackage.courseIds,
+                            price: course.price,
+                            currency: course.currency,
+                        }
+                        : course
+                }
+                type={matchedCoursePackage ? 'package' : 'course'}
+            />
         </div>
     );
 };

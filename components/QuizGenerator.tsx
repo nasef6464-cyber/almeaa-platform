@@ -1,42 +1,168 @@
-
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { generateQuizQuestion } from '../services/geminiService';
 import { Card } from './ui/Card';
 import { Sparkles, Check, RefreshCw, Plus, Trash2, Save, FileText } from 'lucide-react';
+import { useStore } from '../store/useStore';
+import { Question, Quiz } from '../types';
 
 interface GeneratedQuestion {
     question: string;
     options: string[];
     correctIndex: number;
     explanation: string;
+    sourceTopic: string;
 }
+
+const createId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 export const QuizGenerator: React.FC = () => {
     const [topic, setTopic] = useState('');
     const [generatedQuestion, setGeneratedQuestion] = useState<GeneratedQuestion | null>(null);
     const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
     const [quizQuestions, setQuizQuestions] = useState<GeneratedQuestion[]>([]);
+    const [statusMessage, setStatusMessage] = useState<string | null>(null);
+    const [statusType, setStatusType] = useState<'success' | 'error' | null>(null);
+    const { addQuestion, addQuiz, subjects, sections, skills } = useStore();
+
+    const defaultTaxonomy = useMemo(() => {
+        const subject = subjects.find((candidate) => sections.some((section) => section.subjectId === candidate.id));
+        if (!subject) {
+            return null;
+        }
+
+        const section = sections.find((candidate) => candidate.subjectId === subject.id);
+        if (!section) {
+            return null;
+        }
+
+        const skill = skills.find((candidate) => candidate.subjectId === subject.id && candidate.sectionId === section.id);
+        if (!skill) {
+            return null;
+        }
+
+        return { subject, section, skill };
+    }, [sections, skills, subjects]);
 
     const handleGenerate = async () => {
         if (!topic.trim()) return;
         setLoading(true);
-        const result = await generateQuizQuestion(topic);
-        setGeneratedQuestion(result);
-        setLoading(false);
-    };
+        setStatusMessage(null);
+        setStatusType(null);
 
-    const handleAddToQuiz = () => {
-        if (generatedQuestion) {
-            setQuizQuestions([...quizQuestions, generatedQuestion]);
-            setGeneratedQuestion(null);
-            setTopic('');
+        try {
+            const result = await generateQuizQuestion(topic.trim());
+            if (!result) {
+                throw new Error('تعذر توليد سؤال جديد الآن.');
+            }
+
+            setGeneratedQuestion({
+                ...result,
+                sourceTopic: topic.trim(),
+            });
+        } catch (error) {
+            setStatusType('error');
+            setStatusMessage(error instanceof Error ? error.message : 'تعذر توليد السؤال الآن.');
+        } finally {
+            setLoading(false);
         }
     };
 
+    const handleAddToQuiz = () => {
+        if (!generatedQuestion) {
+            return;
+        }
+
+        setQuizQuestions((current) => [...current, generatedQuestion]);
+        setGeneratedQuestion(null);
+        setTopic('');
+        setStatusMessage(null);
+        setStatusType(null);
+    };
+
     const handleDeleteQuestion = (index: number) => {
-        const newQuestions = [...quizQuestions];
-        newQuestions.splice(index, 1);
-        setQuizQuestions(newQuestions);
+        setQuizQuestions((current) => current.filter((_, currentIndex) => currentIndex !== index));
+    };
+
+    const handleSaveDraft = async () => {
+        if (quizQuestions.length === 0) {
+            setStatusType('error');
+            setStatusMessage('أضف سؤالًا واحدًا على الأقل قبل حفظ المسودة.');
+            return;
+        }
+
+        if (!defaultTaxonomy) {
+            setStatusType('error');
+            setStatusMessage('لا توجد مادة ومهارة صالحة في مركز المهارات لحفظ المسودة عليها الآن.');
+            return;
+        }
+
+        setSaving(true);
+        setStatusMessage(null);
+        setStatusType(null);
+
+        try {
+            const questionIds = quizQuestions.map(() => createId('ai-question'));
+
+            quizQuestions.forEach((questionItem, index) => {
+                const questionPayload: Question = {
+                    id: questionIds[index],
+                    text: questionItem.question,
+                    options: questionItem.options.slice(0, 4),
+                    correctOptionIndex: Math.min(questionItem.correctIndex, Math.max(questionItem.options.length - 1, 0)),
+                    explanation: questionItem.explanation,
+                    pathId: defaultTaxonomy.subject.pathId,
+                    subject: defaultTaxonomy.subject.id,
+                    sectionId: defaultTaxonomy.section.id,
+                    skillIds: [defaultTaxonomy.skill.id],
+                    difficulty: 'Medium',
+                    type: 'mcq',
+                };
+
+                addQuestion(questionPayload);
+            });
+
+            const leadingTopic = quizQuestions[0]?.sourceTopic || topic.trim() || defaultTaxonomy.subject.name;
+            const quizPayload: Quiz = {
+                id: createId('ai-quiz'),
+                title: `مسودة ذكية - ${leadingTopic}`,
+                description: `تم إنشاء هذه المسودة من مولد الأسئلة الذكي وربطها مبدئيًا بالمادة ${defaultTaxonomy.subject.name} والمهارة الرئيسة ${defaultTaxonomy.section.name}. راجعها من مركز الاختبارات قبل النشر.`,
+                pathId: defaultTaxonomy.subject.pathId,
+                subjectId: defaultTaxonomy.subject.id,
+                sectionId: defaultTaxonomy.section.id,
+                type: 'quiz',
+                mode: 'regular',
+                settings: {
+                    showExplanations: true,
+                    showAnswers: true,
+                    maxAttempts: 1,
+                    passingScore: 70,
+                    timeLimit: 30,
+                },
+                access: {
+                    type: 'private',
+                },
+                questionIds,
+                createdAt: Date.now(),
+                isPublished: false,
+                skillIds: [defaultTaxonomy.skill.id],
+                targetGroupIds: [],
+                targetUserIds: [],
+            };
+
+            addQuiz(quizPayload);
+
+            setQuizQuestions([]);
+            setGeneratedQuestion(null);
+            setTopic('');
+            setStatusType('success');
+            setStatusMessage(`تم حفظ المسودة فعليًا داخل مركز الاختبارات على مادة ${defaultTaxonomy.subject.name} والمهارة ${defaultTaxonomy.skill.name}.`);
+        } catch (error) {
+            setStatusType('error');
+            setStatusMessage(error instanceof Error ? error.message : 'تعذر حفظ المسودة الآن.');
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
@@ -46,26 +172,45 @@ export const QuizGenerator: React.FC = () => {
                 <p className="text-gray-500">ابنِ اختبارك بسرعة باستخدام الذكاء الاصطناعي</p>
             </div>
 
+            {defaultTaxonomy && (
+                <div className="bg-white border border-indigo-100 rounded-2xl p-4 text-sm text-gray-600 shadow-sm">
+                    سيتم حفظ المسودة مبدئيًا داخل <span className="font-bold text-indigo-700">{defaultTaxonomy.subject.name}</span>
+                    {' '}ثم <span className="font-bold text-indigo-700">{defaultTaxonomy.section.name}</span>
+                    {' '}ثم <span className="font-bold text-indigo-700">{defaultTaxonomy.skill.name}</span>.
+                </div>
+            )}
+
+            {statusMessage && (
+                <div
+                    className={`rounded-2xl p-4 text-sm font-medium border ${
+                        statusType === 'success'
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                            : 'bg-red-50 border-red-200 text-red-700'
+                    }`}
+                >
+                    {statusMessage}
+                </div>
+            )}
+
             <div className="grid lg:grid-cols-2 gap-8">
-                {/* Generator Section */}
                 <div className="space-y-6">
                     <Card className="p-6 border-t-4 border-t-indigo-500">
                         <h2 className="font-bold text-xl text-gray-800 mb-6 flex items-center gap-2">
                             <Sparkles className="text-indigo-600" size={24} />
                             توليد سؤال جديد
                         </h2>
-                        
+
                         <div className="flex gap-3 mb-6">
-                            <input 
+                            <input
                                 type="text"
                                 value={topic}
                                 onChange={(e) => setTopic(e.target.value)}
                                 placeholder="الموضوع (مثال: الجاذبية، الأدب الأموي...)"
                                 className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
-                                onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
+                                onKeyDown={(e) => e.key === 'Enter' && void handleGenerate()}
                             />
-                            <button 
-                                onClick={handleGenerate}
+                            <button
+                                onClick={() => void handleGenerate()}
                                 disabled={loading || !topic.trim()}
                                 className="bg-indigo-600 text-white px-5 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center gap-2 shadow-md"
                             >
@@ -81,15 +226,15 @@ export const QuizGenerator: React.FC = () => {
                                         <h3 className="font-bold text-lg text-gray-800 leading-snug">{generatedQuestion.question}</h3>
                                         <span className="bg-indigo-100 text-indigo-600 text-xs font-bold px-2 py-1 rounded">AI</span>
                                     </div>
-                                    
+
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                         {generatedQuestion.options.map((opt: string, idx: number) => (
-                                            <div 
+                                            <div
                                                 key={idx}
                                                 className={`p-3 rounded-lg border text-sm flex items-center justify-between transition-colors ${
-                                                    idx === generatedQuestion.correctIndex 
-                                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700 font-bold' 
-                                                    : 'bg-white border-gray-200 text-gray-600'
+                                                    idx === generatedQuestion.correctIndex
+                                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700 font-bold'
+                                                        : 'bg-white border-gray-200 text-gray-600'
                                                 }`}
                                             >
                                                 <span>{opt}</span>
@@ -107,14 +252,14 @@ export const QuizGenerator: React.FC = () => {
                                 </div>
 
                                 <div className="flex gap-3 pt-2">
-                                    <button 
+                                    <button
                                         onClick={handleAddToQuiz}
                                         className="flex-1 bg-emerald-500 text-white py-3 rounded-xl font-bold hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2 shadow-md hover:shadow-lg hover:-translate-y-0.5 transform"
                                     >
                                         <Plus size={20} />
                                         إضافة للاختبار
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={() => setGeneratedQuestion(null)}
                                         className="px-6 py-3 border border-gray-300 rounded-xl text-gray-500 font-bold hover:bg-gray-50 transition-colors"
                                     >
@@ -126,7 +271,6 @@ export const QuizGenerator: React.FC = () => {
                     </Card>
                 </div>
 
-                {/* Quiz Preview Section */}
                 <div className="space-y-6">
                     <Card className="p-6 h-full bg-gray-50 border-2 border-dashed border-gray-200 min-h-[400px] flex flex-col">
                         <div className="flex justify-between items-center mb-6">
@@ -135,12 +279,13 @@ export const QuizGenerator: React.FC = () => {
                                 مسودة الاختبار ({quizQuestions.length})
                             </h2>
                             {quizQuestions.length > 0 && (
-                                <button 
-                                    className="bg-white text-indigo-600 border border-indigo-200 px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-50 transition-colors flex items-center gap-2"
-                                    onClick={() => alert('سيتم حفظ الاختبار قريباً!')}
+                                <button
+                                    className="bg-white text-indigo-600 border border-indigo-200 px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-50 transition-colors flex items-center gap-2 disabled:opacity-60"
+                                    onClick={() => void handleSaveDraft()}
+                                    disabled={saving}
                                 >
-                                    <Save size={16} /> 
-                                    حفظ المسودة
+                                    <Save size={16} />
+                                    {saving ? 'جارٍ الحفظ...' : 'حفظ المسودة'}
                                 </button>
                             )}
                         </div>
@@ -156,8 +301,8 @@ export const QuizGenerator: React.FC = () => {
                         ) : (
                             <div className="space-y-4 overflow-y-auto pr-2 max-h-[600px]">
                                 {quizQuestions.map((q, idx) => (
-                                    <div key={idx} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm group relative hover:border-indigo-200 transition-colors">
-                                        <button 
+                                    <div key={`${q.sourceTopic}-${idx}`} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm group relative hover:border-indigo-200 transition-colors">
+                                        <button
                                             onClick={() => handleDeleteQuestion(idx)}
                                             className="absolute top-3 left-3 text-gray-300 hover:text-red-500 transition-colors p-1 hover:bg-red-50 rounded-full"
                                             title="حذف السؤال"
@@ -176,6 +321,9 @@ export const QuizGenerator: React.FC = () => {
                                                     </span>
                                                     <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded border border-gray-200">
                                                         {q.options.length} خيارات
+                                                    </span>
+                                                    <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded border border-indigo-100">
+                                                        {q.sourceTopic}
                                                     </span>
                                                 </div>
                                             </div>

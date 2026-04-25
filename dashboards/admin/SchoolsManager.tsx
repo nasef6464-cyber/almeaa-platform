@@ -1,44 +1,342 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+    BookOpen,
+    Building2,
+    CheckCircle,
+    Download,
+    Edit2,
+    FileSpreadsheet,
+    Key,
+    MoreVertical,
+    Plus,
+    Search,
+    Trash2,
+    Upload,
+    Users,
+} from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { Group, B2BPackage, AccessCode } from '../../types';
-import { Building2, Users, BookOpen, Plus, Search, MoreVertical, Edit2, Trash2, Key, Upload, FileSpreadsheet, Download, Activity, CheckCircle } from 'lucide-react';
+import { Group, Role, User, PackageContentType } from '../../types';
+import { api } from '../../services/api';
+
+type ImportRow = {
+    name: string;
+    email: string;
+    className?: string;
+    password?: string;
+};
+
+type ImportSummary = {
+    totalRows: number;
+    imported: number;
+    classesTouched: number;
+};
+
+type ImportResponse = {
+    summary: ImportSummary;
+    credentials: Array<{ name: string; email: string; password: string; className?: string }>;
+};
+
+type SchoolReport = {
+    school: {
+        id: string;
+        name: string;
+    };
+    metrics: {
+        totalStudents: number;
+        activeStudents: number;
+        totalClasses: number;
+        activePackages: number;
+        activeCodes: number;
+        quizAttempts: number;
+        averageScore: number;
+    };
+    classSummaries: Array<{
+        id: string;
+        name: string;
+        studentCount: number;
+        supervisorCount: number;
+        quizAttempts: number;
+        averageScore: number;
+    }>;
+    weakestSkills: Array<{
+        skillId?: string;
+        skill: string;
+        subjectId?: string;
+        sectionId?: string;
+        attempts: number;
+        mastery: number;
+    }>;
+};
+
+const normalizeHeader = (value: string) =>
+    value
+        .trim()
+        .toLowerCase()
+        .replace(/\uFEFF/g, '')
+        .replace(/\s+/g, '');
+
+const createCsvDownload = (fileName: string, rows: string[][]) => {
+    const csv = `\uFEFF${rows.map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')}`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    anchor.click();
+    URL.revokeObjectURL(url);
+};
+
+const parseImportFile = async (file: File): Promise<ImportRow[]> => {
+    const raw = await file.text();
+    const content = raw.replace(/\r\n/g, '\n').trim();
+    if (!content) {
+        return [];
+    }
+
+    const lines = content.split('\n').filter(Boolean);
+    if (lines.length < 2) {
+        return [];
+    }
+
+    const delimiter = lines[0].includes('\t') ? '\t' : ',';
+    const headers = lines[0].split(delimiter).map(normalizeHeader);
+    const nameIndex = headers.findIndex((header) => ['name', 'fullname', 'studentname', 'الاسم', 'اسمالطالب'].includes(header));
+    const emailIndex = headers.findIndex((header) => ['email', 'mail', 'البريد', 'البريدالالكتروني'].includes(header));
+    const classIndex = headers.findIndex((header) => ['classname', 'class', 'الفصل', 'اسمالفصل'].includes(header));
+    const passwordIndex = headers.findIndex((header) => ['password', 'pass', 'كلمةالمرور', 'passwordhint'].includes(header));
+
+    if (nameIndex === -1 || emailIndex === -1) {
+        throw new Error('الملف يحتاج عمودين أساسيين على الأقل: name و email.');
+    }
+
+    return lines
+        .slice(1)
+        .map((line) => line.split(delimiter))
+        .map((cells) => ({
+            name: (cells[nameIndex] || '').trim(),
+            email: (cells[emailIndex] || '').trim(),
+            className: classIndex >= 0 ? (cells[classIndex] || '').trim() : undefined,
+            password: passwordIndex >= 0 ? (cells[passwordIndex] || '').trim() : undefined,
+        }))
+        .filter((row) => row.name && row.email);
+};
+
+const PACKAGE_CONTENT_OPTIONS: Array<{ value: PackageContentType; label: string }> = [
+    { value: 'all', label: 'شاملة' },
+    { value: 'courses', label: 'الدورات' },
+    { value: 'foundation', label: 'التأسيس' },
+    { value: 'banks', label: 'التدريبات' },
+    { value: 'tests', label: 'الاختبارات' },
+    { value: 'library', label: 'المكتبة' },
+];
 
 export const SchoolsManager: React.FC = () => {
-    const { groups, b2bPackages, accessCodes, createGroup, updateGroup, deleteGroup, createB2BPackage, createAccessCode } = useStore();
-    
+    const {
+        user,
+        users,
+        groups,
+        b2bPackages,
+        accessCodes,
+        courses,
+        subjects,
+        sections,
+        paths,
+        createGroup,
+        updateGroup,
+        deleteGroup,
+        assignSupervisorToGroup,
+        removeSupervisorFromGroup,
+        assignCourseToGroup,
+        removeCourseFromGroup,
+        createB2BPackage,
+        updateB2BPackage,
+        deleteB2BPackage,
+        createAccessCode,
+        deleteAccessCode,
+        hydrateUsers,
+    } = useStore();
+
     const [selectedSchool, setSelectedSchool] = useState<Group | null>(null);
     const [activeTab, setActiveTab] = useState<'overview' | 'packages' | 'import' | 'reports'>('overview');
-    const [isUploading, setIsUploading] = useState(false);
-    const [uploadSuccess, setUploadSuccess] = useState(false);
+    const [schoolSearch, setSchoolSearch] = useState('');
+    const [isImporting, setIsImporting] = useState(false);
+    const [importRows, setImportRows] = useState<ImportRow[]>([]);
+    const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
+    const [importCredentials, setImportCredentials] = useState<ImportResponse['credentials']>([]);
+    const [importError, setImportError] = useState<string | null>(null);
+    const [schoolReport, setSchoolReport] = useState<SchoolReport | null>(null);
+    const [isLoadingReport, setIsLoadingReport] = useState(false);
+    const [reportError, setReportError] = useState<string | null>(null);
+    const [selectedPackageIdForCode, setSelectedPackageIdForCode] = useState('');
+    const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
 
-    const schools = groups.filter(g => g.type === 'SCHOOL');
+    const schools = useMemo(() => groups.filter((group) => group.type === 'SCHOOL'), [groups]);
+    const classes = useMemo(() => groups.filter((group) => group.type === 'CLASS'), [groups]);
+    const students = useMemo(() => users.filter((currentUser) => currentUser.role === Role.STUDENT), [users]);
+    const supervisors = useMemo(
+        () => users.filter((currentUser) => currentUser.role === Role.SUPERVISOR || currentUser.role === Role.TEACHER),
+        [users],
+    );
+    const publishedCourses = useMemo(() => courses.filter((course) => course.isPublished !== false), [courses]);
+
+    const filteredSchools = useMemo(() => {
+        const keyword = schoolSearch.trim().toLowerCase();
+        if (!keyword) {
+            return schools;
+        }
+
+        return schools.filter((school) => school.name.toLowerCase().includes(keyword));
+    }, [schoolSearch, schools]);
+
+    const refreshUsers = async () => {
+        if (user.role !== Role.ADMIN) {
+            return;
+        }
+
+        try {
+            const response = await api.getAdminUsers() as { users: User[] };
+            hydrateUsers(response.users || []);
+        } catch (error) {
+            console.warn('Failed to refresh users after school updates:', error);
+        }
+    };
+
+    const loadSchoolReport = async (schoolId: string) => {
+        setIsLoadingReport(true);
+        setReportError(null);
+        try {
+            const response = await api.getSchoolReport(schoolId) as SchoolReport;
+            setSchoolReport(response);
+        } catch (error) {
+            setReportError(error instanceof Error ? error.message : 'تعذر تحميل تقرير المدرسة الآن.');
+        } finally {
+            setIsLoadingReport(false);
+        }
+    };
+
+    useEffect(() => {
+        if (!selectedSchool) {
+            setSchoolReport(null);
+            setReportError(null);
+            return;
+        }
+
+        if (activeTab === 'reports') {
+            void loadSchoolReport(selectedSchool.id);
+        }
+    }, [activeTab, selectedSchool]);
+
+    useEffect(() => {
+        if (!selectedSchool) {
+            setSelectedPackageIdForCode('');
+            return;
+        }
+
+        const packages = b2bPackages.filter((pkg) => pkg.schoolId === selectedSchool.id);
+        setSelectedPackageIdForCode((current) => (
+            packages.some((pkg) => pkg.id === current)
+                ? current
+                : (packages[0]?.id || '')
+        ));
+    }, [selectedSchool, b2bPackages]);
 
     const handleCreateSchool = () => {
         const newSchool: Group = {
-            id: `s_${Date.now()}`,
+            id: `school_${Date.now()}`,
             name: 'مدرسة جديدة',
             type: 'SCHOOL',
-            ownerId: 'u5',
+            ownerId: user.id,
             supervisorIds: [],
             studentIds: [],
             courseIds: [],
             createdAt: Date.now(),
             totalStudents: 0,
             totalSupervisors: 0,
-            totalCourses: 0
+            totalCourses: 0,
         };
+
         createGroup(newSchool);
         setSelectedSchool(newSchool);
+        setActiveTab('overview');
+    };
+
+    const downloadTemplate = () => {
+        createCsvDownload('school-import-template.csv', [
+            ['name', 'email', 'className', 'password'],
+            ['طالب تجريبي', 'student1@example.com', 'فصل أ', 'Nn@123456'],
+            ['طالبة تجريبية', 'student2@example.com', 'فصل ب', ''],
+        ]);
+    };
+
+    const downloadCredentials = () => {
+        if (!importCredentials.length) {
+            return;
+        }
+
+        createCsvDownload('school-students-credentials.csv', [
+            ['name', 'email', 'password', 'className'],
+            ...importCredentials.map((row) => [row.name, row.email, row.password, row.className || '']),
+        ]);
+    };
+
+    const handleImportFile = async (file: File) => {
+        setImportError(null);
+        setImportSummary(null);
+        setImportCredentials([]);
+        try {
+            const rows = await parseImportFile(file);
+            if (!rows.length) {
+                setImportRows([]);
+                setImportError('لم أجد صفوفًا صالحة داخل الملف. تأكد من وجود البيانات تحت العناوين.');
+                return;
+            }
+
+            setImportRows(rows);
+        } catch (error) {
+            setImportRows([]);
+            setImportError(error instanceof Error ? error.message : 'تعذر قراءة الملف. استخدم CSV أو TSV.');
+        }
+    };
+
+    const handleStartImport = async () => {
+        if (!selectedSchool || !importRows.length) {
+            return;
+        }
+
+        setIsImporting(true);
+        setImportError(null);
+        try {
+            const response = await api.importSchoolStudents(selectedSchool.id, { rows: importRows }) as ImportResponse;
+            setImportSummary(response.summary);
+            setImportCredentials(response.credentials);
+            await refreshUsers();
+            await loadSchoolReport(selectedSchool.id);
+        } catch (error) {
+            setImportError(error instanceof Error ? error.message : 'تعذر استيراد الطلاب الآن.');
+        } finally {
+            setIsImporting(false);
+        }
+    };
+
+    const handleCopyCode = async (code: string, codeId: string) => {
+        try {
+            await navigator.clipboard.writeText(code);
+            setCopiedCodeId(codeId);
+            window.setTimeout(() => setCopiedCodeId((current) => (current === codeId ? null : current)), 1800);
+        } catch (error) {
+            console.warn('Failed to copy access code:', error);
+        }
     };
 
     if (selectedSchool) {
-        const schoolPackages = b2bPackages.filter(p => p.schoolId === selectedSchool.id);
-        const schoolCodes = accessCodes.filter(c => c.schoolId === selectedSchool.id);
-        const schoolClasses = groups.filter(g => g.type === 'CLASS' && g.parentId === selectedSchool.id);
+        const schoolPackages = b2bPackages.filter((pkg) => pkg.schoolId === selectedSchool.id);
+        const schoolCodes = accessCodes.filter((code) => code.schoolId === selectedSchool.id);
+        const schoolClasses = classes.filter((group) => group.parentId === selectedSchool.id);
+        const schoolSupervisors = supervisors.filter((currentUser) => currentUser.groupIds?.includes(selectedSchool.id));
+        const schoolCourses = publishedCourses.filter((course) => selectedSchool.courseIds.includes(course.id));
 
         return (
             <div className="space-y-6 animate-fade-in">
-                {/* Header */}
                 <div className="flex items-center gap-4">
                     <button onClick={() => setSelectedSchool(null)} className="text-gray-500 hover:text-gray-900">
                         &rarr; عودة لقائمة المدارس
@@ -46,21 +344,20 @@ export const SchoolsManager: React.FC = () => {
                     <h1 className="text-2xl font-bold text-gray-900">{selectedSchool.name}</h1>
                 </div>
 
-                {/* Tabs */}
                 <div className="flex gap-2 border-b border-gray-200">
                     {[
                         { id: 'overview', label: 'نظرة عامة والفصول' },
                         { id: 'packages', label: 'الباقات والأكواد' },
-                        { id: 'import', label: 'استيراد الطلاب (Excel)' },
-                        { id: 'reports', label: 'تقارير الأداء' }
-                    ].map(tab => (
+                        { id: 'import', label: 'استيراد الطلاب (CSV)' },
+                        { id: 'reports', label: 'تقارير الأداء' },
+                    ].map((tab) => (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
+                            onClick={() => setActiveTab(tab.id as typeof activeTab)}
                             className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
-                                activeTab === tab.id 
-                                ? 'border-amber-500 text-amber-600' 
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                activeTab === tab.id
+                                    ? 'border-amber-500 text-amber-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                             }`}
                         >
                             {tab.label}
@@ -68,7 +365,6 @@ export const SchoolsManager: React.FC = () => {
                     ))}
                 </div>
 
-                {/* Content */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                     {activeTab === 'overview' && (
                         <div className="space-y-8">
@@ -92,28 +388,104 @@ export const SchoolsManager: React.FC = () => {
                                         <BookOpen className="text-emerald-500" size={24} />
                                         <h3 className="font-bold text-gray-900">الباقات النشطة</h3>
                                     </div>
-                                    <p className="text-3xl font-bold text-emerald-600">{schoolPackages.filter(p => p.status === 'active').length}</p>
+                                    <p className="text-3xl font-bold text-emerald-600">{schoolPackages.filter((pkg) => pkg.status === 'active').length}</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="border border-gray-100 rounded-xl p-5 space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-lg font-bold text-gray-900">مشرفو المدرسة</h3>
+                                        <span className="text-sm text-gray-500">{schoolSupervisors.length} مرتبطون</span>
+                                    </div>
+                                    <select
+                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                        defaultValue=""
+                                        onChange={(event) => {
+                                            const value = event.target.value;
+                                            if (!value) return;
+                                            assignSupervisorToGroup(value, selectedSchool.id);
+                                            event.target.value = '';
+                                        }}
+                                    >
+                                        <option value="">إضافة مشرف أو معلم للمدرسة</option>
+                                        {supervisors
+                                            .filter((currentUser) => !selectedSchool.supervisorIds.includes(currentUser.id))
+                                            .map((currentUser) => (
+                                                <option key={currentUser.id} value={currentUser.id}>{currentUser.name}</option>
+                                            ))}
+                                    </select>
+                                    <div className="flex flex-wrap gap-2">
+                                        {schoolSupervisors.length === 0 ? (
+                                            <span className="text-sm text-gray-400">لا يوجد مشرفون مرتبطون بهذه المدرسة بعد.</span>
+                                        ) : schoolSupervisors.map((currentUser) => (
+                                            <button
+                                                key={currentUser.id}
+                                                onClick={() => removeSupervisorFromGroup(currentUser.id, selectedSchool.id)}
+                                                className="px-3 py-1.5 rounded-full bg-purple-50 text-purple-700 text-xs font-bold hover:bg-purple-100 transition-colors"
+                                            >
+                                                {currentUser.name} ×
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="border border-gray-100 rounded-xl p-5 space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-lg font-bold text-gray-900">دورات المدرسة</h3>
+                                        <span className="text-sm text-gray-500">{schoolCourses.length} دورة مرتبطة</span>
+                                    </div>
+                                    <select
+                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                        defaultValue=""
+                                        onChange={(event) => {
+                                            const value = event.target.value;
+                                            if (!value) return;
+                                            assignCourseToGroup(value, selectedSchool.id);
+                                            event.target.value = '';
+                                        }}
+                                    >
+                                        <option value="">ربط دورة مباشرة بالمدرسة</option>
+                                        {publishedCourses
+                                            .filter((course) => !selectedSchool.courseIds.includes(course.id))
+                                            .map((course) => (
+                                                <option key={course.id} value={course.id}>{course.title}</option>
+                                            ))}
+                                    </select>
+                                    <div className="flex flex-wrap gap-2">
+                                        {schoolCourses.length === 0 ? (
+                                            <span className="text-sm text-gray-400">لا توجد دورات مرتبطة بهذه المدرسة حتى الآن.</span>
+                                        ) : schoolCourses.map((course) => (
+                                            <button
+                                                key={course.id}
+                                                onClick={() => removeCourseFromGroup(course.id, selectedSchool.id)}
+                                                className="px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold hover:bg-emerald-100 transition-colors"
+                                            >
+                                                {course.title} ×
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 
                             <div>
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-lg font-bold text-gray-900">الفصول الدراسية</h3>
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             createGroup({
-                                                id: `c_${Date.now()}`,
+                                                id: `class_${Date.now()}`,
                                                 name: `فصل جديد - ${selectedSchool.name}`,
                                                 type: 'CLASS',
                                                 parentId: selectedSchool.id,
-                                                ownerId: 'u5',
+                                                ownerId: user.id,
                                                 supervisorIds: [],
                                                 studentIds: [],
                                                 courseIds: [],
                                                 createdAt: Date.now(),
                                                 totalStudents: 0,
                                                 totalSupervisors: 0,
-                                                totalCourses: 0
+                                                totalCourses: 0,
                                             });
                                         }}
                                         className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors flex items-center gap-2"
@@ -121,44 +493,124 @@ export const SchoolsManager: React.FC = () => {
                                         <Plus size={16} /> إضافة فصل
                                     </button>
                                 </div>
+
                                 {schoolClasses.length === 0 ? (
                                     <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
                                         <Building2 size={48} className="mx-auto text-gray-300 mb-4" />
-                                        <p className="text-gray-500">لا توجد فصول دراسية مضافة حتى الآن</p>
+                                        <p className="text-gray-500">لا توجد فصول دراسية مضافة حتى الآن.</p>
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {schoolClasses.map(cls => (
-                                            <div key={cls.id} className="border border-gray-100 p-4 rounded-xl flex justify-between items-center hover:shadow-sm transition-shadow">
-                                                <div>
-                                                    <h4 className="font-bold text-gray-900">{cls.name}</h4>
-                                                    <p className="text-sm text-gray-500">{cls.studentIds.length} طالب • {cls.supervisorIds.length} مشرف</p>
+                                        {schoolClasses.map((classroom) => {
+                                            const classSupervisors = supervisors.filter((currentUser) => classroom.supervisorIds.includes(currentUser.id));
+                                            const classCourses = publishedCourses.filter((course) => classroom.courseIds.includes(course.id));
+
+                                            return (
+                                                <div key={classroom.id} className="border border-gray-100 p-4 rounded-xl hover:shadow-sm transition-shadow space-y-4">
+                                                    <div className="flex justify-between items-start gap-3">
+                                                        <div>
+                                                            <h4 className="font-bold text-gray-900">{classroom.name}</h4>
+                                                            <p className="text-sm text-gray-500">
+                                                                {classroom.studentIds.length} طالب • {classroom.supervisorIds.length} مشرف • {classroom.courseIds.length} دورة
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => {
+                                                                    const newName = window.prompt('أدخل اسم الفصل الجديد:', classroom.name);
+                                                                    if (newName?.trim()) {
+                                                                        updateGroup(classroom.id, { name: newName.trim() });
+                                                                    }
+                                                                }}
+                                                                className="text-gray-400 hover:text-amber-600 transition-colors"
+                                                            >
+                                                                <Edit2 size={18} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (window.confirm('هل أنت متأكد من حذف هذا الفصل؟')) {
+                                                                        deleteGroup(classroom.id);
+                                                                    }
+                                                                }}
+                                                                className="text-gray-400 hover:text-red-600 transition-colors"
+                                                            >
+                                                                <Trash2 size={18} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 gap-3">
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-gray-600 mb-2">المشرف المسؤول</label>
+                                                            <select
+                                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                                defaultValue=""
+                                                                onChange={(event) => {
+                                                                    const value = event.target.value;
+                                                                    if (!value) return;
+                                                                    assignSupervisorToGroup(value, classroom.id);
+                                                                    event.target.value = '';
+                                                                }}
+                                                            >
+                                                                <option value="">إضافة مشرف للفصل</option>
+                                                                {supervisors
+                                                                    .filter((currentUser) => !classroom.supervisorIds.includes(currentUser.id))
+                                                                    .map((currentUser) => (
+                                                                        <option key={currentUser.id} value={currentUser.id}>{currentUser.name}</option>
+                                                                    ))}
+                                                            </select>
+                                                            <div className="flex flex-wrap gap-2 mt-2">
+                                                                {classSupervisors.length === 0 ? (
+                                                                    <span className="text-xs text-gray-400">لا يوجد مشرف مرتبط بهذا الفصل.</span>
+                                                                ) : classSupervisors.map((currentUser) => (
+                                                                    <button
+                                                                        key={currentUser.id}
+                                                                        onClick={() => removeSupervisorFromGroup(currentUser.id, classroom.id)}
+                                                                        className="px-3 py-1.5 rounded-full bg-purple-50 text-purple-700 text-xs font-bold hover:bg-purple-100 transition-colors"
+                                                                    >
+                                                                        {currentUser.name} ×
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-gray-600 mb-2">الدورات المخصصة</label>
+                                                            <select
+                                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                                defaultValue=""
+                                                                onChange={(event) => {
+                                                                    const value = event.target.value;
+                                                                    if (!value) return;
+                                                                    assignCourseToGroup(value, classroom.id);
+                                                                    event.target.value = '';
+                                                                }}
+                                                            >
+                                                                <option value="">إضافة دورة للفصل</option>
+                                                                {publishedCourses
+                                                                    .filter((course) => !classroom.courseIds.includes(course.id))
+                                                                    .map((course) => (
+                                                                        <option key={course.id} value={course.id}>{course.title}</option>
+                                                                    ))}
+                                                            </select>
+                                                            <div className="flex flex-wrap gap-2 mt-2">
+                                                                {classCourses.length === 0 ? (
+                                                                    <span className="text-xs text-gray-400">لا توجد دورات مرتبطة بهذا الفصل.</span>
+                                                                ) : classCourses.map((course) => (
+                                                                    <button
+                                                                        key={course.id}
+                                                                        onClick={() => removeCourseFromGroup(course.id, classroom.id)}
+                                                                        className="px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold hover:bg-emerald-100 transition-colors"
+                                                                    >
+                                                                        {course.title} ×
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div className="flex gap-2">
-                                                    <button 
-                                                        onClick={() => {
-                                                            const newName = prompt('أدخل اسم الفصل الجديد:', cls.name);
-                                                            if (newName) {
-                                                                updateGroup(cls.id, { name: newName });
-                                                            }
-                                                        }}
-                                                        className="text-gray-400 hover:text-amber-600 transition-colors"
-                                                    >
-                                                        <Edit2 size={18} />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => {
-                                                            if(window.confirm('هل أنت متأكد من حذف هذا الفصل؟')) {
-                                                                deleteGroup(cls.id);
-                                                            }
-                                                        }}
-                                                        className="text-gray-400 hover:text-red-600 transition-colors"
-                                                    >
-                                                        <Trash2 size={18} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
@@ -167,21 +619,23 @@ export const SchoolsManager: React.FC = () => {
 
                     {activeTab === 'packages' && (
                         <div className="space-y-8">
-                            {/* Packages */}
                             <div>
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-lg font-bold text-gray-900">الباقات المخصصة</h3>
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             createB2BPackage({
                                                 id: `pkg_${Date.now()}`,
                                                 schoolId: selectedSchool.id,
                                                 name: 'باقة جديدة',
                                                 courseIds: [],
+                                                contentTypes: ['all'],
+                                                pathIds: [],
+                                                subjectIds: [],
                                                 type: 'free_access',
                                                 maxStudents: 100,
                                                 status: 'active',
-                                                createdAt: Date.now()
+                                                createdAt: Date.now(),
                                             });
                                         }}
                                         className="bg-amber-500 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-amber-600 transition-colors flex items-center gap-2"
@@ -190,50 +644,332 @@ export const SchoolsManager: React.FC = () => {
                                     </button>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {schoolPackages.map(pkg => (
-                                        <div key={pkg.id} className="border border-gray-200 p-5 rounded-xl">
+                                    {schoolPackages.map((pkg) => {
+                                        const packageCourses = publishedCourses.filter((course) => pkg.courseIds.includes(course.id));
+                                        const packagePaths = paths.filter((path) => (pkg.pathIds || []).includes(path.id));
+                                        const packageSubjects = subjects.filter((currentSubject) => (pkg.subjectIds || []).includes(currentSubject.id));
+
+                                        return (
+                                        <div key={pkg.id} className="border border-gray-200 p-5 rounded-xl space-y-4">
                                             <div className="flex justify-between items-start mb-3">
                                                 <div>
-                                                    <h4 className="font-bold text-gray-900 text-lg">{pkg.name}</h4>
+                                                    <input
+                                                        defaultValue={pkg.name}
+                                                        onBlur={(event) => {
+                                                            const value = event.target.value.trim();
+                                                            if (value && value !== pkg.name) {
+                                                                updateB2BPackage(pkg.id, { name: value });
+                                                            }
+                                                        }}
+                                                        className="font-bold text-gray-900 text-lg bg-transparent border-b border-transparent hover:border-gray-200 focus:border-amber-400 focus:outline-none transition-colors w-full"
+                                                    />
                                                     <span className={`text-xs font-bold px-2 py-1 rounded-full mt-1 inline-block ${pkg.type === 'free_access' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
                                                         {pkg.type === 'free_access' ? 'وصول مجاني للطلاب' : 'خصم خاص'}
                                                     </span>
                                                 </div>
-                                                <span className={`text-xs font-bold px-2 py-1 rounded-full ${pkg.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                                    {pkg.status === 'active' ? 'نشط' : 'منتهي'}
-                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${pkg.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                        {pkg.status === 'active' ? 'نشطة' : 'منتهية'}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => {
+                                                            if (window.confirm('هل تريد حذف هذه الباقة وكل الأكواد التابعة لها؟')) {
+                                                                deleteB2BPackage(pkg.id);
+                                                            }
+                                                        }}
+                                                        className="text-gray-400 hover:text-red-600 transition-colors"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <div className="text-sm text-gray-600 space-y-1">
-                                                <p>عدد الدورات المشمولة: {pkg.courseIds.length}</p>
-                                                <p>الحد الأقصى للطلاب: {pkg.maxStudents}</p>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="block text-xs font-bold text-gray-600 mb-2">نوع الباقة</label>
+                                                    <select
+                                                        value={pkg.type}
+                                                        onChange={(event) => updateB2BPackage(pkg.id, {
+                                                            type: event.target.value as 'free_access' | 'discounted',
+                                                        })}
+                                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                    >
+                                                        <option value="free_access">وصول مجاني</option>
+                                                        <option value="discounted">خصم خاص</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-gray-600 mb-2">حالة الباقة</label>
+                                                    <select
+                                                        value={pkg.status}
+                                                        onChange={(event) => updateB2BPackage(pkg.id, {
+                                                            status: event.target.value as 'active' | 'expired',
+                                                        })}
+                                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                    >
+                                                        <option value="active">نشطة</option>
+                                                        <option value="expired">منتهية</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-gray-600 mb-2">الحد الأقصى للطلاب</label>
+                                                    <input
+                                                        type="number"
+                                                        min={1}
+                                                        defaultValue={pkg.maxStudents}
+                                                        onBlur={(event) => {
+                                                            const value = Number(event.target.value);
+                                                            if (Number.isFinite(value) && value > 0 && value !== pkg.maxStudents) {
+                                                                updateB2BPackage(pkg.id, { maxStudents: value });
+                                                            }
+                                                        }}
+                                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                    />
+                                                </div>
+                                                {pkg.type === 'discounted' ? (
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-gray-600 mb-2">نسبة الخصم %</label>
+                                                        <input
+                                                            type="number"
+                                                            min={1}
+                                                            max={100}
+                                                            defaultValue={pkg.discountPercentage || 20}
+                                                            onBlur={(event) => {
+                                                                const value = Number(event.target.value);
+                                                                if (Number.isFinite(value) && value > 0 && value <= 100 && value !== pkg.discountPercentage) {
+                                                                    updateB2BPackage(pkg.id, { discountPercentage: value });
+                                                                }
+                                                            }}
+                                                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="rounded-lg border border-dashed border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 flex items-center">
+                                                        هذه الباقة تمنح الوصول الكامل للدورات المرتبطة دون خصم.
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="space-y-3 border-t border-gray-100 pt-4">
+                                                <div>
+                                                    <label className="block text-xs font-bold text-gray-600 mb-2">نوع المحتوى المفتوح بهذه الباقة</label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {PACKAGE_CONTENT_OPTIONS.map((option) => {
+                                                            const selectedContentTypes = Array.isArray(pkg.contentTypes) && pkg.contentTypes.length ? pkg.contentTypes : ['all'];
+                                                            const isSelected = selectedContentTypes.includes(option.value);
+                                                            return (
+                                                                <button
+                                                                    key={option.value}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        let nextTypes: PackageContentType[] = selectedContentTypes as PackageContentType[];
+
+                                                                        if (option.value === 'all') {
+                                                                            nextTypes = ['all'];
+                                                                        } else if (isSelected) {
+                                                                            nextTypes = selectedContentTypes.filter((item) => item !== option.value && item !== 'all') as PackageContentType[];
+                                                                        } else {
+                                                                            nextTypes = [...selectedContentTypes.filter((item) => item !== 'all'), option.value] as PackageContentType[];
+                                                                        }
+
+                                                                        updateB2BPackage(pkg.id, {
+                                                                            contentTypes: nextTypes.length > 0 ? nextTypes : ['all'],
+                                                                        });
+                                                                    }}
+                                                                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                                                                        isSelected
+                                                                            ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                                                                            : 'bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100'
+                                                                    }`}
+                                                                >
+                                                                    {option.label}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-gray-600 mb-2">تقييد الباقة على مسار</label>
+                                                        <select
+                                                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                            defaultValue=""
+                                                            onChange={(event) => {
+                                                                const value = event.target.value;
+                                                                if (!value) return;
+                                                                updateB2BPackage(pkg.id, {
+                                                                    pathIds: Array.from(new Set([...(pkg.pathIds || []), value])),
+                                                                });
+                                                                event.target.value = '';
+                                                            }}
+                                                        >
+                                                            <option value="">أضف مسارًا أو اتركها عامة</option>
+                                                            {paths
+                                                                .filter((path) => !(pkg.pathIds || []).includes(path.id))
+                                                                .map((path) => (
+                                                                    <option key={path.id} value={path.id}>{path.name}</option>
+                                                                ))}
+                                                        </select>
+                                                        <div className="flex flex-wrap gap-2 mt-2">
+                                                            {packagePaths.length === 0 ? (
+                                                                <span className="text-xs text-gray-400">هذه الباقة تعمل على كل المسارات.</span>
+                                                            ) : packagePaths.map((path) => (
+                                                                <button
+                                                                    key={path.id}
+                                                                    onClick={() => updateB2BPackage(pkg.id, {
+                                                                        pathIds: (pkg.pathIds || []).filter((pathId) => pathId !== path.id),
+                                                                    })}
+                                                                    className="px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-colors"
+                                                                >
+                                                                    {path.name} ×
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-gray-600 mb-2">تقييد الباقة على مادة</label>
+                                                        <select
+                                                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                            defaultValue=""
+                                                            onChange={(event) => {
+                                                                const value = event.target.value;
+                                                                if (!value) return;
+                                                                updateB2BPackage(pkg.id, {
+                                                                    subjectIds: Array.from(new Set([...(pkg.subjectIds || []), value])),
+                                                                });
+                                                                event.target.value = '';
+                                                            }}
+                                                        >
+                                                            <option value="">أضف مادة أو اتركها عامة</option>
+                                                            {subjects
+                                                                .filter((currentSubject) => {
+                                                                    const pathFilter = (pkg.pathIds || []).length === 0 || (pkg.pathIds || []).includes(currentSubject.pathId);
+                                                                    const notSelected = !(pkg.subjectIds || []).includes(currentSubject.id);
+                                                                    return pathFilter && notSelected;
+                                                                })
+                                                                .map((currentSubject) => (
+                                                                    <option key={currentSubject.id} value={currentSubject.id}>{currentSubject.name}</option>
+                                                                ))}
+                                                        </select>
+                                                        <div className="flex flex-wrap gap-2 mt-2">
+                                                            {packageSubjects.length === 0 ? (
+                                                                <span className="text-xs text-gray-400">هذه الباقة تعمل على كل المواد ضمن النطاق المختار.</span>
+                                                            ) : packageSubjects.map((currentSubject) => (
+                                                                <button
+                                                                    key={currentSubject.id}
+                                                                    onClick={() => updateB2BPackage(pkg.id, {
+                                                                        subjectIds: (pkg.subjectIds || []).filter((subjectId) => subjectId !== currentSubject.id),
+                                                                    })}
+                                                                    className="px-3 py-1.5 rounded-full bg-purple-50 text-purple-700 text-xs font-bold hover:bg-purple-100 transition-colors"
+                                                                >
+                                                                    {currentSubject.name} ×
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="text-sm text-gray-600 space-y-1">
+                                                        <p>عدد الدورات المشمولة: {pkg.courseIds.length}</p>
+                                                        <p>الحد الأقصى للطلاب: {pkg.maxStudents}</p>
+                                                    </div>
+                                                    <div className="text-xs text-gray-500">
+                                                        {pkg.discountPercentage ? `خصم ${pkg.discountPercentage}%` : 'وصول مباشر'}
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-gray-600 mb-2">إضافة دورة إلى الباقة</label>
+                                                    <select
+                                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                        defaultValue=""
+                                                        onChange={(event) => {
+                                                            const value = event.target.value;
+                                                            if (!value) return;
+
+                                                            if (!selectedSchool.courseIds.includes(value)) {
+                                                                assignCourseToGroup(value, selectedSchool.id);
+                                                            }
+
+                                                            updateB2BPackage(pkg.id, {
+                                                                courseIds: Array.from(new Set([...pkg.courseIds, value])),
+                                                            });
+                                                            event.target.value = '';
+                                                        }}
+                                                    >
+                                                        <option value="">اختر دورة منشورة لإضافتها</option>
+                                                        {publishedCourses
+                                                            .filter((course) => !pkg.courseIds.includes(course.id))
+                                                            .map((course) => (
+                                                                <option key={course.id} value={course.id}>{course.title}</option>
+                                                            ))}
+                                                    </select>
+                                                </div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {packageCourses.length === 0 ? (
+                                                        <span className="text-sm text-gray-400">لا توجد دورات مرتبطة بهذه الباقة حتى الآن.</span>
+                                                    ) : packageCourses.map((course) => (
+                                                        <button
+                                                            key={course.id}
+                                                            onClick={() => updateB2BPackage(pkg.id, {
+                                                                courseIds: pkg.courseIds.filter((courseId) => courseId !== course.id),
+                                                            })}
+                                                            className="px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 text-xs font-bold hover:bg-amber-100 transition-colors"
+                                                        >
+                                                            {course.title} ×
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
 
-                            {/* Access Codes */}
                             <div>
                                 <div className="flex justify-between items-center mb-4">
-                                    <h3 className="text-lg font-bold text-gray-900">أكواد التفعيل (Promo Codes)</h3>
-                                    <button 
-                                        onClick={() => {
-                                            if(schoolPackages.length === 0) return alert('يجب إنشاء باقة أولاً');
-                                            createAccessCode({
-                                                id: `code_${Date.now()}`,
-                                                code: `${selectedSchool.name.substring(0,3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
-                                                schoolId: selectedSchool.id,
-                                                packageId: schoolPackages[0].id,
-                                                maxUses: 50,
-                                                currentUses: 0,
-                                                expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
-                                                createdAt: Date.now()
-                                            });
-                                        }}
-                                        className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors flex items-center gap-2"
-                                    >
-                                        <Key size={16} /> توليد كود جديد
-                                    </button>
+                                    <h3 className="text-lg font-bold text-gray-900">أكواد التفعيل</h3>
+                                    <div className="flex items-center gap-3">
+                                        <select
+                                            value={selectedPackageIdForCode}
+                                            onChange={(event) => setSelectedPackageIdForCode(event.target.value)}
+                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 min-w-[220px]"
+                                        >
+                                            <option value="">اختر الباقة المستهدفة</option>
+                                            {schoolPackages.map((pkg) => (
+                                                <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            onClick={() => {
+                                                if (schoolPackages.length === 0) {
+                                                    window.alert('يجب إنشاء باقة أولًا قبل توليد كود تفعيل.');
+                                                    return;
+                                                }
+
+                                                if (!selectedPackageIdForCode) {
+                                                    window.alert('اختر الباقة التي سيعمل عليها كود التفعيل أولًا.');
+                                                    return;
+                                                }
+
+                                                createAccessCode({
+                                                    id: `code_${Date.now()}`,
+                                                    code: `${selectedSchool.name.substring(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
+                                                    schoolId: selectedSchool.id,
+                                                    packageId: selectedPackageIdForCode,
+                                                    maxUses: 50,
+                                                    currentUses: 0,
+                                                    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+                                                    createdAt: Date.now(),
+                                                });
+                                            }}
+                                            className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors flex items-center gap-2"
+                                        >
+                                            <Key size={16} /> توليد كود جديد
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
                                     <table className="w-full text-right">
@@ -247,23 +983,38 @@ export const SchoolsManager: React.FC = () => {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-200">
-                                            {schoolCodes.map(code => (
+                                            {schoolCodes.map((code) => (
                                                 <tr key={code.id} className="bg-white">
                                                     <td className="p-4 font-mono font-bold text-amber-600">{code.code}</td>
-                                                    <td className="p-4 text-sm text-gray-800">{schoolPackages.find(p => p.id === code.packageId)?.name}</td>
+                                                    <td className="p-4 text-sm text-gray-800">{schoolPackages.find((pkg) => pkg.id === code.packageId)?.name || 'باقة غير معروفة'}</td>
                                                     <td className="p-4">
                                                         <div className="flex items-center gap-2">
                                                             <div className="w-full bg-gray-200 rounded-full h-2 max-w-[100px]">
-                                                                <div className="bg-amber-500 h-2 rounded-full" style={{ width: `${(code.currentUses / code.maxUses) * 100}%` }}></div>
+                                                                <div className="bg-amber-500 h-2 rounded-full" style={{ width: `${Math.min(100, (code.currentUses / Math.max(code.maxUses, 1)) * 100)}%` }}></div>
                                                             </div>
                                                             <span className="text-xs text-gray-500">{code.currentUses}/{code.maxUses}</span>
                                                         </div>
                                                     </td>
                                                     <td className="p-4 text-sm text-gray-500">{new Date(code.expiresAt).toLocaleDateString('ar-SA')}</td>
                                                     <td className="p-4">
-                                                        <button className="text-gray-400 hover:text-red-500 transition-colors">
-                                                            <Trash2 size={18} />
-                                                        </button>
+                                                        <div className="flex items-center gap-3">
+                                                            <button
+                                                                onClick={() => void handleCopyCode(code.code, code.id)}
+                                                                className="text-xs font-bold text-amber-700 hover:text-amber-900 transition-colors"
+                                                            >
+                                                                {copiedCodeId === code.id ? 'تم النسخ' : 'نسخ'}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (window.confirm('هل تريد حذف كود التفعيل هذا؟')) {
+                                                                        deleteAccessCode(code.id);
+                                                                    }
+                                                                }}
+                                                                className="text-gray-400 hover:text-red-500 transition-colors"
+                                                            >
+                                                                <Trash2 size={18} />
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -275,55 +1026,48 @@ export const SchoolsManager: React.FC = () => {
                     )}
 
                     {activeTab === 'import' && (
-                        <div className="max-w-3xl mx-auto py-8">
-                            <div className="text-center mb-8">
+                        <div className="max-w-4xl mx-auto py-8 space-y-8">
+                            <div className="text-center">
                                 <h2 className="text-2xl font-bold text-gray-900 mb-2">استيراد الطلاب دفعة واحدة</h2>
-                                <p className="text-gray-500">قم بتحميل النموذج، تعبئته ببيانات الطلاب، ثم رفعه لإنشاء الحسابات تلقائياً.</p>
+                                <p className="text-gray-500">حمّل النموذج، ثم ارفع ملف CSV وسيقوم النظام بإنشاء الحسابات وربطها بالمدرسة والفصول.</p>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="border border-gray-200 rounded-xl p-6 text-center hover:border-amber-500 transition-colors group cursor-pointer">
                                     <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
                                         <Download size={32} />
                                     </div>
                                     <h3 className="font-bold text-gray-900 mb-2">1. تحميل النموذج</h3>
-                                    <p className="text-sm text-gray-500 mb-4">ملف Excel جاهز يحتوي على الأعمدة المطلوبة (الاسم، البريد، الفصل).</p>
-                                    <button className="text-amber-600 font-bold text-sm">تحميل Template.xlsx</button>
+                                    <p className="text-sm text-gray-500 mb-4">نموذج CSV جاهز بالأعمدة الأساسية: الاسم، البريد، الفصل، وكلمة المرور الاختيارية.</p>
+                                    <button onClick={downloadTemplate} className="text-amber-600 font-bold text-sm">تحميل school-import-template.csv</button>
                                 </div>
 
-                                <div 
-                                    className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer relative overflow-hidden ${
-                                        uploadSuccess ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300 hover:border-blue-500 hover:bg-blue-50'
-                                    }`}
-                                >
-                                    <input 
-                                        type="file" 
-                                        accept=".xlsx, .xls, .csv" 
+                                <div className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors relative overflow-hidden ${importSummary ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300 hover:border-blue-500 hover:bg-blue-50'}`}>
+                                    <input
+                                        type="file"
+                                        accept=".csv,.tsv,.txt"
                                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                        onChange={(e) => {
-                                            if(e.target.files && e.target.files.length > 0) {
-                                                setIsUploading(true);
-                                                setUploadSuccess(false);
-                                                setTimeout(() => {
-                                                    setIsUploading(false);
-                                                    setUploadSuccess(true);
-                                                }, 2000);
+                                        onChange={(event) => {
+                                            const file = event.target.files?.[0];
+                                            if (file) {
+                                                void handleImportFile(file);
                                             }
                                         }}
                                     />
-                                    {isUploading ? (
+
+                                    {isImporting ? (
                                         <div className="flex flex-col items-center justify-center h-full">
                                             <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-                                            <p className="font-bold text-blue-600">جاري معالجة الملف...</p>
+                                            <p className="font-bold text-blue-600">جارٍ استيراد الطلاب وربطهم بالمدرسة...</p>
                                         </div>
-                                    ) : uploadSuccess ? (
+                                    ) : importSummary ? (
                                         <div className="flex flex-col items-center justify-center h-full">
                                             <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
                                                 <CheckCircle size={32} />
                                             </div>
-                                            <h3 className="font-bold text-emerald-900 mb-2">تم الاستيراد بنجاح!</h3>
-                                            <p className="text-sm text-emerald-600 mb-4">تم إنشاء 150 حساب طالب جديد.</p>
-                                            <button className="bg-emerald-600 text-white px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 mx-auto hover:bg-emerald-700">
+                                            <h3 className="font-bold text-emerald-900 mb-2">تم الاستيراد بنجاح</h3>
+                                            <p className="text-sm text-emerald-700 mb-4">تم استيراد {importSummary.imported} طالب عبر {importSummary.classesTouched} فصل.</p>
+                                            <button onClick={downloadCredentials} className="bg-emerald-600 text-white px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 mx-auto hover:bg-emerald-700">
                                                 <Download size={16} /> تحميل بيانات الدخول
                                             </button>
                                         </div>
@@ -333,21 +1077,55 @@ export const SchoolsManager: React.FC = () => {
                                                 <Upload size={32} />
                                             </div>
                                             <h3 className="font-bold text-gray-900 mb-2">2. رفع الملف</h3>
-                                            <p className="text-sm text-gray-500 mb-4">اسحب وأفلت ملف Excel هنا أو انقر للاختيار.</p>
+                                            <p className="text-sm text-gray-500 mb-4">ارفع ملف CSV أو TSV وسيتم تجهيز الصفوف للمراجعة قبل التنفيذ.</p>
                                             <button className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-bold pointer-events-none">اختيار ملف</button>
                                         </>
                                     )}
                                 </div>
                             </div>
 
-                            {!uploadSuccess && (
-                                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-3">
-                                    <CheckCircle className="text-emerald-500 shrink-0 mt-0.5" size={20} />
-                                    <div>
-                                        <h4 className="font-bold text-emerald-800">ماذا يحدث بعد الرفع؟</h4>
-                                        <p className="text-sm text-emerald-600 mt-1">
-                                            سيقوم النظام بإنشاء حسابات للطلاب، تعيين كلمات مرور عشوائية، وربطهم بالمدرسة والفصول المحددة. ستحصل بعدها على ملف Excel يحتوي على بيانات الدخول لتوزيعها على الطلاب.
-                                        </p>
+                            {importError && (
+                                <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+                                    {importError}
+                                </div>
+                            )}
+
+                            {importRows.length > 0 && !importSummary && (
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-gray-900">معاينة البيانات</h3>
+                                            <p className="text-sm text-gray-500">تم تجهيز {importRows.length} صفًا صالحًا للاستيراد.</p>
+                                        </div>
+                                        <button
+                                            onClick={() => void handleStartImport()}
+                                            className="bg-gray-900 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors"
+                                        >
+                                            بدء الاستيراد
+                                        </button>
+                                    </div>
+
+                                    <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+                                        <table className="w-full text-right">
+                                            <thead className="bg-gray-100 text-gray-600 text-sm">
+                                                <tr>
+                                                    <th className="p-4 font-medium">الاسم</th>
+                                                    <th className="p-4 font-medium">البريد الإلكتروني</th>
+                                                    <th className="p-4 font-medium">الفصل</th>
+                                                    <th className="p-4 font-medium">كلمة المرور</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-200">
+                                                {importRows.slice(0, 8).map((row, index) => (
+                                                    <tr key={`${row.email}-${index}`} className="bg-white">
+                                                        <td className="p-4 text-sm text-gray-800">{row.name}</td>
+                                                        <td className="p-4 text-sm text-gray-500">{row.email}</td>
+                                                        <td className="p-4 text-sm text-gray-500">{row.className || 'سيُترك بدون فصل'}</td>
+                                                        <td className="p-4 text-sm text-gray-500">{row.password || 'سيتم توليدها تلقائيًا'}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
                             )}
@@ -355,15 +1133,91 @@ export const SchoolsManager: React.FC = () => {
                     )}
 
                     {activeTab === 'reports' && (
-                        <div className="py-12 text-center">
-                            <Activity size={64} className="mx-auto text-gray-300 mb-4" />
-                            <h3 className="text-xl font-bold text-gray-900 mb-2">تقارير أداء المدرسة</h3>
-                            <p className="text-gray-500 max-w-md mx-auto">
-                                سيتم عرض إحصائيات تفصيلية حول أداء طلاب هذه المدرسة، متوسط الدرجات، ونقاط الضعف الشائعة لديهم لمساعدة المعلمين في التركيز عليها.
-                            </p>
-                            <button className="mt-6 bg-gray-900 text-white px-6 py-2 rounded-lg font-bold hover:bg-gray-800 transition-colors">
-                                توليد تقرير شامل (PDF)
-                            </button>
+                        <div className="space-y-6">
+                            {isLoadingReport ? (
+                                <div className="py-12 text-center text-gray-500">جارٍ تحميل تقرير المدرسة...</div>
+                            ) : reportError ? (
+                                <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+                                    {reportError}
+                                </div>
+                            ) : schoolReport ? (
+                                <>
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                        <div className="bg-blue-50 p-5 rounded-xl">
+                                            <p className="text-sm text-blue-700 mb-1">الطلاب النشطون</p>
+                                            <p className="text-3xl font-bold text-blue-600">{schoolReport.metrics.activeStudents}</p>
+                                        </div>
+                                        <div className="bg-purple-50 p-5 rounded-xl">
+                                            <p className="text-sm text-purple-700 mb-1">محاولات الاختبار</p>
+                                            <p className="text-3xl font-bold text-purple-600">{schoolReport.metrics.quizAttempts}</p>
+                                        </div>
+                                        <div className="bg-emerald-50 p-5 rounded-xl">
+                                            <p className="text-sm text-emerald-700 mb-1">متوسط الأداء</p>
+                                            <p className="text-3xl font-bold text-emerald-600">{schoolReport.metrics.averageScore}%</p>
+                                        </div>
+                                        <div className="bg-amber-50 p-5 rounded-xl">
+                                            <p className="text-sm text-amber-700 mb-1">الأكواد النشطة</p>
+                                            <p className="text-3xl font-bold text-amber-600">{schoolReport.metrics.activeCodes}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                        <div className="border border-gray-100 rounded-xl p-5">
+                                            <h3 className="text-lg font-bold text-gray-900 mb-4">أضعف المهارات داخل المدرسة</h3>
+                                            <div className="space-y-3">
+                                                {schoolReport.weakestSkills.length === 0 ? (
+                                                    <p className="text-sm text-gray-500">لا توجد بيانات نتائج كافية بعد لإظهار نقاط الضعف.</p>
+                                                ) : schoolReport.weakestSkills.map((item) => {
+                                                    const subjectName = subjects.find((subject) => subject.id === item.subjectId)?.name;
+                                                    const sectionName = sections.find((section) => section.id === item.sectionId)?.name;
+                                                    return (
+                                                        <div key={`${item.skillId || item.skill}-${item.attempts}`} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                                                            <div className="flex items-center justify-between gap-3 mb-2">
+                                                                <div>
+                                                                    <p className="font-bold text-gray-900">{item.skill}</p>
+                                                                    <p className="text-xs text-gray-500">{[subjectName, sectionName].filter(Boolean).join(' • ') || 'بدون تصنيف إضافي'}</p>
+                                                                </div>
+                                                                <span className={`text-xs font-bold px-2 py-1 rounded-full ${item.mastery < 50 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                                    إتقان {item.mastery}%
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-sm text-gray-600">عدد المحاولات: {item.attempts}</p>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        <div className="border border-gray-100 rounded-xl p-5">
+                                            <h3 className="text-lg font-bold text-gray-900 mb-4">أداء الفصول</h3>
+                                            <div className="space-y-3">
+                                                {schoolReport.classSummaries.length === 0 ? (
+                                                    <p className="text-sm text-gray-500">لا توجد فصول مرتبطة بهذه المدرسة بعد.</p>
+                                                ) : schoolReport.classSummaries.map((classroom) => (
+                                                    <div key={classroom.id} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <div>
+                                                                <p className="font-bold text-gray-900">{classroom.name}</p>
+                                                                <p className="text-xs text-gray-500">{classroom.studentCount} طالب • {classroom.supervisorCount} مشرف</p>
+                                                            </div>
+                                                            <span className="text-sm font-bold text-gray-900">{classroom.averageScore}%</span>
+                                                        </div>
+                                                        <div className="mt-3 w-full bg-gray-200 rounded-full h-2">
+                                                            <div
+                                                                className={`h-2 rounded-full ${classroom.averageScore >= 70 ? 'bg-emerald-500' : classroom.averageScore >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                                                style={{ width: `${Math.min(classroom.averageScore, 100)}%` }}
+                                                            ></div>
+                                                        </div>
+                                                        <p className="mt-2 text-xs text-gray-500">محاولات الاختبار: {classroom.quizAttempts}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="py-12 text-center text-gray-500">لا توجد بيانات تقرير متاحة بعد.</div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -376,9 +1230,9 @@ export const SchoolsManager: React.FC = () => {
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">المدارس والجهات (B2B)</h1>
-                    <p className="text-sm text-gray-500 mt-1">إدارة التعاقدات، الباقات، وأكواد التفعيل للمدارس</p>
+                    <p className="text-sm text-gray-500 mt-1">إدارة التعاقدات، الباقات، الفصول، والمشرفين للمدارس والسناتر.</p>
                 </div>
-                <button 
+                <button
                     onClick={handleCreateSchool}
                     className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors"
                 >
@@ -386,41 +1240,72 @@ export const SchoolsManager: React.FC = () => {
                 </button>
             </div>
 
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex items-center gap-3">
+                <Search size={18} className="text-gray-400" />
+                <input
+                    value={schoolSearch}
+                    onChange={(event) => setSchoolSearch(event.target.value)}
+                    placeholder="ابحث باسم المدرسة أو الجهة..."
+                    className="w-full bg-transparent outline-none text-sm text-gray-700"
+                />
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {schools.map(school => (
-                    <div key={school.id} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-all group">
-                        <div className="flex justify-between items-start mb-4">
-                            <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center">
-                                <Building2 size={24} />
+                {filteredSchools.map((school) => {
+                    const schoolPackages = b2bPackages.filter((pkg) => pkg.schoolId === school.id);
+                    const schoolCodes = accessCodes.filter((code) => code.schoolId === school.id && code.expiresAt > Date.now());
+                    const schoolStudents = students.filter((student) => student.schoolId === school.id);
+
+                    return (
+                        <div key={school.id} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-all group">
+                            <div className="flex justify-between items-start mb-4">
+                                <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center">
+                                    <Building2 size={24} />
+                                </div>
+                                <button className="text-gray-400 hover:text-gray-600">
+                                    <MoreVertical size={18} />
+                                </button>
                             </div>
-                            <button className="text-gray-400 hover:text-gray-900 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <MoreVertical size={20} />
+
+                            <h3 className="text-lg font-bold text-gray-900 mb-1">{school.name}</h3>
+                            <p className="text-sm text-gray-500 mb-5">إدارة الطلاب والفصول والباقات والمشرفين لهذه الجهة التعليمية.</p>
+
+                            <div className="grid grid-cols-3 gap-3 mb-5">
+                                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                                    <p className="text-xs text-gray-500 mb-1">طلاب</p>
+                                    <p className="font-bold text-gray-900">{schoolStudents.length}</p>
+                                </div>
+                                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                                    <p className="text-xs text-gray-500 mb-1">باقات</p>
+                                    <p className="font-bold text-gray-900">{schoolPackages.length}</p>
+                                </div>
+                                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                                    <p className="text-xs text-gray-500 mb-1">أكواد</p>
+                                    <p className="font-bold text-gray-900">{schoolCodes.length}</p>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => {
+                                    setSelectedSchool(school);
+                                    setActiveTab('overview');
+                                }}
+                                className="w-full bg-gray-900 text-white py-2.5 rounded-xl font-bold hover:bg-gray-800 transition-colors"
+                            >
+                                فتح إدارة المدرسة
                             </button>
                         </div>
-                        
-                        <h3 className="text-xl font-bold text-gray-900 mb-1">{school.name}</h3>
-                        <p className="text-sm text-gray-500 mb-6 line-clamp-2">{school.metadata?.description || 'لا يوجد وصف'}</p>
-                        
-                        <div className="grid grid-cols-2 gap-4 mb-6">
-                            <div className="bg-gray-50 p-3 rounded-lg">
-                                <p className="text-xs text-gray-500 mb-1">الطلاب</p>
-                                <p className="font-bold text-gray-900">{school.studentIds.length || school.totalStudents}</p>
-                            </div>
-                            <div className="bg-gray-50 p-3 rounded-lg">
-                                <p className="text-xs text-gray-500 mb-1">الباقات</p>
-                                <p className="font-bold text-gray-900">{b2bPackages.filter(p => p.schoolId === school.id).length}</p>
-                            </div>
-                        </div>
-
-                        <button 
-                            onClick={() => setSelectedSchool(school)}
-                            className="w-full bg-gray-50 hover:bg-amber-50 text-gray-700 hover:text-amber-700 py-2.5 rounded-xl font-bold text-sm transition-colors border border-gray-200 hover:border-amber-200"
-                        >
-                            إدارة المدرسة
-                        </button>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
+
+            {filteredSchools.length === 0 && (
+                <div className="bg-white rounded-2xl p-12 border border-dashed border-gray-200 text-center">
+                    <FileSpreadsheet size={48} className="mx-auto text-gray-300 mb-4" />
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">لا توجد مدارس مطابقة</h3>
+                    <p className="text-sm text-gray-500">أضف مدرسة جديدة أو غيّر كلمة البحث لعرض الجهات التعليمية الحالية.</p>
+                </div>
+            )}
         </div>
     );
 };

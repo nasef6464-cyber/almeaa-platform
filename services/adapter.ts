@@ -1,5 +1,5 @@
 import { api } from "./api";
-import { CategoryLevel, CategoryPath, CategorySection, CategorySubject, Course, Group, Lesson, LibraryItem, Module, Question, Quiz, Skill, Topic } from "../types";
+import { AccessCode, B2BPackage, CategoryLevel, CategoryPath, CategorySection, CategorySubject, Course, Group, Lesson, LibraryItem, Module, Question, Quiz, Skill, Topic } from "../types";
 
 const USE_REAL_API =
   (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_USE_REAL_API !== "false";
@@ -80,6 +80,15 @@ const normalizeLesson = (lesson: any, moduleIndex: number, lessonIndex: number):
   pathId: lesson?.pathId,
   subjectId: lesson?.subjectId,
   sectionId: lesson?.sectionId,
+  ownerType: lesson?.ownerType,
+  ownerId: lesson?.ownerId || undefined,
+  createdBy: lesson?.createdBy || undefined,
+  assignedTeacherId: lesson?.assignedTeacherId || undefined,
+  approvalStatus: lesson?.approvalStatus,
+  approvedBy: lesson?.approvedBy || undefined,
+  approvedAt: typeof lesson?.approvedAt === "number" ? lesson.approvedAt : undefined,
+  reviewerNotes: lesson?.reviewerNotes || undefined,
+  revenueSharePercentage: typeof lesson?.revenueSharePercentage === "number" ? lesson.revenueSharePercentage : undefined,
 });
 
 const normalizeTopic = (topic: any): Topic => ({
@@ -105,6 +114,15 @@ const normalizeLibraryItem = (item: any): LibraryItem => ({
   sectionId: item?.sectionId ? String(item.sectionId) : undefined,
   skillIds: Array.isArray(item?.skillIds) ? item.skillIds.map((value: unknown) => String(value)) : [],
   url: item?.url || undefined,
+  ownerType: item?.ownerType,
+  ownerId: item?.ownerId || undefined,
+  createdBy: item?.createdBy || undefined,
+  assignedTeacherId: item?.assignedTeacherId || undefined,
+  approvalStatus: item?.approvalStatus,
+  approvedBy: item?.approvedBy || undefined,
+  approvedAt: typeof item?.approvedAt === "number" ? item.approvedAt : undefined,
+  reviewerNotes: item?.reviewerNotes || undefined,
+  revenueSharePercentage: typeof item?.revenueSharePercentage === "number" ? item.revenueSharePercentage : undefined,
 });
 
 const normalizeGroup = (group: any): Group => ({
@@ -123,6 +141,32 @@ const normalizeGroup = (group: any): Group => ({
   totalCourses: typeof group?.totalCourses === "number" ? group.totalCourses : undefined,
   activityScore: typeof group?.activityScore === "number" ? group.activityScore : undefined,
   performanceScore: typeof group?.performanceScore === "number" ? group.performanceScore : undefined,
+});
+
+const normalizeB2BPackage = (pkg: any): B2BPackage => ({
+  id: String(pkg?.id || pkg?._id || ""),
+  schoolId: String(pkg?.schoolId || ""),
+  name: String(pkg?.name || ""),
+  courseIds: Array.isArray(pkg?.courseIds) ? pkg.courseIds.map(String) : [],
+  contentTypes: Array.isArray(pkg?.contentTypes) && pkg.contentTypes.length ? pkg.contentTypes : ["all"],
+  pathIds: Array.isArray(pkg?.pathIds) ? pkg.pathIds.map(String) : [],
+  subjectIds: Array.isArray(pkg?.subjectIds) ? pkg.subjectIds.map(String) : [],
+  type: pkg?.type || "free_access",
+  discountPercentage: typeof pkg?.discountPercentage === "number" ? pkg.discountPercentage : undefined,
+  maxStudents: Number(pkg?.maxStudents ?? 0),
+  status: pkg?.status || "active",
+  createdAt: Number(pkg?.createdAt ?? Date.now()),
+});
+
+const normalizeAccessCode = (code: any): AccessCode => ({
+  id: String(code?.id || code?._id || ""),
+  code: String(code?.code || ""),
+  schoolId: String(code?.schoolId || ""),
+  packageId: String(code?.packageId || ""),
+  maxUses: Number(code?.maxUses ?? 1),
+  currentUses: Number(code?.currentUses ?? 0),
+  expiresAt: Number(code?.expiresAt ?? Date.now()),
+  createdAt: Number(code?.createdAt ?? Date.now()),
 });
 
 const normalizeModule = (module: any, moduleIndex: number): Module => ({
@@ -171,6 +215,15 @@ const normalizeCourse = (course: any): Course => ({
   fakeRating: typeof course?.fakeRating === "number" ? course.fakeRating : undefined,
   fakeStudentsCount: typeof course?.fakeStudentsCount === "number" ? course.fakeStudentsCount : undefined,
   skills: Array.isArray(course?.skills) ? course.skills : [],
+  ownerType: course?.ownerType,
+  ownerId: course?.ownerId || undefined,
+  createdBy: course?.createdBy || undefined,
+  assignedTeacherId: course?.assignedTeacherId || undefined,
+  approvalStatus: course?.approvalStatus,
+  approvedBy: course?.approvedBy || undefined,
+  approvedAt: typeof course?.approvedAt === "number" ? course.approvedAt : undefined,
+  reviewerNotes: course?.reviewerNotes || undefined,
+  revenueSharePercentage: typeof course?.revenueSharePercentage === "number" ? course.revenueSharePercentage : undefined,
 });
 
 const normalizeQuestion = (question: any): Question => ({
@@ -187,6 +240,15 @@ const normalizeQuestion = (question: any): Question => ({
   sectionId: question?.sectionId,
   difficulty: question?.difficulty || "Medium",
   type: question?.type || "mcq",
+  ownerType: question?.ownerType,
+  ownerId: question?.ownerId || undefined,
+  createdBy: question?.createdBy || undefined,
+  assignedTeacherId: question?.assignedTeacherId || undefined,
+  approvalStatus: question?.approvalStatus,
+  approvedBy: question?.approvedBy || undefined,
+  approvedAt: typeof question?.approvedAt === "number" ? question.approvedAt : undefined,
+  reviewerNotes: question?.reviewerNotes || undefined,
+  revenueSharePercentage: typeof question?.revenueSharePercentage === "number" ? question.revenueSharePercentage : undefined,
 });
 
 const normalizeQuiz = (quiz: any): Quiz => ({
@@ -217,6 +279,15 @@ const normalizeQuiz = (quiz: any): Quiz => ({
   targetGroupIds: Array.isArray(quiz?.targetGroupIds) ? quiz.targetGroupIds.map(String) : [],
   targetUserIds: Array.isArray(quiz?.targetUserIds) ? quiz.targetUserIds.map(String) : [],
   dueDate: quiz?.dueDate || undefined,
+  ownerType: quiz?.ownerType,
+  ownerId: quiz?.ownerId || undefined,
+  createdBy: quiz?.createdBy || undefined,
+  assignedTeacherId: quiz?.assignedTeacherId || undefined,
+  approvalStatus: quiz?.approvalStatus,
+  approvedBy: quiz?.approvedBy || undefined,
+  approvedAt: typeof quiz?.approvedAt === "number" ? quiz.approvedAt : undefined,
+  reviewerNotes: quiz?.reviewerNotes || undefined,
+  revenueSharePercentage: typeof quiz?.revenueSharePercentage === "number" ? quiz.revenueSharePercentage : undefined,
 });
 
 export const adapter = {
@@ -301,6 +372,8 @@ export const adapter = {
         lessons: [],
         libraryItems: [],
         groups: [],
+        b2bPackages: [],
+        accessCodes: [],
       };
     }
 
@@ -311,6 +384,8 @@ export const adapter = {
         lessons: Array.isArray(data?.lessons) ? data.lessons.map((lesson: any, index: number) => normalizeLesson(lesson, 0, index)).filter((lesson) => lesson.id && lesson.title) : [],
         libraryItems: Array.isArray(data?.libraryItems) ? data.libraryItems.map(normalizeLibraryItem).filter((item) => item.id && item.title) : [],
         groups: Array.isArray(data?.groups) ? data.groups.map(normalizeGroup).filter((group) => group.id && group.name) : [],
+        b2bPackages: Array.isArray(data?.b2bPackages) ? data.b2bPackages.map(normalizeB2BPackage).filter((pkg) => pkg.id && pkg.schoolId && pkg.name) : [],
+        accessCodes: Array.isArray(data?.accessCodes) ? data.accessCodes.map(normalizeAccessCode).filter((code) => code.id && code.schoolId && code.packageId && code.code) : [],
       };
     } catch (error) {
       console.warn("Falling back to empty content bootstrap:", error);
@@ -319,6 +394,8 @@ export const adapter = {
         lessons: [],
         libraryItems: [],
         groups: [],
+        b2bPackages: [],
+        accessCodes: [],
       };
     }
   },

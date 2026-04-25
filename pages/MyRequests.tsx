@@ -7,77 +7,164 @@ type RequestStatus = 'completed' | 'pending' | 'cancelled';
 
 interface RequestRow {
   id: string;
-  courseName: string;
+  itemName: string;
   status: RequestStatus;
   orderDate: string;
+  sortDate: string;
   price: number;
   paymentMethod: string;
+  typeLabel: string;
 }
 
 export const MyRequests: React.FC = () => {
-  const { user, courses, enrolledCourses } = useStore();
+  const { user, courses, enrolledCourses, b2bPackages, recentActivity, hasScopedPackageAccess } = useStore();
 
   const rows = useMemo<RequestRow[]>(() => {
-    const purchasedIds = user.subscription?.purchasedCourses || [];
-    const courseIds = Array.from(new Set([...purchasedIds, ...enrolledCourses]));
+    const purchasedCourseIds = user.subscription?.purchasedCourses || [];
+    const purchasedPackageIds = user.subscription?.purchasedPackages || [];
+    const accessibleCourseIds = Array.from(
+      new Set(
+        courses
+          .filter(
+            (course) =>
+              purchasedCourseIds.includes(course.id) ||
+              enrolledCourses.includes(course.id) ||
+              hasScopedPackageAccess('courses', course.pathId || course.category, course.subjectId || course.subject),
+          )
+          .map((course) => course.id),
+      ),
+    );
+    const today = new Date();
+    const todayLabel = today.toLocaleDateString('ar-SA');
+    const todayIso = today.toISOString();
 
-    return courseIds
+    const sessionRows = recentActivity
+      .filter((activity) => activity.type === 'session_booked')
+      .map((activity) => ({
+        id: `session_${activity.id}`,
+        itemName: activity.title.replace(/^تم حجز حصة خاصة:\s*/u, '') || 'حصة خاصة',
+        status: 'pending' as const,
+        orderDate: new Date(activity.date).toLocaleDateString('ar-SA'),
+        sortDate: activity.date,
+        price: 0,
+        paymentMethod: 'طلب جلسة خاصة بانتظار التأكيد',
+        typeLabel: 'جلسة',
+      }));
+
+    const courseRows = accessibleCourseIds
       .map((courseId) => {
         const course = courses.find((item) => item.id === courseId);
         if (!course) return null;
 
-        const isPurchased = purchasedIds.includes(courseId);
-        const status: RequestStatus = isPurchased ? 'completed' : 'pending';
+        const hasDirectPurchase = purchasedCourseIds.includes(courseId);
+        const hasScopedPackage = hasScopedPackageAccess('courses', course.pathId || course.category, course.subjectId || course.subject);
 
         return {
           id: `req_${courseId}`,
-          courseName: course.title,
-          status,
-          orderDate: new Date().toLocaleDateString('ar-SA'),
+          itemName: course.title,
+          status: 'completed' as const,
+          orderDate: todayLabel,
+          sortDate: todayIso,
           price: course.price || 0,
-          paymentMethod: isPurchased ? 'بطاقة إلكترونية' : 'قيد المراجعة',
+          paymentMethod: hasDirectPurchase
+            ? 'بطاقة إلكترونية / شراء مباشر'
+            : hasScopedPackage
+              ? 'مفعلة ضمن باقة مرتبطة بالمسار أو المادة'
+              : 'تفعيل ضمن اشتراك أو كود وصول',
+          typeLabel: 'دورة',
         };
       })
-      .filter((item): item is RequestRow => !!item);
-  }, [user.subscription?.purchasedCourses, enrolledCourses, courses]);
+      .filter(Boolean) as RequestRow[];
+
+    const packageRows = purchasedPackageIds.map((packageId) => {
+      const pkg = b2bPackages.find((item) => item.id === packageId);
+      const packageKinds = Array.isArray(pkg?.contentTypes) ? pkg.contentTypes : [];
+      const packageLabel =
+        packageKinds.length === 0 || packageKinds.includes('all')
+          ? 'باقة شاملة'
+          : `باقة ${packageKinds
+              .map((type) => {
+                switch (type) {
+                  case 'courses':
+                    return 'الدورات';
+                  case 'foundation':
+                    return 'التأسيس';
+                  case 'banks':
+                    return 'التدريبات';
+                  case 'tests':
+                    return 'الاختبارات';
+                  case 'library':
+                    return 'المكتبة';
+                  default:
+                    return 'المحتوى';
+                }
+              })
+              .join(' + ')}`;
+
+      return {
+        id: `pkg_${packageId}`,
+        itemName: pkg?.name || 'باقة اشتراك مفعلة',
+        status: 'completed' as const,
+        orderDate: todayLabel,
+        sortDate: todayIso,
+        price: 0,
+        paymentMethod: pkg ? `كود تفعيل / ${packageLabel}` : 'اشتراك مفعل من داخل المنصة',
+        typeLabel: 'باقة',
+      };
+    });
+
+    return [...sessionRows, ...packageRows, ...courseRows].sort(
+      (a, b) => new Date(b.sortDate).getTime() - new Date(a.sortDate).getTime(),
+    );
+  }, [
+    user.subscription?.purchasedCourses,
+    user.subscription?.purchasedPackages,
+    enrolledCourses,
+    courses,
+    b2bPackages,
+    hasScopedPackageAccess,
+    recentActivity,
+  ]);
 
   return (
     <div className="space-y-6">
       <header>
         <h1 className="text-2xl font-bold text-gray-800">طلباتي</h1>
-        <p className="text-sm text-gray-500">سجل طلبات الاشتراك في الدورات</p>
+        <p className="text-sm text-gray-500">سجل الاشتراكات والدورات والباقات المفعلة وحجوزات الجلسات على حسابك</p>
       </header>
 
       {rows.length === 0 ? (
         <Card className="p-12 text-center text-gray-500">
           <FileText size={48} className="mx-auto mb-4 opacity-20" />
-          <p>لا توجد طلبات حالياً.</p>
+          <p>لا توجد طلبات حاليًا.</p>
         </Card>
       ) : (
         <div className="grid gap-4">
           {rows.map((req) => (
             <Card key={req.id} className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:shadow-md transition-shadow">
               <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-bold text-gray-800">{req.courseName}</h3>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 ${
-                    req.status === 'completed'
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : req.status === 'pending'
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-red-100 text-red-700'
-                  }`}
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <h3 className="font-bold text-gray-800">{req.itemName}</h3>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-indigo-50 text-indigo-700">
+                    {req.typeLabel}
+                  </span>
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 ${
+                      req.status === 'completed'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : req.status === 'pending'
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-red-100 text-red-700'
+                    }`}
                   >
                     {req.status === 'completed' && <CheckCircle size={10} />}
                     {req.status === 'pending' && <Clock size={10} />}
                     {req.status === 'cancelled' && <XCircle size={10} />}
-                    {req.status === 'completed' ? 'مكتمل' : req.status === 'pending' ? 'قيد المراجعة' : 'ملغي'}
+                    {req.status === 'completed' ? 'مكتمل' : req.status === 'pending' ? 'قيد التنفيذ' : 'ملغي'}
                   </span>
                 </div>
-                <div className="flex gap-4 text-xs text-gray-500">
-                  <span className="flex items-center gap-1">
-                    <span className="font-bold">رقم الطلب:</span> {req.id}
-                  </span>
+                <p className="text-sm text-gray-500 mb-1">{req.paymentMethod}</p>
+                <div className="flex items-center gap-4 text-xs text-gray-400 flex-wrap">
                   <span className="flex items-center gap-1">
                     <Calendar size={12} />
                     {req.orderDate}
@@ -85,16 +172,11 @@ export const MyRequests: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between md:justify-end gap-6 w-full md:w-auto border-t md:border-t-0 border-gray-100 pt-3 md:pt-0">
-                <div className="text-left">
-                  <div className="font-bold text-lg text-gray-900 flex items-center gap-0.5">
-                    {req.price} <span className="text-xs font-normal text-gray-500">ر.س</span>
-                  </div>
-                  <div className="text-[10px] text-gray-400">{req.paymentMethod}</div>
+              <div className="text-left md:text-right">
+                <div className="text-xs text-gray-400 mb-1">القيمة</div>
+                <div className="text-lg font-black text-gray-800">
+                  {req.price === 0 ? 'تم التفعيل' : `${req.price} ر.س`}
                 </div>
-                <button className="bg-gray-50 hover:bg-gray-100 text-gray-600 px-4 py-2 rounded-lg text-sm font-bold transition-colors">
-                  عرض الفاتورة
-                </button>
               </div>
             </Card>
           ))}
@@ -103,3 +185,4 @@ export const MyRequests: React.FC = () => {
     </div>
   );
 };
+

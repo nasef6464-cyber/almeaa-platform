@@ -4,6 +4,8 @@ import { StatusCodes } from "http-status-codes";
 import { z } from "zod";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { UserModel } from "../models/User.js";
+import { AccessCodeModel } from "../models/AccessCode.js";
+import { B2BPackageModel } from "../models/B2BPackage.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { signAccessToken } from "../utils/jwt.js";
 
@@ -23,6 +25,21 @@ const adminCreateUserSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   role: z.enum(["student", "teacher", "admin", "supervisor", "parent"]),
+  linkedStudentIds: z.array(z.string()).optional(),
+  managedPathIds: z.array(z.string()).optional(),
+  managedSubjectIds: z.array(z.string()).optional(),
+});
+
+const adminUpdateUserSchema = z.object({
+  name: z.string().min(2).optional(),
+  avatar: z.string().optional(),
+  role: z.enum(["student", "teacher", "admin", "supervisor", "parent"]).optional(),
+  isActive: z.boolean().optional(),
+  schoolId: z.string().nullable().optional(),
+  groupIds: z.array(z.string()).optional(),
+  linkedStudentIds: z.array(z.string()).optional(),
+  managedPathIds: z.array(z.string()).optional(),
+  managedSubjectIds: z.array(z.string()).optional(),
 });
 
 const preferencesSchema = z.object({
@@ -30,11 +47,28 @@ const preferencesSchema = z.object({
   reviewLater: z.array(z.string()).optional(),
 });
 
+const purchaseSchema = z.object({
+  courseId: z.string().min(1).optional(),
+  packageId: z.string().min(1).optional(),
+  includedCourseIds: z.array(z.string()).optional(),
+}).refine((payload) => payload.courseId || payload.packageId, {
+  message: "Purchase payload is incomplete",
+});
+
+const redeemAccessCodeSchema = z.object({
+  code: z.string().min(4),
+});
+
 const serializeUser = (user: any) => {
   const plain = typeof user?.toJSON === "function" ? user.toJSON() : user?.toObject?.() || user;
   const { passwordHash, __v, ...safeUser } = plain;
   return safeUser;
 };
+
+const uniqueStrings = (values: Array<string | undefined | null>) =>
+  Array.from(new Set(values.filter((value): value is string => typeof value === "string" && value.trim().length > 0)));
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export const authRouter = Router();
 
@@ -122,6 +156,9 @@ authRouter.post(
         passwordHash,
         role: payload.role,
         isActive: true,
+        linkedStudentIds: payload.linkedStudentIds || [],
+        managedPathIds: payload.managedPathIds || [],
+        managedSubjectIds: payload.managedSubjectIds || [],
       },
       {
         upsert: true,
@@ -132,6 +169,43 @@ authRouter.post(
 
     return res.status(StatusCodes.CREATED).json({
       user: serializeUser(user),
+    });
+  }),
+);
+
+authRouter.get(
+  "/admin/users",
+  requireAuth,
+  requireRole(["admin"]),
+  asyncHandler(async (_req, res) => {
+    const users = await UserModel.find().sort({ createdAt: -1 });
+
+    return res.json({
+      users: users.map(serializeUser),
+    });
+  }),
+);
+
+authRouter.patch(
+  "/admin/users/:id",
+  requireAuth,
+  requireRole(["admin"]),
+  asyncHandler(async (req, res) => {
+    const payload = adminUpdateUserSchema.parse(req.body);
+    const updated = await UserModel.findByIdAndUpdate(
+      req.params.id,
+      payload,
+      { new: true },
+    );
+
+    if (!updated) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        message: "User not found",
+      });
+    }
+
+    return res.json({
+      user: serializeUser(updated),
     });
   }),
 );
@@ -183,6 +257,126 @@ authRouter.patch(
 
     return res.json({
       user: serializeUser(user),
+    });
+  }),
+);
+
+authRouter.post(
+  "/me/purchase",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const payload = purchaseSchema.parse(req.body);
+    const user = await UserModel.findById(req.authUser?.id);
+
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        message: "User not found",
+      });
+    }
+
+    const purchasedCourses = uniqueStrings([
+      ...(user.subscription?.purchasedCourses || []),
+      ...(payload.courseId ? [payload.courseId] : []),
+      ...((payload.includedCourseIds || []).map(String)),
+    ]);
+
+    const enrolledCourses = uniqueStrings([
+      ...(user.enrolledCourses || []),
+      ...(payload.courseId ? [payload.courseId] : []),
+      ...((payload.includedCourseIds || []).map(String)),
+    ]);
+
+    const purchasedPackages = uniqueStrings([
+      ...(user.subscription?.purchasedPackages || []),
+      ...(payload.packageId ? [payload.packageId] : []),
+    ]);
+
+    user.subscription = {
+      ...user.subscription,
+      plan: purchasedPackages.length > 0 ? "premium" : (user.subscription?.plan || "free"),
+      purchasedCourses,
+      purchasedPackages,
+    };
+    user.enrolledCourses = enrolledCourses;
+    await user.save();
+
+    return res.json({
+      user: serializeUser(user),
+    });
+  }),
+);
+
+authRouter.post(
+  "/me/redeem-access-code",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const payload = redeemAccessCodeSchema.parse(req.body);
+    const normalizedCode = payload.code.trim().toUpperCase();
+
+    const user = await UserModel.findById(req.authUser?.id);
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        message: "User not found",
+      });
+    }
+
+    const accessCode = await AccessCodeModel.findOne({
+      code: { $regex: new RegExp(`^${escapeRegExp(normalizedCode)}$`, "i") },
+    });
+
+    if (!accessCode) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        message: "كود التفعيل غير موجود",
+      });
+    }
+
+    if (accessCode.expiresAt <= Date.now()) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        message: "انتهت صلاحية كود التفعيل",
+      });
+    }
+
+    if ((accessCode.currentUses || 0) >= (accessCode.maxUses || 0)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        message: "تم استهلاك عدد التفعيلات المتاح لهذا الكود",
+      });
+    }
+
+    const linkedPackage = await B2BPackageModel.findOne({
+      $or: [{ id: accessCode.packageId }, { _id: accessCode.packageId }],
+    });
+
+    if (!linkedPackage || linkedPackage.status !== "active") {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        message: "الباقة المرتبطة بهذا الكود غير متاحة الآن",
+      });
+    }
+
+    if ((user.subscription?.purchasedPackages || []).includes(String(linkedPackage.id || linkedPackage._id))) {
+      return res.status(StatusCodes.CONFLICT).json({
+        message: "تم تفعيل هذه الباقة على الحساب بالفعل",
+      });
+    }
+
+    const packageId = String(linkedPackage.id || linkedPackage._id);
+    const courseIds = Array.isArray(linkedPackage.courseIds) ? linkedPackage.courseIds.map(String) : [];
+
+    user.subscription = {
+      ...user.subscription,
+      plan: "premium",
+      purchasedPackages: uniqueStrings([...(user.subscription?.purchasedPackages || []), packageId]),
+      purchasedCourses: uniqueStrings([...(user.subscription?.purchasedCourses || []), ...courseIds]),
+    };
+    user.enrolledCourses = uniqueStrings([...(user.enrolledCourses || []), ...courseIds]);
+
+    accessCode.currentUses = (accessCode.currentUses || 0) + 1;
+
+    await Promise.all([user.save(), accessCode.save()]);
+
+    return res.json({
+      user: serializeUser(user),
+      accessCode,
+      package: linkedPackage,
     });
   }),
 );

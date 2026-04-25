@@ -2,7 +2,7 @@
 import React, { useState, Suspense } from 'react';
 import { 
     Clock, TrendingUp, AlertTriangle, Zap, FileText, 
-    PieChart, Heart, Map, HelpCircle, LayoutDashboard, 
+    PieChart, Heart, Map as MapIcon, HelpCircle, LayoutDashboard, 
     ShoppingCart, ChevronLeft, Menu, X, Target, Loader2, CheckCircle, BookOpen, Star,
     Route as RouteIcon, Brain, Calendar, User
 } from 'lucide-react';
@@ -30,7 +30,7 @@ const TabLoading = () => (
 const buildSmartPathSkillsFromResults = (examResults: QuizResult[]): SkillGap[] => {
     if (!examResults || examResults.length === 0) return [];
 
-    const skillMap = new Map<string, {
+    const skillMap = new globalThis.Map<string, {
         skillId?: string;
         pathId?: string;
         subjectId?: string;
@@ -363,7 +363,7 @@ const Dashboard: React.FC = () => {
         { id: 'quizzes', label: 'اختباراتي', icon: <FileText size={20} /> },
         { id: 'reports', label: 'تقاريري', icon: <PieChart size={20} /> },
         { id: 'favorites', label: 'الأسئلة المفضلة', icon: <Heart size={20} /> },
-        { id: 'plan', label: 'خطتي', icon: <Map size={20} /> },
+                { id: 'plan', label: 'خطتي', icon: <MapIcon size={20} /> },
         { id: 'qa', label: 'سؤال وجواب', icon: <HelpCircle size={20} /> },
         { id: 'requests', label: 'طلباتي', icon: <ShoppingCart size={20} /> },
     ];
@@ -692,7 +692,7 @@ const OverviewTab = ({ setActiveTab }: { setActiveTab: (tab: any) => void }) => 
                     </button>
                     <button onClick={() => setActiveTab('plan')} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-2 group">
                         <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                            <Map size={24} />
+                                <MapIcon size={24} />
                         </div>
                         <span className="font-bold text-gray-800 text-xs">خطتي</span>
                     </button>
@@ -808,7 +808,7 @@ const SaherTab = () => {
             });
 
             return map;
-        }, new Map<string, {
+        }, new globalThis.Map<string, {
             key: string;
             skillId?: string;
             subjectId?: string;

@@ -68,11 +68,40 @@ export const api = {
       method: "POST",
       body: { name, email, password },
     }),
+  createAdminUser: (payload: unknown, token?: string | null) =>
+    request<{ user: unknown }>("/auth/admin/users", {
+      method: "POST",
+      body: payload,
+      token,
+    }),
+  getAdminUsers: () =>
+    request<{ users: unknown[] }>("/auth/admin/users"),
+  updateAdminUser: (id: string, payload: unknown, token?: string | null) =>
+    request<{ user: unknown }>(`/auth/admin/users/${id}`, {
+      method: "PATCH",
+      body: payload,
+      token,
+    }),
   getCurrentUser: () =>
     request<{ user: unknown }>("/auth/me"),
   updateMyPreferences: (payload: { favorites?: string[]; reviewLater?: string[] }, token?: string | null) =>
     request<{ user: unknown }>("/auth/me/preferences", {
       method: "PATCH",
+      body: payload,
+      token,
+    }),
+  completePurchase: (
+    payload: { courseId?: string; packageId?: string; includedCourseIds?: string[] },
+    token?: string | null,
+  ) =>
+    request<{ user: unknown }>("/auth/me/purchase", {
+      method: "POST",
+      body: payload,
+      token,
+    }),
+  redeemAccessCode: (payload: { code: string }, token?: string | null) =>
+    request<{ user: unknown; accessCode: unknown; package: unknown }>("/auth/me/redeem-access-code", {
+      method: "POST",
       body: payload,
       token,
     }),
@@ -164,7 +193,7 @@ export const api = {
       token,
     }),
   getContentBootstrap: () =>
-    request<{ topics: unknown[]; lessons: unknown[]; libraryItems: unknown[]; groups: unknown[] }>("/content/bootstrap"),
+    request<{ topics: unknown[]; lessons: unknown[]; libraryItems: unknown[]; groups: unknown[]; b2bPackages: unknown[]; accessCodes: unknown[] }>("/content/bootstrap"),
   createTopic: (payload: unknown, token?: string | null) =>
     request<unknown>("/content/topics", {
       method: "POST",
@@ -216,6 +245,67 @@ export const api = {
       method: "DELETE",
       token,
     }),
+  createGroup: (payload: unknown, token?: string | null) =>
+    request<unknown>("/content/groups", {
+      method: "POST",
+      body: payload,
+      token,
+    }),
+  updateGroup: (id: string, payload: unknown, token?: string | null) =>
+    request<unknown>(`/content/groups/${id}`, {
+      method: "PATCH",
+      body: payload,
+      token,
+    }),
+  deleteGroup: (id: string, token?: string | null) =>
+    request<{ success: boolean }>(`/content/groups/${id}`, {
+      method: "DELETE",
+      token,
+    }),
+  createB2BPackage: (payload: unknown, token?: string | null) =>
+    request<unknown>("/content/b2b-packages", {
+      method: "POST",
+      body: payload,
+      token,
+    }),
+  updateB2BPackage: (id: string, payload: unknown, token?: string | null) =>
+    request<unknown>(`/content/b2b-packages/${id}`, {
+      method: "PATCH",
+      body: payload,
+      token,
+    }),
+  deleteB2BPackage: (id: string, token?: string | null) =>
+    request<{ success: boolean }>(`/content/b2b-packages/${id}`, {
+      method: "DELETE",
+      token,
+    }),
+  createAccessCode: (payload: unknown, token?: string | null) =>
+    request<unknown>("/content/access-codes", {
+      method: "POST",
+      body: payload,
+      token,
+    }),
+  updateAccessCode: (id: string, payload: unknown, token?: string | null) =>
+    request<unknown>(`/content/access-codes/${id}`, {
+      method: "PATCH",
+      body: payload,
+      token,
+    }),
+  deleteAccessCode: (id: string, token?: string | null) =>
+    request<{ success: boolean }>(`/content/access-codes/${id}`, {
+      method: "DELETE",
+      token,
+    }),
+  getSchoolReport: (id: string, token?: string | null) =>
+    request<unknown>(`/content/schools/${id}/report`, {
+      token,
+    }),
+  importSchoolStudents: (id: string, payload: unknown, token?: string | null) =>
+    request<unknown>(`/content/schools/${id}/import-students`, {
+      method: "POST",
+      body: payload,
+      token,
+    }),
   getCourses: () => request<unknown[]>("/courses"),
   getCourseById: (id: string) => request<unknown>(`/courses/${id}`),
   createCourse: (payload: unknown, token?: string | null) =>
@@ -254,6 +344,7 @@ export const api = {
       token,
     }),
   getQuizzes: () => request<unknown[]>("/quizzes"),
+  getQuizAnalyticsOverview: () => request<unknown>("/quizzes/analytics/overview"),
   createQuiz: (payload: unknown, token?: string | null) =>
     request<unknown>("/quizzes", {
       method: "POST",

@@ -10,6 +10,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { PaymentModal } from '../components/PaymentModal';
 import { useStore } from '../store/useStore';
 
 const formatQuizDate = (date?: string) => {
@@ -31,8 +32,9 @@ const formatCreatedDate = (date?: number) => {
 };
 
 const Quizzes: React.FC = () => {
-  const { examResults, quizzes, subjects, lessons, libraryItems, user, checkAccess } = useStore();
+  const { examResults, quizzes, subjects, lessons, libraryItems, user, checkAccess, hasScopedPackageAccess, getMatchingPackage } = useStore();
   const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [lockedQuizForPayment, setLockedQuizForPayment] = useState<(typeof quizzes)[number] | null>(null);
 
   const totalQuizzes = examResults.length;
   const passedQuizzes = examResults.filter((quiz) => quiz.score >= 50).length;
@@ -60,7 +62,8 @@ const Quizzes: React.FC = () => {
         }
       }
 
-      if ((quiz.mode || 'regular') === 'central') {
+      const hasExplicitTargets = (quiz.targetUserIds || []).length > 0 || (quiz.targetGroupIds || []).length > 0;
+      if (hasExplicitTargets) {
         const userGroups = user.groupIds || [];
         const userTargeted = (quiz.targetUserIds || []).length === 0 || (quiz.targetUserIds || []).includes(user.id);
         const groupTargeted =
@@ -71,15 +74,20 @@ const Quizzes: React.FC = () => {
       }
 
       if (quiz.access.type === 'free') return true;
-      if (quiz.access.type === 'paid') return checkAccess(quiz.id, true);
+      if (quiz.access.type === 'paid') {
+        return hasScopedPackageAccess('tests', quiz.pathId, quiz.subjectId) || checkAccess(quiz.id, true);
+      }
       if (quiz.access.type === 'private') {
         const userGroups = user.groupIds || [];
-        return !!quiz.access.allowedGroupIds?.some((groupId) => userGroups.includes(groupId));
+        return (quiz.access.allowedGroupIds || []).length === 0 || !!quiz.access.allowedGroupIds?.some((groupId) => userGroups.includes(groupId));
+      }
+      if (quiz.access.type === 'course_only') {
+        return hasScopedPackageAccess('courses', quiz.pathId, quiz.subjectId);
       }
 
       return false;
     },
-    [checkAccess, quizzes, user.groupIds, user.id],
+    [checkAccess, hasScopedPackageAccess, quizzes, user.groupIds, user.id],
   );
 
   const availablePreparedQuizzes = useMemo(
@@ -100,9 +108,32 @@ const Quizzes: React.FC = () => {
     [availablePreparedQuizzes],
   );
 
+  const guidedSaherQuizzes = useMemo(
+    () =>
+      availablePreparedQuizzes.filter((quiz) => {
+        const mode = quiz.mode || 'regular';
+        const hasExplicitTargets = (quiz.targetUserIds || []).length > 0 || (quiz.targetGroupIds || []).length > 0;
+        return mode === 'saher' || mode === 'central' || hasExplicitTargets;
+      }),
+    [availablePreparedQuizzes],
+  );
+
   const regularPreparedQuizzes = useMemo(
     () => availablePreparedQuizzes.filter((quiz) => (quiz.mode || 'regular') === 'regular'),
     [availablePreparedQuizzes],
+  );
+
+  const lockedPaidQuizzes = useMemo(
+    () =>
+      quizzes
+        .filter((quiz) => {
+          if (!quiz.isPublished || (quiz.type ?? 'quiz') !== 'quiz') return false;
+          if (quiz.access.type !== 'paid') return false;
+          return !canAccessQuiz(quiz);
+        })
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+        .slice(0, 4),
+    [canAccessQuiz, quizzes],
   );
 
   const weakSkillRecommendations = useMemo(() => {
@@ -333,6 +364,12 @@ const Quizzes: React.FC = () => {
               badgeClassName="bg-gray-100 text-gray-700"
               badgeLabel="جاهز"
             />
+
+            <LockedQuizSection
+              items={lockedPaidQuizzes}
+              subjects={subjects}
+              onOpenPayment={(quiz) => setLockedQuizForPayment(quiz)}
+            />
           </div>
         </div>
 
@@ -420,6 +457,40 @@ const Quizzes: React.FC = () => {
           </div>
         )}
       </div>
+
+      <PaymentModal
+        isOpen={!!lockedQuizForPayment}
+        onClose={() => setLockedQuizForPayment(null)}
+        item={
+          lockedQuizForPayment
+            ? (() => {
+                const matchedPackage = getMatchingPackage('tests', lockedQuizForPayment.pathId, lockedQuizForPayment.subjectId);
+                return matchedPackage
+                  ? {
+                      id: matchedPackage.id,
+                      packageId: matchedPackage.id,
+                      purchaseType: 'package',
+                      title: matchedPackage.name,
+                      description: `هذه الباقة تفتح الاختبارات المرتبطة بـ ${subjects.find((subject) => subject.id === lockedQuizForPayment.subjectId)?.name || 'هذه المادة'}.`,
+                      contentTypes: matchedPackage.contentTypes,
+                      pathIds: matchedPackage.pathIds,
+                      subjectIds: matchedPackage.subjectIds,
+                      includedCourseIds: matchedPackage.courseIds,
+                      courseIds: matchedPackage.courseIds,
+                      price: lockedQuizForPayment.access.price || 99,
+                      currency: 'ر.س',
+                    }
+                  : {
+                      id: lockedQuizForPayment.id,
+                      title: lockedQuizForPayment.title,
+                      price: lockedQuizForPayment.access.price || 99,
+                      currency: 'ر.س',
+                    };
+              })()
+            : null
+        }
+        type={lockedQuizForPayment && getMatchingPackage('tests', lockedQuizForPayment.pathId, lockedQuizForPayment.subjectId) ? 'package' : 'test'}
+      />
     </div>
   );
 };
@@ -520,6 +591,60 @@ const ActionCard = ({
           {buttonLabel}
         </Link>
       )}
+    </div>
+  );
+};
+
+const LockedQuizSection = ({
+  items,
+  subjects,
+  onOpenPayment,
+}: {
+  items: Array<{
+    id: string;
+    title: string;
+    subjectId: string;
+    questionIds: string[];
+    createdAt: number;
+    access: { price?: number };
+  }>;
+  subjects: ReturnType<typeof useStore.getState>['subjects'];
+  onOpenPayment: (quiz: any) => void;
+}) => {
+  if (items.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-bold text-gray-800">اختبارات مقفولة تحتاج باقة</h3>
+        <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700">مدفوع</span>
+      </div>
+
+      <div className="space-y-3">
+        {items.map((quiz) => (
+          <div
+            key={quiz.id}
+            className="border border-rose-100 rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-rose-50/30"
+          >
+            <div className="space-y-1">
+              <div className="font-bold text-gray-900">{quiz.title}</div>
+              <div className="text-sm text-gray-500">
+                {subjects.find((subject) => subject.id === quiz.subjectId)?.name || 'بدون مادة'} - {quiz.questionIds.length} سؤال
+              </div>
+              <div className="text-xs text-gray-400 flex items-center gap-2">
+                <Clock size={14} />
+                <span>{formatCreatedDate(quiz.createdAt)}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => onOpenPayment(quiz)}
+              className="bg-rose-600 text-white px-5 py-2 rounded-lg font-bold text-sm hover:bg-rose-700 transition-colors text-center"
+            >
+              افتح الباقة المناسبة
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

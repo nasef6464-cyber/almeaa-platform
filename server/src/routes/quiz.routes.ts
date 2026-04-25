@@ -5,7 +5,9 @@ import { z } from "zod";
 import { QuizModel } from "../models/Quiz.js";
 import { QuestionModel } from "../models/Question.js";
 import { QuizResultModel } from "../models/QuizResult.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { UserModel } from "../models/User.js";
+import { GroupModel } from "../models/Group.js";
+import { optionalAuth, requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const questionSchema = z.object({
@@ -22,6 +24,15 @@ const questionSchema = z.object({
   sectionId: z.string().optional(),
   difficulty: z.enum(["Easy", "Medium", "Hard"]).default("Medium"),
   type: z.enum(["mcq", "true_false", "essay"]).default("mcq"),
+  ownerType: z.enum(["platform", "teacher", "school"]).optional(),
+  ownerId: z.string().optional(),
+  createdBy: z.string().optional(),
+  assignedTeacherId: z.string().optional(),
+  approvalStatus: z.enum(["draft", "pending_review", "approved", "rejected"]).optional(),
+  approvedBy: z.string().optional(),
+  approvedAt: z.number().nullable().optional(),
+  reviewerNotes: z.string().optional(),
+  revenueSharePercentage: z.number().nullable().optional(),
 });
 
 const quizSchema = z.object({
@@ -41,6 +52,15 @@ const quizSchema = z.object({
   targetUserIds: z.array(z.string()).default([]),
   dueDate: z.string().nullable().optional(),
   isPublished: z.boolean().default(false),
+  ownerType: z.enum(["platform", "teacher", "school"]).optional(),
+  ownerId: z.string().optional(),
+  createdBy: z.string().optional(),
+  assignedTeacherId: z.string().optional(),
+  approvalStatus: z.enum(["draft", "pending_review", "approved", "rejected"]).optional(),
+  approvedBy: z.string().optional(),
+  approvedAt: z.number().nullable().optional(),
+  reviewerNotes: z.string().optional(),
+  revenueSharePercentage: z.number().nullable().optional(),
 });
 
 const buildDocumentQuery = (value: string) => {
@@ -60,12 +80,140 @@ const resolveQuizSkillIds = async (questionIds: string[]) => {
   return [...new Set(questions.flatMap((question) => question.skillIds || []).filter(Boolean))];
 };
 
+const isStaffRole = (role?: string) => role === "admin" || role === "teacher" || role === "supervisor";
+
+const getWorkflowDefaults = (authUser?: { id: string; role: string; schoolId?: string | null }) => {
+  if (!authUser) {
+    return {};
+  }
+
+  if (authUser.role === "admin") {
+    return {
+      ownerType: "platform",
+      ownerId: authUser.id,
+      createdBy: authUser.id,
+      approvalStatus: "approved",
+      approvedBy: authUser.id,
+      approvedAt: Date.now(),
+    };
+  }
+
+  if (authUser.role === "teacher") {
+    return {
+      ownerType: "teacher",
+      ownerId: authUser.id,
+      createdBy: authUser.id,
+      assignedTeacherId: authUser.id,
+      approvalStatus: "pending_review",
+      approvedBy: "",
+      approvedAt: null,
+    };
+  }
+
+  return {
+    ownerType: "school",
+    ownerId: authUser.schoolId || authUser.id,
+    createdBy: authUser.id,
+    approvalStatus: "pending_review",
+    approvedBy: "",
+    approvedAt: null,
+  };
+};
+
+const sanitizeWorkflowUpdate = (
+  payload: Record<string, unknown>,
+  authUser: { id: string; role: string; schoolId?: string | null },
+  options?: { respectPublished?: boolean },
+) => {
+  const nextPayload = { ...payload };
+
+  if (authUser.role !== "admin") {
+    delete nextPayload.ownerType;
+    delete nextPayload.ownerId;
+    delete nextPayload.createdBy;
+    delete nextPayload.approvedBy;
+    delete nextPayload.approvedAt;
+    delete nextPayload.reviewerNotes;
+    delete nextPayload.revenueSharePercentage;
+    if (typeof nextPayload.approvalStatus === "string" && nextPayload.approvalStatus === "approved") {
+      nextPayload.approvalStatus = "pending_review";
+    }
+    if (options?.respectPublished && nextPayload.isPublished === true) {
+      nextPayload.isPublished = false;
+    }
+  } else if (typeof nextPayload.approvalStatus === "string") {
+    if (nextPayload.approvalStatus === "approved") {
+      nextPayload.approvedBy = authUser.id;
+      nextPayload.approvedAt = Date.now();
+    } else if (nextPayload.approvalStatus === "rejected" || nextPayload.approvalStatus === "pending_review") {
+      nextPayload.approvedBy = "";
+      nextPayload.approvedAt = null;
+      if (options?.respectPublished) {
+        nextPayload.isPublished = false;
+      }
+    }
+  }
+
+  return nextPayload;
+};
+
+const uniqueStrings = (values: Array<string | undefined | null>) =>
+  [...new Set(values.filter((value): value is string => typeof value === "string" && value.trim().length > 0))];
+
+const buildRecommendedAction = (mastery: number, attemptCount: number) => {
+  if (mastery < 45) {
+    return "خطة علاج عاجلة: شرح + تدريب + اختبار موجه";
+  }
+
+  if (mastery < 65) {
+    return attemptCount >= 3 ? "زيادة التدريب ثم اختبار ساهر علاجي" : "إضافة تدريب قصير ومتابعة الأداء";
+  }
+
+  return "تثبيت المهارة بتدريب خفيف وإعادة قياس لاحقًا";
+};
+
+const matchesManagedScope = (
+  gap: any,
+  managedPathIds: Set<string>,
+  managedSubjectIds: Set<string>,
+) => {
+  if (managedPathIds.size === 0 && managedSubjectIds.size === 0) {
+    return true;
+  }
+
+  const gapSubjectId = String(gap?.subjectId || "");
+  const gapPathId = String(gap?.pathId || "");
+
+  if (managedSubjectIds.size > 0 && gapSubjectId && managedSubjectIds.has(gapSubjectId)) {
+    return true;
+  }
+
+  if (managedPathIds.size > 0 && gapPathId && managedPathIds.has(gapPathId)) {
+    return true;
+  }
+
+  return false;
+};
+
+const toSafeDate = (value?: string) => {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+};
+
 export const quizRouter = Router();
 
 quizRouter.get(
   "/questions",
-  asyncHandler(async (_req, res) => {
-    const items = await QuestionModel.find().sort({ createdAt: -1 });
+  optionalAuth,
+  asyncHandler(async (req, res) => {
+    const items = await QuestionModel.find(
+      isStaffRole(req.authUser?.role)
+        ? {}
+        : {
+            $or: [{ approvalStatus: "approved" }, { approvalStatus: { $exists: false } }, { approvalStatus: null }],
+          },
+    ).sort({ createdAt: -1 });
     res.json(items);
   }),
 );
@@ -76,7 +224,15 @@ quizRouter.post(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = questionSchema.parse(req.body);
-    const created = await QuestionModel.create(payload);
+    const workflowDefaults = getWorkflowDefaults(req.authUser!);
+    const created = await QuestionModel.create({
+      ...payload,
+      ...workflowDefaults,
+      approvalStatus:
+        req.authUser?.role === "admin"
+          ? payload.approvalStatus || workflowDefaults.approvalStatus
+          : workflowDefaults.approvalStatus,
+    });
     res.status(StatusCodes.CREATED).json(created);
   }),
 );
@@ -87,9 +243,10 @@ quizRouter.patch(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = questionSchema.partial().parse(req.body);
+    const sanitizedPayload = sanitizeWorkflowUpdate(payload as Record<string, unknown>, req.authUser!);
     const updated = await QuestionModel.findOneAndUpdate(
       buildDocumentQuery(req.params.id),
-      payload,
+      sanitizedPayload,
       { new: true },
     );
 
@@ -118,9 +275,303 @@ quizRouter.delete(
 
 quizRouter.get(
   "/",
-  asyncHandler(async (_req, res) => {
-    const items = await QuizModel.find().sort({ createdAt: -1 });
+  optionalAuth,
+  asyncHandler(async (req, res) => {
+    const items = await QuizModel.find(
+      isStaffRole(req.authUser?.role)
+        ? {}
+        : {
+            isPublished: true,
+            $or: [{ approvalStatus: "approved" }, { approvalStatus: { $exists: false } }, { approvalStatus: null }],
+          },
+    ).sort({ createdAt: -1 });
     res.json(items);
+  }),
+);
+
+quizRouter.get(
+  "/analytics/overview",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const authUser = await UserModel.findById(req.authUser!.id);
+
+    if (!authUser) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "User not found" });
+    }
+
+    const managedPathIds = new Set((authUser.managedPathIds || []).map(String));
+    const managedSubjectIds = new Set((authUser.managedSubjectIds || []).map(String));
+    const allStudents = await UserModel.find({ role: "student" });
+    let scopedStudents = allStudents.filter((student) => String(student.id) === req.authUser!.id);
+
+    if (authUser.role === "admin") {
+      scopedStudents = allStudents;
+    } else if (authUser.role === "teacher" || authUser.role === "supervisor") {
+      const allowedGroupIds = new Set((authUser.groupIds || []).map(String));
+      scopedStudents = allStudents.filter((student) => {
+        const studentGroupIds = (student.groupIds || []).map(String);
+        const sharesGroup = studentGroupIds.some((groupId) => allowedGroupIds.has(groupId));
+        const sharesSchool = !!authUser.schoolId && String(student.schoolId || "") === String(authUser.schoolId);
+        return sharesGroup || sharesSchool;
+      });
+    } else if (authUser.role === "parent") {
+      const linkedStudentIds = new Set((authUser.linkedStudentIds || []).map(String));
+      scopedStudents = allStudents.filter((student) => linkedStudentIds.has(String(student.id)));
+    }
+
+    const scopedStudentIds = scopedStudents.map((student) => String(student.id));
+    const relatedGroupIds = uniqueStrings([
+      ...scopedStudents.flatMap((student) => (student.groupIds || []).map(String)),
+      ...(authUser.groupIds || []).map(String),
+      authUser.schoolId ? String(authUser.schoolId) : undefined,
+    ]);
+
+    const groups = relatedGroupIds.length
+      ? await GroupModel.find({ id: { $in: relatedGroupIds } })
+      : [];
+
+    const groupNameById = new Map(groups.map((group) => [String(group.id), String(group.name || "")]));
+
+    let quizResults = scopedStudentIds.length
+      ? await QuizResultModel.find({ userId: { $in: scopedStudentIds } }).sort({ createdAt: -1 })
+      : [];
+
+    if (authUser.role === "teacher" && (managedPathIds.size > 0 || managedSubjectIds.size > 0)) {
+      quizResults = quizResults.filter((result) => {
+        const skills = Array.isArray(result.skillsAnalysis) ? result.skillsAnalysis : [];
+        return skills.some((gap: any) => matchesManagedScope(gap, managedPathIds, managedSubjectIds));
+      });
+    }
+
+    const resultsByStudent = new Map<string, any[]>();
+    quizResults.forEach((result) => {
+      const key = String(result.userId || "");
+      const bucket = resultsByStudent.get(key) || [];
+      bucket.push(result);
+      resultsByStudent.set(key, bucket);
+    });
+
+    const weakestStudents = scopedStudents
+      .map((student) => {
+        const studentId = String(student.id);
+        const results = resultsByStudent.get(studentId) || [];
+        const attempts = results.length;
+        const averageScore = attempts
+          ? Math.round(results.reduce((sum, result) => sum + (Number(result.score) || 0), 0) / attempts)
+          : 0;
+
+        const weakSkillMap = new Map<string, { skill: string; masterySum: number; count: number }>();
+
+        results.forEach((result) => {
+          const skills = (Array.isArray(result.skillsAnalysis) ? result.skillsAnalysis : []).filter((gap: any) =>
+            authUser.role === "teacher"
+              ? matchesManagedScope(gap, managedPathIds, managedSubjectIds)
+              : true,
+          );
+          skills.forEach((gap: any) => {
+            const mastery = Number(gap?.mastery || 0);
+            if (mastery >= 75) return;
+            const key = String(gap?.skillId || gap?.skill || gap?.sectionId || "unknown");
+            const current = weakSkillMap.get(key) || {
+              skill: String(gap?.skill || "مهارة غير مسماة"),
+              masterySum: 0,
+              count: 0,
+            };
+            current.masterySum += mastery;
+            current.count += 1;
+            weakSkillMap.set(key, current);
+          });
+        });
+
+        const weakestSkills = Array.from(weakSkillMap.values())
+          .map((item) => ({
+            skill: item.skill,
+            mastery: Math.round(item.masterySum / Math.max(item.count, 1)),
+          }))
+          .sort((a, b) => a.mastery - b.mastery)
+          .slice(0, 3);
+
+        return {
+          id: studentId,
+          name: student.name,
+          email: student.email,
+          schoolId: student.schoolId || undefined,
+          schoolName: student.schoolId ? groupNameById.get(String(student.schoolId)) : undefined,
+          groupIds: (student.groupIds || []).map(String),
+          groupNames: (student.groupIds || []).map((groupId) => groupNameById.get(String(groupId))).filter(Boolean),
+          attempts,
+          averageScore,
+          weakSkillCount: weakSkillMap.size,
+          weakestSkills,
+          latestAttemptAt: toSafeDate(results[0]?.createdAt),
+          recommendedAction:
+            attempts === 0
+              ? "ابدأ باختبار تشخيصي موجه لهذه الحالة"
+              : averageScore < 50
+                ? "أرسل خطة علاج عاجلة واختبار متابعة موجه"
+                : averageScore < 70
+                  ? "أضف تدريبات علاجية واختبار ساهر مخصص"
+                  : "استمر في التثبيت والمتابعة الدورية",
+        };
+      })
+      .sort((a, b) => a.averageScore - b.averageScore || b.weakSkillCount - a.weakSkillCount)
+      .slice(0, 12);
+
+    const weakSkillMap = new Map<
+      string,
+      {
+        skillId?: string;
+        skill: string;
+        subjectId?: string;
+        sectionId?: string;
+        section?: string;
+        masterySum: number;
+        attempts: number;
+        studentIds: Set<string>;
+      }
+    >();
+
+    quizResults.forEach((result) => {
+      const skills = (Array.isArray(result.skillsAnalysis) ? result.skillsAnalysis : []).filter((gap: any) =>
+        authUser.role === "teacher"
+          ? matchesManagedScope(gap, managedPathIds, managedSubjectIds)
+          : true,
+      );
+      skills.forEach((gap: any) => {
+        const mastery = Number(gap?.mastery || 0);
+        if (mastery >= 75) return;
+
+        const key = String(gap?.skillId || gap?.skill || gap?.sectionId || "unknown");
+        const current = weakSkillMap.get(key) || {
+          skillId: gap?.skillId,
+          skill: String(gap?.skill || "مهارة غير مسماة"),
+          subjectId: gap?.subjectId,
+          sectionId: gap?.sectionId,
+          section: gap?.section,
+          masterySum: 0,
+          attempts: 0,
+          studentIds: new Set<string>(),
+        };
+
+        current.masterySum += mastery;
+        current.attempts += 1;
+        current.studentIds.add(String(result.userId || ""));
+        weakSkillMap.set(key, current);
+      });
+    });
+
+    const weakestSkills = Array.from(weakSkillMap.values())
+      .map((item) => {
+        const mastery = Math.round(item.masterySum / Math.max(item.attempts, 1));
+        return {
+          skillId: item.skillId,
+          skill: item.skill,
+          subjectId: item.subjectId,
+          sectionId: item.sectionId,
+          section: item.section,
+          mastery,
+          attempts: item.attempts,
+          affectedStudents: item.studentIds.size,
+          recommendedAction: buildRecommendedAction(mastery, item.attempts),
+        };
+      })
+      .sort((a, b) => a.mastery - b.mastery || b.affectedStudents - a.affectedStudents)
+      .slice(0, 12);
+
+    const subjectMap = new Map<
+      string,
+      {
+        subjectId?: string;
+        subjectName: string;
+        masterySum: number;
+        count: number;
+        weakStudents: Set<string>;
+      }
+    >();
+
+    quizResults.forEach((result) => {
+      const skills = (Array.isArray(result.skillsAnalysis) ? result.skillsAnalysis : []).filter((gap: any) =>
+        authUser.role === "teacher"
+          ? matchesManagedScope(gap, managedPathIds, managedSubjectIds)
+          : true,
+      );
+      skills.forEach((gap: any) => {
+        if (!gap?.subjectId && !gap?.subjectName && !result.quizTitle) return;
+        const key = String(gap?.subjectId || gap?.subjectName || result.quizTitle);
+        const current = subjectMap.get(key) || {
+          subjectId: gap?.subjectId,
+          subjectName: String(gap?.subjectName || result.quizTitle || "مادة غير مسماة"),
+          masterySum: 0,
+          count: 0,
+          weakStudents: new Set<string>(),
+        };
+
+        current.masterySum += Number(gap?.mastery || 0);
+        current.count += 1;
+        if (Number(gap?.mastery || 0) < 75) {
+          current.weakStudents.add(String(result.userId || ""));
+        }
+        subjectMap.set(key, current);
+      });
+    });
+
+    const subjectSummaries = Array.from(subjectMap.values())
+      .map((item) => ({
+        subjectId: item.subjectId,
+        subjectName: item.subjectName,
+        mastery: Math.round(item.masterySum / Math.max(item.count, 1)),
+        weakStudents: item.weakStudents.size,
+      }))
+      .sort((a, b) => a.mastery - b.mastery)
+      .slice(0, 10);
+
+    let assignedFollowUps = await QuizModel.find({
+      isPublished: true,
+      mode: { $in: ["saher", "central"] },
+      $or: [
+        { targetUserIds: { $in: scopedStudentIds } },
+        { targetGroupIds: { $in: relatedGroupIds } },
+      ],
+    }).sort({ createdAt: -1 }).limit(12);
+
+    if (authUser.role === "teacher" && (managedPathIds.size > 0 || managedSubjectIds.size > 0)) {
+      assignedFollowUps = assignedFollowUps.filter((quiz) => {
+        const quizPathId = String(quiz.pathId || "");
+        const quizSubjectId = String(quiz.subjectId || "");
+
+        if (managedSubjectIds.size > 0 && quizSubjectId && managedSubjectIds.has(quizSubjectId)) {
+          return true;
+        }
+
+        if (managedPathIds.size > 0 && quizPathId && managedPathIds.has(quizPathId)) {
+          return true;
+        }
+
+        return false;
+      });
+    }
+
+    return res.json({
+      scope: {
+        role: authUser.role,
+        studentCount: scopedStudents.length,
+        groupCount: relatedGroupIds.length,
+        quizAttempts: quizResults.length,
+      },
+      weakestStudents,
+      weakestSkills,
+      subjectSummaries,
+      assignedFollowUps: assignedFollowUps.map((quiz) => ({
+        id: String(quiz.id),
+        title: quiz.title,
+        mode: quiz.mode || "regular",
+        pathId: quiz.pathId,
+        subjectId: quiz.subjectId,
+        targetGroupIds: quiz.targetGroupIds || [],
+        targetUserIds: quiz.targetUserIds || [],
+        dueDate: quiz.dueDate || undefined,
+      })),
+    });
   }),
 );
 
@@ -153,10 +604,17 @@ quizRouter.post(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = quizSchema.parse(req.body);
-      const resolvedSkillIds = await resolveQuizSkillIds(payload.questionIds);
-      const created = await QuizModel.create({
-        ...payload,
-        skillIds: resolvedSkillIds,
+    const resolvedSkillIds = await resolveQuizSkillIds(payload.questionIds);
+    const workflowDefaults = getWorkflowDefaults(req.authUser!);
+    const created = await QuizModel.create({
+      ...payload,
+      ...workflowDefaults,
+      approvalStatus:
+        req.authUser?.role === "admin"
+          ? payload.approvalStatus || workflowDefaults.approvalStatus
+          : workflowDefaults.approvalStatus,
+      isPublished: req.authUser?.role === "admin" ? payload.isPublished : false,
+      skillIds: resolvedSkillIds,
     });
     res.status(StatusCodes.CREATED).json(created);
   }),
@@ -168,15 +626,20 @@ quizRouter.patch(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = quizSchema.partial().parse(req.body);
-      const resolvedSkillIds = payload.questionIds
-        ? await resolveQuizSkillIds(payload.questionIds)
-        : undefined;
-    const updated = await QuizModel.findOneAndUpdate(
-      buildDocumentQuery(req.params.id),
+    const resolvedSkillIds = payload.questionIds
+      ? await resolveQuizSkillIds(payload.questionIds)
+      : undefined;
+    const sanitizedPayload = sanitizeWorkflowUpdate(
       {
         ...payload,
         ...(resolvedSkillIds ? { skillIds: resolvedSkillIds } : {}),
-      },
+      } as Record<string, unknown>,
+      req.authUser!,
+      { respectPublished: true },
+    );
+    const updated = await QuizModel.findOneAndUpdate(
+      buildDocumentQuery(req.params.id),
+      sanitizedPayload,
       { new: true },
     );
 

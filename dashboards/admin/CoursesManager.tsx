@@ -8,6 +8,29 @@ interface CoursesManagerProps {
   subjectId?: string;
 }
 
+const getCourseStatusMeta = (course: Course) => {
+  if (course.approvalStatus === 'rejected') {
+    return { label: 'مرفوض', className: 'bg-red-50 text-red-600' };
+  }
+
+  if (course.approvalStatus === 'pending_review') {
+    return { label: 'بانتظار المراجعة', className: 'bg-amber-50 text-amber-600' };
+  }
+
+  if (course.approvalStatus === 'approved' && course.isPublished !== false) {
+    return { label: 'معتمد ومنشور', className: 'bg-emerald-50 text-emerald-600' };
+  }
+
+  if (course.approvalStatus === 'approved') {
+    return { label: 'معتمد غير منشور', className: 'bg-blue-50 text-blue-600' };
+  }
+
+  return {
+    label: course.isPublished !== false ? 'منشور قديم' : 'مسودة',
+    className: course.isPublished !== false ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-600',
+  };
+};
+
 export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => {
   const { courses, addCourse, updateCourse, deleteCourse, subjects } = useStore();
   const [isBuilding, setIsBuilding] = useState(false);
@@ -46,16 +69,15 @@ export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => 
     };
 
     if (editingCourse?.id) {
-      // Update existing
       updateCourse(editingCourse.id, normalizedCourseData);
     } else {
-      // Create new
       const newCourse = {
         ...normalizedCourseData,
         id: `course_${Date.now()}`,
       } as Course;
       addCourse(newCourse);
     }
+
     setIsBuilding(false);
   };
 
@@ -65,20 +87,32 @@ export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => 
     }
   };
 
-  const filteredCourses = courses.filter(c => {
-    const matchesSearch = c.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          c.category.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSubject = subjectId ? (c.subjectId || c.subject) === subjectId : true;
+  const handleApprove = (course: Course) => {
+    updateCourse(course.id, {
+      approvalStatus: 'approved',
+      isPublished: true,
+      approvedAt: Date.now(),
+    });
+  };
+
+  const handleReject = (course: Course) => {
+    updateCourse(course.id, {
+      approvalStatus: 'rejected',
+      isPublished: false,
+    });
+  };
+
+  const filteredCourses = courses.filter((course) => {
+    const matchesSearch =
+      course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      course.category.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSubject = subjectId ? (course.subjectId || course.subject) === subjectId : true;
     return matchesSearch && matchesSubject;
   });
 
   if (isBuilding) {
     return (
-      <AdvancedCourseBuilder 
-        initialCourse={editingCourse} 
-        onSave={handleSaveCourse} 
-        onCancel={() => setIsBuilding(false)} 
-      />
+      <AdvancedCourseBuilder initialCourse={editingCourse} onSave={handleSaveCourse} onCancel={() => setIsBuilding(false)} />
     );
   }
 
@@ -87,9 +121,9 @@ export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">إدارة الدورات (LMS)</h2>
-          <p className="text-gray-500 text-sm mt-1">قم بإنشاء وتعديل الدورات، الوحدات، والدروس.</p>
+          <p className="text-gray-500 text-sm mt-1">إنشاء وتعديل الدورات، ومراجعة ما أضافه المعلمون قبل النشر على الموقع.</p>
         </div>
-        <button 
+        <button
           onClick={handleCreateNew}
           className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2"
         >
@@ -98,13 +132,12 @@ export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => 
         </button>
       </div>
 
-      {/* Filters & Search */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="ابحث عن دورة..." 
+          <input
+            type="text"
+            placeholder="ابحث عن دورة..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-4 pr-10 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -112,7 +145,6 @@ export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => 
         </div>
       </div>
 
-      {/* Courses List */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-right">
@@ -121,63 +153,75 @@ export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => 
                 <th className="px-6 py-4 text-sm font-bold text-gray-600">الدورة</th>
                 <th className="px-6 py-4 text-sm font-bold text-gray-600">القسم</th>
                 <th className="px-6 py-4 text-sm font-bold text-gray-600">السعر</th>
-                <th className="px-6 py-4 text-sm font-bold text-gray-600">إحصائيات (وهمية/حقيقية)</th>
+                <th className="px-6 py-4 text-sm font-bold text-gray-600">إحصائيات</th>
                 <th className="px-6 py-4 text-sm font-bold text-gray-600">الحالة</th>
                 <th className="px-6 py-4 text-sm font-bold text-gray-600">الإجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredCourses.map(course => (
-                <tr key={course.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <img src={course.thumbnail || 'https://via.placeholder.com/150'} alt={course.title} className="w-12 h-12 rounded-lg object-cover" />
-                      <div>
-                        <div className="font-bold text-gray-800">{course.title}</div>
-                        <div className="text-xs text-gray-500">{course.instructor}</div>
+              {filteredCourses.map((course) => {
+                const statusMeta = getCourseStatusMeta(course);
+                return (
+                  <tr key={course.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <img src={course.thumbnail || 'https://via.placeholder.com/150'} alt={course.title} className="w-12 h-12 rounded-lg object-cover" />
+                        <div>
+                          <div className="font-bold text-gray-800">{course.title}</div>
+                          <div className="text-xs text-gray-500">{course.instructor}</div>
+                          {(course.ownerType || course.approvalStatus) && (
+                            <div className="text-[11px] text-gray-400 mt-1">
+                              {course.ownerType === 'teacher' ? 'محتوى معلم' : course.ownerType === 'school' ? 'محتوى مدرسة' : 'محتوى المنصة'}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-md text-xs font-bold">
-                      {course.category}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-emerald-600">{course.price} {course.currency}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col gap-1 text-xs text-gray-500">
-                      <div className="flex items-center gap-1">
-                        <Users size={12} /> {course.fakeStudentsCount || course.studentCount || 0} طالب
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-md text-xs font-bold">{course.category}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-emerald-600">{course.price} {course.currency}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-1 text-xs text-gray-500">
+                        <div className="flex items-center gap-1">
+                          <Users size={12} /> {course.fakeStudentsCount || course.studentCount || 0} طالب
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Star size={12} className="text-amber-400" /> {course.fakeRating || course.rating || 0} تقييم
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Star size={12} className="text-amber-400" /> {course.fakeRating || course.rating || 0} تقييم
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusMeta.className}`}>{statusMeta.label}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {course.approvalStatus !== 'approved' && (
+                          <button onClick={() => handleApprove(course)} className="px-3 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors">
+                            اعتماد
+                          </button>
+                        )}
+                        {course.approvalStatus !== 'rejected' && (
+                          <button onClick={() => handleReject(course)} className="px-3 py-1 text-xs font-bold text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+                            رفض
+                          </button>
+                        )}
+                        <button onClick={() => handleEdit(course)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل المنهج والإعدادات">
+                          <Edit2 size={18} />
+                        </button>
+                        <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" title="معاينة">
+                          <Eye size={18} />
+                        </button>
+                        <button onClick={() => handleDelete(course.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="حذف">
+                          <Trash2 size={18} />
+                        </button>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                      course.isPublished !== false ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                    }`}>
-                      {course.isPublished !== false ? 'منشور' : 'مسودة'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => handleEdit(course)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل المنهج والإعدادات">
-                        <Edit2 size={18} />
-                      </button>
-                      <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" title="معاينة">
-                        <Eye size={18} />
-                      </button>
-                      <button onClick={() => handleDelete(course.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="حذف">
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
               {filteredCourses.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
