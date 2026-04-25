@@ -63,7 +63,10 @@ const getSkillRecommendation = (
 
   return {
     lessonTitle: recommendedLesson?.title,
-    lessonLink: resolvedSkill.pathId && resolvedSkill.subjectId ? `/category/${resolvedSkill.pathId}/${resolvedSkill.subjectId}` : undefined,
+    lessonLink:
+      resolvedSkill.pathId && resolvedSkill.subjectId
+        ? `/category/${resolvedSkill.pathId}?subject=${resolvedSkill.subjectId}&tab=skills`
+        : undefined,
     quizTitle: recommendedQuiz?.title,
     quizLink: recommendedQuiz?.id ? `/quiz/${recommendedQuiz.id}` : undefined,
     resourceTitle: recommendedResource?.title,

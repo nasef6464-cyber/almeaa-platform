@@ -1,6 +1,6 @@
 
 import React, { Suspense, useEffect, useState } from 'react';
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import Layout from './components/Layout';
 import { Loader2 } from 'lucide-react';
 import { AuthProvider } from './contexts/AuthContext';
@@ -32,7 +32,6 @@ const TahsiliSubject = React.lazy(() => import('./pages/TahsiliSubject').then(mo
 const Blog = React.lazy(() => import('./pages/Blog').then(module => ({ default: module.Blog })));
 const CourseView = React.lazy(() => import('./pages/CourseView'));
 const BookSession = React.lazy(() => import('./pages/BookSession').then(module => ({ default: module.BookSession })));
-const SubjectLearningPage = React.lazy(() => import('./pages/SubjectLearningPage').then(module => ({ default: module.SubjectLearningPage })));
 const QuizPage = React.lazy(() => import('./pages/QuizPage').then(module => ({ default: module.QuizPage })));
 const GenericPathPage = React.lazy(() => import('./pages/GenericPathPage').then(module => ({ default: module.GenericPathPage })));
 
@@ -44,6 +43,11 @@ const LoadingFallback = () => (
     <Loader2 className="w-10 h-10 animate-spin" />
   </div>
 );
+
+const LegacySubjectRouteRedirect: React.FC = () => {
+  const { pathId = '', subjectId = '' } = useParams<{ pathId: string; subjectId: string }>();
+  return <Navigate replace to={`/category/${pathId}?subject=${subjectId}&tab=skills`} />;
+};
 
 const App: React.FC = () => {
   useFirebaseSync();
@@ -176,7 +180,7 @@ const App: React.FC = () => {
                     
                     {/* Old Hardcoded Routes mapped to generic or kept if needed. The new pattern replaces old Nafes */}
                     <Route path="/category/:pathId" element={<GenericPathPage />} />
-                    <Route path="/category/:pathId/:subjectId" element={<SubjectLearningPage />} />
+                    <Route path="/category/:pathId/:subjectId" element={<LegacySubjectRouteRedirect />} />
                     
                     {/* Placeholder for other routes */}
                     <Route path="/section/:catId" element={<div className="p-20 text-center font-bold text-gray-500 text-xl">صفحة القسم (قيد التطوير)</div>} />

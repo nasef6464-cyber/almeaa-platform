@@ -149,7 +149,10 @@ const Plan: React.FC = () => {
           type: lesson.type === 'video' ? 'video' : 'lesson',
           duration: lesson.duration || '20 دقيقة',
           status: index === 0 ? 'in-progress' : 'pending',
-          link: resolvedSkill.pathId && resolvedSkill.subjectId ? `/category/${resolvedSkill.pathId}/${resolvedSkill.subjectId}` : undefined,
+          link:
+            resolvedSkill.pathId && resolvedSkill.subjectId
+              ? `/category/${resolvedSkill.pathId}?subject=${resolvedSkill.subjectId}&tab=skills`
+              : undefined,
         });
       }
       if (quiz) {

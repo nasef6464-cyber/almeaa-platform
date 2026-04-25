@@ -823,7 +823,7 @@ const Quiz: React.FC = () => {
               ({currentQuestion + 1}) {questions[currentQuestion].text}
             </p>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 dir-rtl">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4 dir-rtl">
               {questions[currentQuestion].options.map((option, idx) => {
                 const isSelected = selectedAnswer === idx || answers[currentQuestion] === idx;
                 let borderClass = 'border-gray-200 hover:border-gray-300 bg-white';
@@ -837,21 +837,26 @@ const Quiz: React.FC = () => {
                   <button
                     key={idx}
                     onClick={() => handleAnswerSelect(idx)}
-                    className={`min-h-[112px] p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center text-center gap-3 shadow-sm ${borderClass}`}
+                    className={`min-h-[84px] px-4 py-3 rounded-2xl border-2 transition-all flex items-center justify-between text-right gap-3 shadow-sm ${borderClass}`}
                   >
-                    <div className="flex items-center gap-2">
+                    <span className="flex-1 text-sm md:text-base font-bold text-gray-800 leading-relaxed text-center">
+                      {option}
+                    </span>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-2xl md:text-3xl font-black text-gray-900">
+                        {OPTION_LABELS[idx] || String(idx + 1)}
+                      </span>
                       <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center text-lg font-black ${
                         isSelected ? 'border-current' : 'border-gray-300'
                       }`}>
-                        {OPTION_LABELS[idx] || String(idx + 1)}
+                        <div className={`w-4 h-4 rounded-full ${
+                          isSelected && idx === questions[currentQuestion].correctOptionIndex
+                            ? 'bg-emerald-500'
+                            : isSelected
+                              ? 'bg-red-500'
+                              : 'bg-transparent'
+                        }`} />
                       </div>
-                    </div>
-                    <span className="font-bold text-lg leading-relaxed">{option}</span>
-                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                      isSelected && idx === questions[currentQuestion].correctOptionIndex ? 'border-emerald-500 bg-emerald-500' :
-                      isSelected ? 'border-red-500 bg-red-500' : 'border-gray-300'
-                    }`}>
-                      {isSelected && idx === questions[currentQuestion].correctOptionIndex && <CheckCircle size={14} className="text-white" />}
                     </div>
                   </button>
                 );

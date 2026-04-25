@@ -367,27 +367,31 @@ export const QuizPage: React.FC = () => {
 
               <div className="text-lg text-gray-800 mb-8" dangerouslySetInnerHTML={{ __html: currentQuestion?.text || '' }} />
 
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
                 {currentQuestion?.options.map((option, index) => (
                   <button
                     key={index}
                     onClick={() => handleOptionSelect(index)}
-                    className={`min-h-[112px] w-full p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center text-center gap-3 shadow-sm ${
+                    className={`min-h-[84px] w-full px-4 py-3 rounded-2xl border-2 transition-all flex items-center justify-between text-right gap-3 shadow-sm ${
                       selectedOptions[currentQuestion.id] === index
                         ? 'border-indigo-600 bg-indigo-50'
                         : 'border-gray-200 hover:border-indigo-200 hover:bg-gray-50'
                     }`}
                   >
-                    <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center text-lg font-black ${
-                      selectedOptions[currentQuestion.id] === index ? 'border-indigo-600 text-indigo-600 bg-white' : 'border-gray-300 text-gray-500'
-                    }`}>
-                      {OPTION_LABELS[index] || String(index + 1)}
-                    </div>
-                    <span className="font-medium text-gray-700 leading-relaxed">{option}</span>
-                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                      selectedOptions[currentQuestion.id] === index ? 'border-indigo-600 bg-indigo-600' : 'border-gray-300'
-                    }`}>
-                      {selectedOptions[currentQuestion.id] === index && <div className="w-2 h-2 rounded-full bg-white" />}
+                    <span className="flex-1 text-sm md:text-base font-bold text-gray-700 leading-relaxed text-center">
+                      {option}
+                    </span>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-2xl md:text-3xl font-black text-gray-900">
+                        {OPTION_LABELS[index] || String(index + 1)}
+                      </span>
+                      <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center text-lg font-black ${
+                        selectedOptions[currentQuestion.id] === index ? 'border-indigo-600 text-indigo-600 bg-white' : 'border-gray-300 text-gray-500'
+                      }`}>
+                        <div className={`w-4 h-4 rounded-full ${
+                          selectedOptions[currentQuestion.id] === index ? 'bg-indigo-600' : 'bg-transparent'
+                        }`} />
+                      </div>
                     </div>
                   </button>
                 ))}

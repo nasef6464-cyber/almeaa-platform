@@ -903,7 +903,11 @@ const SaherTab = () => {
                                         </Link>
                                         {item.recommendedLesson ? (
                                             <Link
-                                                to={item.subjectId ? `/category/${item.recommendedLesson.pathId}/${item.subjectId}` : '/courses'}
+                                                to={
+                                                    item.subjectId
+                                                        ? `/category/${item.recommendedLesson.pathId}?subject=${item.subjectId}&tab=skills`
+                                                        : '/courses'
+                                                }
                                                 className="inline-block w-full text-center bg-white border border-gray-200 text-gray-800 px-4 py-2 rounded-lg font-bold text-sm hover:bg-gray-50 transition-colors"
                                             >
                                                 راجع الشرح أولًا
