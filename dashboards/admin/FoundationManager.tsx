@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { Topic, Lesson, Quiz } from '../../types';
-import { Plus, Edit2, Trash2, ChevronDown, ChevronRight, BookOpen, FileQuestion, Link as LinkIcon, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, ChevronDown, ChevronRight, BookOpen, FileQuestion, Link as LinkIcon, X, Lock, LockOpen } from 'lucide-react';
 
 interface FoundationManagerProps {
   subjectId: string;
@@ -55,6 +55,7 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
       parentId,
       title: '',
       order: subjectTopics.filter(t => t.parentId === parentId).length,
+      showOnPlatform: false,
       lessonIds: [],
       quizIds: []
     });
@@ -124,6 +125,10 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
     }
   };
 
+  const handleTogglePlatformVisibility = (topic: Topic) => {
+    updateTopic(topic.id, { showOnPlatform: topic.showOnPlatform === false });
+  };
+
   const renderTopic = (topic: Topic, level: number = 0) => {
     const subtopics = subjectTopics.filter(t => t.parentId === topic.id);
     const isExpanded = expandedTopics.has(topic.id);
@@ -147,6 +152,9 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
             <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">
               {subtopics.length} مواضيع فرعية
             </span>
+            <span className={`text-xs px-2 py-1 rounded-full font-bold ${topic.showOnPlatform === false ? 'bg-gray-100 text-gray-600' : 'bg-sky-50 text-sky-700'}`}>
+              {topic.showOnPlatform === false ? 'مخفي عن المنصة' : 'ظاهر على المنصة'}
+            </span>
           </div>
           
           <div className="flex items-center gap-2">
@@ -159,6 +167,13 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
               title="ربط محتوى"
             >
               <LinkIcon size={18} />
+            </button>
+            <button 
+              onClick={() => handleTogglePlatformVisibility(topic)}
+              className={`p-2 rounded-lg transition-colors ${topic.showOnPlatform === false ? 'text-gray-500 hover:bg-gray-100' : 'text-sky-600 hover:bg-sky-50'}`}
+              title={topic.showOnPlatform === false ? 'إظهار الموضوع على المنصة' : 'إخفاء الموضوع عن المنصة'}
+            >
+              {topic.showOnPlatform === false ? <Lock size={18} /> : <LockOpen size={18} />}
             </button>
             <button 
               onClick={() => handleCreateNew(topic.id)}
@@ -274,6 +289,15 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
                   className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
               </div>
+              <label className="flex items-center gap-3 bg-gray-50 p-3 rounded-xl cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editingTopic.showOnPlatform !== false}
+                  onChange={(e) => setEditingTopic({ ...editingTopic, showOnPlatform: e.target.checked })}
+                  className="w-5 h-5 text-indigo-600 rounded"
+                />
+                <span className="font-medium text-gray-700">إظهار هذا الموضوع على المنصة</span>
+              </label>
             </div>
             <div className="flex gap-3 mt-6">
               <button 

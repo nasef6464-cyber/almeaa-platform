@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { api } from '../services/api';
-import { User, Activity, QuestionAttempt, QuizResult, Question, Role, Group, Skill, CategoryPath, CategorySubject, CategorySection, B2BPackage, AccessCode, Course, NestedSkill, LibraryItem, Quiz, Lesson, Topic, PackageContentType } from '../types';
+import { User, Activity, QuestionAttempt, QuizResult, Question, Role, Group, Skill, CategoryPath, CategorySubject, CategorySection, B2BPackage, AccessCode, Course, NestedSkill, LibraryItem, Quiz, Lesson, Topic, PackageContentType, StudyPlan } from '../types';
 
 interface AppState {
     user: User;
@@ -39,6 +39,7 @@ interface AppState {
     favorites: string[];
     reviewLater: string[];
     recentActivity: Activity[];
+    studyPlans: StudyPlan[];
     
     // Actions
     hydrateUsers: (users: User[]) => void;
@@ -76,6 +77,10 @@ interface AppState {
     hasScopedPackageAccess: (contentType: PackageContentType, pathId?: string, subjectId?: string) => boolean;
     getMatchingPackage: (contentType: PackageContentType, pathId?: string, subjectId?: string) => B2BPackage | null;
     changeRole: (role: Role) => void;
+    createStudyPlan: (plan: StudyPlan) => void;
+    updateStudyPlan: (planId: string, data: Partial<StudyPlan>) => void;
+    deleteStudyPlan: (planId: string) => void;
+    archiveStudyPlan: (planId: string) => void;
 
     // Admin Actions
     addUser: (user: User) => void;
@@ -257,8 +262,12 @@ export const useStore = create<AppState>()(
             nestedSkills: [],
             libraryItems: [],
             addLibraryItem: (item) => {
-                api.createLibraryItem(item).catch(console.error);
-                set((state) => ({ libraryItems: [item, ...state.libraryItems] }));
+                const normalizedItem = {
+                    ...item,
+                    showOnPlatform: typeof item.showOnPlatform === 'boolean' ? item.showOnPlatform : false,
+                };
+                api.createLibraryItem(normalizedItem).catch(console.error);
+                set((state) => ({ libraryItems: [normalizedItem, ...state.libraryItems] }));
             },
             updateLibraryItem: (id, item) => {
                 api.updateLibraryItem(id, item).catch(console.error);
@@ -280,6 +289,7 @@ export const useStore = create<AppState>()(
             favorites: [],
             reviewLater: [],
             recentActivity: [],
+            studyPlans: [],
 
             hydrateUsers: (users) => set(() => ({
                 users
@@ -639,6 +649,33 @@ export const useStore = create<AppState>()(
                 user: { ...state.user, role }
             })),
 
+            createStudyPlan: (plan) => set((state) => ({
+                studyPlans: [
+                    plan,
+                    ...state.studyPlans.filter(existingPlan => existingPlan.id !== plan.id)
+                ]
+            })),
+
+            updateStudyPlan: (planId, data) => set((state) => ({
+                studyPlans: state.studyPlans.map(plan =>
+                    plan.id === planId
+                        ? { ...plan, ...data, updatedAt: Date.now() }
+                        : plan
+                )
+            })),
+
+            deleteStudyPlan: (planId) => set((state) => ({
+                studyPlans: state.studyPlans.filter(plan => plan.id !== planId)
+            })),
+
+            archiveStudyPlan: (planId) => set((state) => ({
+                studyPlans: state.studyPlans.map(plan =>
+                    plan.id === planId
+                        ? { ...plan, status: 'archived', updatedAt: Date.now() }
+                        : plan
+                )
+            })),
+
             addUser: (user) => set((state) => ({
                 users: [...state.users, user]
             })),
@@ -663,9 +700,13 @@ export const useStore = create<AppState>()(
 
             // Course Actions
             addCourse: (course) => {
-                api.createCourse(course).catch(console.error);
+                const normalizedCourse = {
+                    ...course,
+                    showOnPlatform: typeof course.showOnPlatform === 'boolean' ? course.showOnPlatform : false,
+                };
+                api.createCourse(normalizedCourse).catch(console.error);
                 set((state) => ({
-                    courses: [course, ...state.courses]
+                    courses: [normalizedCourse, ...state.courses]
                 }));
             },
             updateCourse: (courseId, data) => {
@@ -703,9 +744,13 @@ export const useStore = create<AppState>()(
 
             // Quiz Actions
             addQuiz: (quiz) => {
-                api.createQuiz(quiz).catch(console.error);
+                const normalizedQuiz = {
+                    ...quiz,
+                    showOnPlatform: typeof quiz.showOnPlatform === 'boolean' ? quiz.showOnPlatform : false,
+                };
+                api.createQuiz(normalizedQuiz).catch(console.error);
                 set((state) => ({
-                    quizzes: [quiz, ...state.quizzes]
+                    quizzes: [normalizedQuiz, ...state.quizzes]
                 }));
             },
             updateQuiz: (quizId, data) => {
@@ -723,9 +768,13 @@ export const useStore = create<AppState>()(
 
             // Lesson Actions
             addLesson: (lesson) => {
-                api.createLesson(lesson).catch(console.error);
+                const normalizedLesson = {
+                    ...lesson,
+                    showOnPlatform: typeof lesson.showOnPlatform === 'boolean' ? lesson.showOnPlatform : false,
+                };
+                api.createLesson(normalizedLesson).catch(console.error);
                 set((state) => ({
-                    lessons: [lesson, ...state.lessons]
+                    lessons: [normalizedLesson, ...state.lessons]
                 }));
             },
             updateLesson: (lessonId, data) => {
@@ -743,9 +792,13 @@ export const useStore = create<AppState>()(
 
             // Topic Actions
             addTopic: (topic) => {
-                api.createTopic(topic).catch(console.error);
+                const normalizedTopic = {
+                    ...topic,
+                    showOnPlatform: typeof topic.showOnPlatform === 'boolean' ? topic.showOnPlatform : false,
+                };
+                api.createTopic(normalizedTopic).catch(console.error);
                 set((state) => ({
-                    topics: [...state.topics, topic]
+                    topics: [...state.topics, normalizedTopic]
                 }));
             },
             updateTopic: (topicId, data) => {
@@ -1292,7 +1345,7 @@ export const useStore = create<AppState>()(
         }),
         {
             name: 'learning-platform-storage', // unique name
-            version: 2,
+            version: 3,
             partialize: (state) => Object.fromEntries(
                 Object.entries(state).filter(([key]) => !['paths', 'levels', 'subjects', 'sections', 'skills', 'nestedSkills', 'libraryItems', 'questions', 'users', 'courses', 'topics', 'lessons', 'quizzes', 'groups', 'b2bPackages', 'accessCodes'].includes(key))
             ),
@@ -1318,6 +1371,7 @@ export const useStore = create<AppState>()(
                     skills: [],
                     nestedSkills: [],
                     libraryItems: [],
+                    studyPlans: Array.isArray(persistedState.studyPlans) ? persistedState.studyPlans : [],
                 };
             }
         }

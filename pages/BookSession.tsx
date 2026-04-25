@@ -72,12 +72,12 @@ export const BookSession: React.FC = () => {
   if (isSubmitted) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center p-4">
-        <Card className="max-w-md w-full p-8 text-center space-y-6 animate-scale-up">
+        <Card className="max-w-md w-full p-5 sm:p-8 text-center space-y-6 animate-scale-up">
           <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
             <CheckCircle size={40} />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">تم تأكيد الحجز بنجاح!</h2>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2 leading-tight">تم تأكيد الحجز بنجاح!</h2>
             <p className="text-gray-500">تم إرسال طلبك للمدرس. سيتم التواصل معك قريبًا لتأكيد الموعد.</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-xl text-right text-sm text-gray-600 space-y-2">
@@ -93,17 +93,17 @@ export const BookSession: React.FC = () => {
 
   return (
     <div className="max-w-2xl mx-auto p-4 md:p-8 space-y-8 animate-fade-in pb-20">
-      <header className="flex items-center gap-4">
+      <header className="flex items-start gap-3 sm:gap-4">
         <Link to="/dashboard" className="text-gray-500 hover:text-gray-700 transition-colors">
           <ArrowRight size={24} />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">حجز حصة خاصة</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">حجز حصة خاصة</h1>
           <p className="text-gray-500 text-sm">احجز جلسة فردية مع أفضل المدرسين لشرح النقاط الصعبة</p>
         </div>
       </header>
 
-      <Card className="p-6 md:p-8">
+      <Card className="p-5 sm:p-6 md:p-8">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
             <label className="block text-sm font-bold text-gray-700">المادة / المهارة</label>
@@ -177,7 +177,7 @@ export const BookSession: React.FC = () => {
 
           <button
             type="submit"
-            className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-200 flex items-center justify-center gap-2"
+            className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-base sm:text-lg hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-200 flex items-center justify-center gap-2"
           >
             <Send size={20} />
             تأكيد الحجز

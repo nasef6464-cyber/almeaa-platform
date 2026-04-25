@@ -9,6 +9,7 @@ import { FileModal } from './FileModal';
 import { PaymentModal } from './PaymentModal';
 import { useStore } from '../store/useStore';
 import { PackageContentType } from '../types';
+import { openExternalUrl } from '../utils/openExternalUrl';
 
 interface LearningSectionProps {
     category: string;
@@ -89,38 +90,32 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
     const hasLibraryAccess = isStaffViewer || hasScopedPackageAccess('library', category, subject);
 
     const isPremiumLocked = (shouldLock?: boolean, accessGranted = false) => Boolean(!isStaffViewer && shouldLock && !accessGranted);
+    const matchesScopedContent = (pathId?: string | null, subjectId?: string | null) => {
+        const normalizedPathId = pathId || null;
+        const normalizedSubjectId = subjectId || null;
+        const pathMatches = !normalizedPathId || normalizedPathId === category;
+        const subjectMatches = !normalizedSubjectId || normalizedSubjectId === subject || normalizedSubjectId === `${category}_${subject}`;
+        return pathMatches && subjectMatches;
+    };
 
     // Data Retrieval from Store
-    let sectionCourses = courses.filter(c => {
-        if (category === 'tahsili' || category === 'p_tahsili') return c.category === 'التحصيلي' || c.subject === subject;
-        if (category === 'qudrat' || category === 'p_qudrat') return c.category === 'القدرات' || c.subject === subject;
-        if (category === 'nafes' || category === 'p_nafes') {
-            const subjectMap: Record<string, string> = {
-                'math': 'رياضيات',
-                'science': 'علوم',
-                'reading': 'قراءة'
-            };
-            const mappedSubject = subjectMap[subject] || subject;
-            return c.category === 'نافس' || c.subject === subject;
-        }
-        return c.category === category || c.subject === subject;
-    });
-    sectionCourses = sectionCourses.filter((course) => {
+    let sectionCourses = courses.filter((course) => {
         const coursePathId = course.pathId || course.category;
         const courseSubjectId = course.subjectId || course.subject;
-        const pathMatches = !!coursePathId && coursePathId === category;
-        const subjectMatches = !!courseSubjectId && courseSubjectId === subject;
-        return subject ? (subjectMatches || (pathMatches && !courseSubjectId)) : pathMatches;
+        if (!isStaffViewer && course.showOnPlatform === false) {
+            return false;
+        }
+        return matchesScopedContent(coursePathId, courseSubjectId);
     });
 
     const topicList = useStore(state => state.topics);
     const quizList = useStore(state => state.quizzes);
 
     let mappedSkills = topicList
-        .filter(t => !t.parentId && (t.subjectId === subject || t.subjectId === `${category}_${subject}` || t.subjectId === `sub_${subject}`))
+        .filter(t => !t.parentId && (isStaffViewer || t.showOnPlatform !== false) && matchesScopedContent(t.pathId, t.subjectId))
         .sort((a, b) => a.order - b.order)
         .map(topic => {
-            const subTopics = topicList.filter(t => t.parentId === topic.id);
+            const subTopics = topicList.filter(t => t.parentId === topic.id && matchesScopedContent(t.pathId, t.subjectId));
             let totalLessons = topic.lessonIds?.length || 0;
             let totalQuizzes = topic.quizIds?.length || 0;
             subTopics.forEach(sub => {
@@ -142,14 +137,8 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                 originalTopic: topic // Keep a reference to the real topic
             };
         });
-    mappedSkills = mappedSkills.filter((skill) => {
-        const topic = skill.originalTopic;
-        const pathMatches = !topic?.pathId || topic.pathId === category;
-        const subjectMatches = !topic?.subjectId || topic.subjectId === subject;
-        return pathMatches && subjectMatches;
-    });
 
-    let banks = quizzes.filter(q => (q.subjectId === subject || q.subjectId === `${category}_${subject}`) && q.type === 'bank').map(q => ({
+    let banks = quizzes.filter(q => (isStaffViewer || q.showOnPlatform !== false) && matchesScopedContent(q.pathId, q.subjectId) && q.type === 'bank').map(q => ({
         id: q.id,
         title: q.title,
         questions: q.questionIds?.length || 0,
@@ -160,7 +149,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
         duration: 'غير محدد'
     }));
 
-    let tests = quizzes.filter(q => (q.subjectId === subject || q.subjectId === `${category}_${subject}`) && q.type !== 'bank').map(q => ({
+    let tests = quizzes.filter(q => (isStaffViewer || q.showOnPlatform !== false) && matchesScopedContent(q.pathId, q.subjectId) && q.type !== 'bank').map(q => ({
         id: q.id,
         title: q.title,
         duration: `${q.settings?.timeLimit || 60} دقيقة`,
@@ -170,7 +159,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
         isLocked: (q.access.type !== 'free' && !hasTestsAccess) || isPremiumLocked(settings.lockTestsForNonSubscribers, hasTestsAccess)
     }));
 
-    let sectionLibraryItems = libraryItems.filter(item => item.subjectId === subject || item.subjectId === `${category}_${subject}`).map(item => ({
+    let sectionLibraryItems = libraryItems.filter(item => (isStaffViewer || item.showOnPlatform !== false) && matchesScopedContent(item.pathId, item.subjectId)).map(item => ({
         ...item,
         isLocked: isPremiumLocked(settings.lockLibraryForNonSubscribers, hasLibraryAccess)
     }));
@@ -211,7 +200,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
     return (
         <div className="w-full">
             {/* Tabs */}
-            <div className="flex flex-wrap justify-center gap-2 md:gap-4 mb-12">
+            <div className="grid grid-cols-1 sm:flex sm:flex-wrap justify-center gap-2 md:gap-4 mb-12">
                 {(settings.showCourses ?? true) && <TabButton active={activeTab === 'courses'} onClick={() => handleTabChange('courses')} icon={<MonitorPlay size={20} />} label="الدورات" colorTheme={colorTheme} />}
                 {(settings.showSkills ?? true) && <TabButton active={activeTab === 'skills'} onClick={() => handleTabChange('skills')} icon={<Video size={20} />} label="التأسيس" colorTheme={colorTheme} />}
                 {(settings.showBanks ?? true) && <TabButton active={activeTab === 'banks'} onClick={() => handleTabChange('banks')} icon={<BookOpen size={20} />} label="التدريب" colorTheme={colorTheme} />}
@@ -222,7 +211,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
             {/* Content */}
             <div className="animate-fade-in">
                 {activeTab === 'courses' && (
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {sectionCourses.map((baseCourse) => {
                             const coursePurchaseItem = buildScopedPackageItem(
                                 'courses',
@@ -293,7 +282,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                 )}
 
                 {activeTab === 'skills' && (
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {mappedSkills.map((skill) => (
                             <button
                                 type="button"
@@ -355,7 +344,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                 )}
 
                 {activeTab === 'library' && (
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {sectionLibraryItems.map((item: any) => (
                             <Card key={item.id} className={`p-6 border-2 border-gray-100 hover:border-${safeColorTheme}-200 hover:shadow-lg transition-all flex flex-col rounded-3xl relative`}>
                                 {item.isLocked && (
@@ -374,13 +363,13 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                                     <User size={16} />
                                     <span>{item.downloads} تحميل</span>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3 mt-auto">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-auto">
                                     <button 
                                         onClick={() => {
                                             if (item.isLocked) {
                                                 handleItemClick(item, 'library');
                                             } else if (item.url) {
-                                                window.open(item.url, '_blank');
+                                                openExternalUrl(item.url);
                                             }
                                         }}
                                         className={`bg-indigo-50 text-indigo-700 py-3 rounded-xl font-bold hover:bg-indigo-600 hover:text-white transition-colors shadow-sm ${item.isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -392,7 +381,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                                             if (item.isLocked) {
                                                 handleItemClick(item, 'library');
                                             } else if (item.url && item.url.includes('drive.google.com')) {
-                                                window.open(item.url, '_blank'); // Some Google Drive links better opened directly to avoid iframe issues
+                                                openExternalUrl(item.url); // Some Google Drive links better opened directly to avoid iframe issues
                                             } else {
                                                 setViewingFile(item);
                                             }
@@ -461,7 +450,7 @@ const TabButton = ({ active, onClick, icon, label, colorTheme }: any) => {
     return (
         <button 
             onClick={onClick}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all ${
+            className={`w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all ${
                 active 
                 ? `${isHex ? '' : `bg-${colorTheme}-600`} text-white shadow-lg transform -translate-y-1` 
                 : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'

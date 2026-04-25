@@ -47,7 +47,7 @@ const CourseView: React.FC = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
                 <Loader2 className="w-12 h-12 animate-spin text-indigo-600" />
             </div>
         );
@@ -56,10 +56,10 @@ const CourseView: React.FC = () => {
     if (!course) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
-                <h1 className="text-2xl font-bold text-gray-800 mb-4">الدورة غير موجودة</h1>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 leading-tight">الدورة غير موجودة</h1>
                 <button 
                     onClick={() => window.history.back()}
-                    className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold"
+                    className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold w-full sm:w-auto"
                 >
                     العودة للخلف
                 </button>

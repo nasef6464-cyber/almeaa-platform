@@ -4,18 +4,20 @@ import { useStore } from '../store/useStore';
 import { Card } from '../components/ui/Card';
 import { ChevronRight, LayoutGrid } from 'lucide-react';
 import { LearningSection } from '../components/LearningSection';
+import { normalizePathId } from '../utils/normalizePathId';
 
 export const GenericPathPage: React.FC = () => {
     const { pathId } = useParams<{ pathId: string }>();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const { paths, levels, subjects } = useStore();
+    const { paths, levels, subjects, user } = useStore();
 
     const initialLevelId = searchParams.get('level') || null;
     const initialSubjectId = searchParams.get('subject') || null;
 
     const [selectedLevelId, setSelectedLevelId] = useState<string | null>(initialLevelId);
     const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(initialSubjectId);
+    const normalizedPathId = normalizePathId(pathId);
 
     // Sync state with URL changes
     useEffect(() => {
@@ -27,7 +29,7 @@ export const GenericPathPage: React.FC = () => {
         const params = new URLSearchParams();
         if (levelId) params.set('level', levelId);
         if (subjectId) params.set('subject', subjectId);
-        navigate(`/category/${pathId}?${params.toString()}`);
+        navigate(`/category/${normalizedPathId}?${params.toString()}`);
     };
 
     const handleLevelSelect = (levelId: string | null) => {
@@ -38,13 +40,20 @@ export const GenericPathPage: React.FC = () => {
         updateUrl(levelId, subjectId);
     };
 
-    const path = paths.find(p => p.id === pathId);
+    useEffect(() => {
+        if (pathId && normalizedPathId && pathId !== normalizedPathId) {
+            navigate(`/category/${normalizedPathId}${window.location.search || ''}`, { replace: true });
+        }
+    }, [navigate, normalizedPathId, pathId]);
+
+    const canSeeHiddenPaths = ['admin', 'teacher', 'supervisor'].includes(user?.role || '');
+    const path = paths.find(p => p.id === normalizedPathId);
     
-    if (!path) {
+    if (!path || (!canSeeHiddenPaths && path.isActive === false)) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
                 <div className="text-center">
-                    <h2 className="text-2xl font-bold text-gray-800 mb-4">المسار غير موجود</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 leading-tight">المسار غير موجود</h2>
                     <button onClick={() => navigate('/dashboard')} className="text-indigo-600 hover:underline">
                         العودة للوحة التحكم
                     </button>
@@ -56,7 +65,9 @@ export const GenericPathPage: React.FC = () => {
     const pathLevels = levels?.filter(l => l.pathId === path.id) || [];
     const pathSubjects = subjects.filter(s => s.pathId === path.id);
     const { courses } = useStore();
-    const pathPackages = courses.filter(c => (c.pathId || c.category) === path.id && c.isPackage);
+    const pathPackages = courses.filter(
+        c => (c.pathId || c.category) === path.id && c.isPackage && (canSeeHiddenPaths || c.showOnPlatform !== false),
+    );
     const isPackagesTab = searchParams.get('tab') === 'packages';
 
     const getPathStyle = () => {
@@ -77,17 +88,17 @@ export const GenericPathPage: React.FC = () => {
         return (
             <div className="mt-16 border-t border-gray-200 pt-16" id="packages">
                 <div className="text-center mb-10">
-                    <h2 className="text-3xl font-black text-gray-800 mb-4">العروض والباقات</h2>
+                    <h2 className="text-2xl sm:text-3xl font-black text-gray-800 mb-4 leading-tight">العروض والباقات</h2>
                     <p className="text-gray-500">اختر الباقة الأنسب لك للبدء في مسار {path.name}</p>
                 </div>
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {pathPackages.map(pkg => (
                          <Card key={pkg.id} className="overflow-hidden border-2 border-transparent hover:border-amber-500 hover:shadow-xl transition-all cursor-pointer flex flex-col">
-                             <div className="bg-amber-500 text-white p-6 text-center">
-                                 <h3 className="text-2xl font-black mb-2">{pkg.title}</h3>
-                                 <div className="text-3xl font-bold">{pkg.price} {pkg.currency}</div>
+                             <div className="bg-amber-500 text-white p-5 sm:p-6 text-center">
+                                 <h3 className="text-xl sm:text-2xl font-black mb-2 leading-tight break-words">{pkg.title}</h3>
+                                 <div className="text-2xl sm:text-3xl font-bold">{pkg.price} {pkg.currency}</div>
                              </div>
-                             <div className="p-6 flex-1 flex flex-col">
+                             <div className="p-5 sm:p-6 flex-1 flex flex-col">
                                  <ul className="mb-6 space-y-3 flex-1">
                                      {pkg.features?.map((f, i) => (
                                          <li key={i} className="flex items-center gap-2 text-gray-600">
@@ -194,7 +205,7 @@ const renderSubjectCard = (s: any, levelId: string | null) => {
                         <button onClick={() => updateUrl(null, null)} className="flex items-center gap-2 justify-center mx-auto text-white/80 hover:text-white mb-6 transition-colors">
                             <ChevronRight size={20} /> عودة للمسار
                         </button>
-                        <h1 className="text-4xl font-black mb-4">عروض وباقات {path.name}</h1>
+                        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black mb-4 leading-tight break-words">عروض وباقات {path.name}</h1>
                         <p className="text-white/80 text-lg">اختر الباقة الأنسب لك</p>
                     </div>
                 </header>
@@ -213,13 +224,13 @@ const renderSubjectCard = (s: any, levelId: string | null) => {
                 <div className="bg-gray-50 min-h-screen pb-20">
                     <header className={`${style.bg} text-white py-16 text-center relative overflow-hidden`} style={style.inlineBg}>
                         <div className="max-w-7xl mx-auto px-4 relative z-10">
-                            <h1 className="text-4xl font-black mb-4">{path.name}</h1>
+                            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black mb-4 leading-tight break-words">{path.name}</h1>
                             <p className="text-white/80 text-lg">تأسيس شامل، تدريب مكثف، واختبارات محاكية</p>
                         </div>
                     </header>
                     <div className="max-w-5xl mx-auto px-4 py-12">
                         {pathSubjects.length > 0 ? (
-                            <div className="grid md:grid-cols-3 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 {pathSubjects.map(s => renderSubjectCard(s, null))}
                             </div>
                         ) : (
@@ -240,7 +251,7 @@ const renderSubjectCard = (s: any, levelId: string | null) => {
                             <button onClick={() => handleSubjectSelect(null, null)} className="flex items-center gap-2 text-white/80 hover:text-white mb-6 transition-colors">
                                 <ChevronRight size={20} /> عودة لصفحة المسار
                             </button>
-                            <h1 className="text-3xl font-black mb-2">{currentSubject?.name} - {path.name}</h1>
+                            <h1 className="text-2xl sm:text-3xl font-black mb-2 leading-tight break-words">{currentSubject?.name} - {path.name}</h1>
                             <p className="text-white/80">مساحة التعلم الخاصة بك</p>
                         </div>
                     </header>
@@ -258,12 +269,12 @@ const renderSubjectCard = (s: any, levelId: string | null) => {
             <div className="bg-gray-50 min-h-screen pb-20">
                 <header className={`${style.bg} text-white py-16 text-center relative overflow-hidden`} style={style.inlineBg}>
                     <div className="max-w-7xl mx-auto px-4 relative z-10">
-                        <h1 className="text-4xl font-black mb-4">{path.name}</h1>
+                        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black mb-4 leading-tight break-words">{path.name}</h1>
                         <p className="text-white/80 text-lg">اختر المرحلة الدراسية للبدء</p>
                     </div>
                 </header>
                 <div className="max-w-5xl mx-auto px-4 py-12">
-                    <div className="grid md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {pathLevels.map(level => {
                             const shortText = level.name.split(' ')[0] || level.name;
                             const isHex = style.color.startsWith('#');
@@ -274,7 +285,7 @@ const renderSubjectCard = (s: any, levelId: string | null) => {
                                     style={isHex ? { backgroundColor: style.color } : {}}
                                     onClick={() => handleLevelSelect(level.id)}
                                 >
-                                    <h3 className="text-3xl font-black mb-2">{level.name}</h3>
+                                    <h3 className="text-2xl sm:text-3xl font-black mb-2 leading-tight break-words">{level.name}</h3>
                                     <p className="text-white/80 font-medium text-sm">مقررات وتأسيس المرحلة</p>
                                 </div>
                             )
@@ -298,13 +309,13 @@ const renderSubjectCard = (s: any, levelId: string | null) => {
                         <button onClick={() => updateUrl(null, null)} className="flex items-center gap-2 text-white/80 hover:text-white mb-6 transition-colors">
                             <ChevronRight size={20} /> عودة لصفحة المسار
                         </button>
-                        <h1 className="text-3xl font-black mb-2">{currentLevel?.name}</h1>
+                        <h1 className="text-2xl sm:text-3xl font-black mb-2 leading-tight break-words">{currentLevel?.name}</h1>
                         <p className="text-white/80">اختر المادة للبدء في التدريب</p>
                     </div>
                 </header>
                 <div className="max-w-5xl mx-auto px-4 py-12">
                     {levelSubjects.length > 0 ? (
-                        <div className="grid md:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {levelSubjects.map(s => renderSubjectCard(s, selectedLevelId))}
                         </div>
                     ) : (
@@ -328,7 +339,7 @@ const renderSubjectCard = (s: any, levelId: string | null) => {
                     <button onClick={() => updateUrl(null, null)} className="flex items-center gap-2 text-white/80 hover:text-white mb-6 transition-colors">
                         <ChevronRight size={20} /> عودة لصفحة المسار
                     </button>
-                    <h1 className="text-3xl font-black mb-2">{currentSubject?.name} - {currentLevel?.name}</h1>
+                    <h1 className="text-2xl sm:text-3xl font-black mb-2 leading-tight break-words">{currentSubject?.name} - {currentLevel?.name}</h1>
                     <p className="text-white/80">تأسيس شامل، تدريب مكثف، واختبارات محاكية</p>
                 </div>
             </header>

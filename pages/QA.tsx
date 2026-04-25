@@ -90,26 +90,27 @@ const QA: React.FC = () => {
 
     return (
         <div className="space-y-6 pb-20">
-            <header className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+            <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3 sm:gap-4">
                     <Link to="/" className="text-gray-500 hover:text-gray-700">
                         <ArrowRight size={24} />
                     </Link>
                     <div>
-                        <h1 className="text-2xl font-bold text-amber-600">سؤال وجواب</h1>
+                        <h1 className="text-xl sm:text-2xl font-bold text-amber-600 leading-tight">سؤال وجواب</h1>
                         <p className="text-sm text-gray-500">الأسئلة الحقيقية المرتبطة بالدورات والمنشورة داخل المنصة</p>
                     </div>
                 </div>
                 <Link
                     to="/courses"
-                    className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-colors shadow-md"
+                    className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-md w-full sm:w-auto"
                 >
                     <Plus size={18} />
                     <span className="hidden md:inline">استعرض الدورات واسأل من داخلها</span>
+                    <span className="md:hidden">الدورات</span>
                 </Link>
             </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <Card className="p-4 border border-amber-100 bg-amber-50">
                     <div className="text-2xl font-black text-amber-600">{qaItems.length}</div>
                     <div className="text-sm text-gray-600 font-bold">إجمالي الأسئلة المنشورة</div>
@@ -124,7 +125,7 @@ const QA: React.FC = () => {
                 </Card>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
                 <div className="flex-1 relative">
                     <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                     <input
@@ -135,7 +136,7 @@ const QA: React.FC = () => {
                         className="w-full pr-10 pl-4 py-3 rounded-xl border border-gray-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all"
                     />
                 </div>
-                <button className="bg-white border border-gray-200 text-gray-600 px-4 rounded-xl hover:bg-gray-50 transition-colors">
+                <button className="bg-white border border-gray-200 text-gray-600 px-4 py-3 rounded-xl hover:bg-gray-50 transition-colors w-full sm:w-auto flex items-center justify-center">
                     <Filter size={20} />
                 </button>
             </div>
@@ -177,7 +178,7 @@ const QA: React.FC = () => {
             <div className="space-y-4">
                 {filteredQuestions.map((item) => (
                     <Card key={item.id} className="p-5 hover:shadow-md transition-shadow cursor-pointer group">
-                        <div className="flex justify-between items-start mb-3 gap-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start mb-3">
                             <div className="flex items-center gap-3 min-w-0">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${item.hasAnswer ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
                                     <HelpCircle size={18} />
@@ -187,18 +188,18 @@ const QA: React.FC = () => {
                                     <span className="text-xs text-gray-400">{item.date}</span>
                                 </div>
                             </div>
-                            <span className="bg-gray-100 text-gray-600 text-[10px] px-2 py-1 rounded-md font-medium shrink-0">
+                            <span className="bg-gray-100 text-gray-600 text-[10px] px-2 py-1 rounded-md font-medium shrink-0 self-start sm:self-auto">
                                 {item.subject}
                             </span>
                         </div>
 
-                        <h3 className="font-bold text-lg text-gray-800 mb-2">{item.title}</h3>
+                        <h3 className="font-bold text-base sm:text-lg text-gray-800 mb-2 leading-7 break-words">{item.title}</h3>
                         <p className="text-gray-500 text-sm line-clamp-2 mb-4">
                             {item.content}
                         </p>
 
-                        <div className="flex items-center justify-between border-t border-gray-100 pt-3 gap-3 flex-wrap">
-                            <div className="flex gap-4 text-gray-500 text-sm">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-gray-100 pt-3">
+                            <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 text-gray-500 text-sm">
                                 <span className="flex items-center gap-1">
                                     <MessageCircle size={16} />
                                     {item.hasAnswer ? 'إجابة واحدة' : 'بدون إجابة'}
@@ -209,7 +210,7 @@ const QA: React.FC = () => {
                                 </span>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                                 {item.hasAnswer ? (
                                     <span className="text-emerald-600 text-xs font-bold bg-emerald-50 px-2 py-1 rounded flex items-center gap-1">
                                         تمت الإجابة
@@ -221,7 +222,7 @@ const QA: React.FC = () => {
                                 )}
                                 <Link
                                     to={`/course/${item.courseId}`}
-                                    className="text-xs font-bold text-indigo-600 hover:text-indigo-700"
+                                    className="text-xs font-bold text-indigo-600 hover:text-indigo-700 w-full sm:w-auto"
                                 >
                                     صفحة الدورة
                                 </Link>

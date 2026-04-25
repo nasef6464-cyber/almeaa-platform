@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Course } from '../../types';
 import { useStore } from '../../store/useStore';
 import { AdvancedCourseBuilder } from './AdvancedCourseBuilder';
-import { Plus, Search, Edit2, Trash2, Eye, Star, Users } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Eye, Star, Users, Lock, LockOpen } from 'lucide-react';
 
 interface CoursesManagerProps {
   subjectId?: string;
@@ -31,6 +31,11 @@ const getCourseStatusMeta = (course: Course) => {
   };
 };
 
+const getCourseVisibilityMeta = (course: Course) =>
+  course.showOnPlatform === false
+    ? { label: 'مخفي عن المنصة', className: 'bg-gray-100 text-gray-600' }
+    : { label: 'ظاهر على المنصة', className: 'bg-sky-50 text-sky-700' };
+
 export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => {
   const { courses, addCourse, updateCourse, deleteCourse, subjects } = useStore();
   const [isBuilding, setIsBuilding] = useState(false);
@@ -45,8 +50,9 @@ export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => 
             subject: subjectId,
             subjectId,
             pathId: currentSubject?.pathId,
+            showOnPlatform: false,
           } as Partial<Course> as Course)
-        : undefined,
+        : ({ showOnPlatform: false } as Partial<Course> as Course),
     );
     setIsBuilding(true);
   };
@@ -61,6 +67,7 @@ export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => 
     const normalizedSubject = normalizedSubjectId || courseData.subject || '';
     const normalizedPathId =
       courseData.pathId || currentSubject?.pathId || subjects.find((item) => item.id === normalizedSubjectId)?.pathId || '';
+
     const normalizedCourseData: Partial<Course> = {
       ...courseData,
       subject: normalizedSubject,
@@ -74,6 +81,7 @@ export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => 
       const newCourse = {
         ...normalizedCourseData,
         id: `course_${Date.now()}`,
+        showOnPlatform: typeof normalizedCourseData.showOnPlatform === 'boolean' ? normalizedCourseData.showOnPlatform : false,
       } as Course;
       addCourse(newCourse);
     }
@@ -82,7 +90,7 @@ export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => 
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('هل أنت متأكد من حذف هذه الدورة بشكل نهائي؟')) {
+    if (confirm('هل أنت متأكد من حذف هذه الدورة نهائيًا؟')) {
       deleteCourse(id);
     }
   };
@@ -99,6 +107,12 @@ export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => 
     updateCourse(course.id, {
       approvalStatus: 'rejected',
       isPublished: false,
+    });
+  };
+
+  const handleTogglePlatformVisibility = (course: Course) => {
+    updateCourse(course.id, {
+      showOnPlatform: course.showOnPlatform === false,
     });
   };
 
@@ -121,7 +135,9 @@ export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">إدارة الدورات (LMS)</h2>
-          <p className="text-gray-500 text-sm mt-1">إنشاء وتعديل الدورات، ومراجعة ما أضافه المعلمون قبل النشر على الموقع.</p>
+          <p className="text-gray-500 text-sm mt-1">
+            هذه الشاشة هي مستودع الدورات. اعتماد الدورة شيء، وظهورها على المنصة للطالب شيء آخر.
+          </p>
         </div>
         <button
           onClick={handleCreateNew}
@@ -161,17 +177,27 @@ export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => 
             <tbody className="divide-y divide-gray-100">
               {filteredCourses.map((course) => {
                 const statusMeta = getCourseStatusMeta(course);
+                const visibilityMeta = getCourseVisibilityMeta(course);
+
                 return (
                   <tr key={course.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <img src={course.thumbnail || 'https://via.placeholder.com/150'} alt={course.title} className="w-12 h-12 rounded-lg object-cover" />
+                        <img
+                          src={course.thumbnail || 'https://via.placeholder.com/150'}
+                          alt={course.title}
+                          className="w-12 h-12 rounded-lg object-cover"
+                        />
                         <div>
                           <div className="font-bold text-gray-800">{course.title}</div>
                           <div className="text-xs text-gray-500">{course.instructor}</div>
                           {(course.ownerType || course.approvalStatus) && (
                             <div className="text-[11px] text-gray-400 mt-1">
-                              {course.ownerType === 'teacher' ? 'محتوى معلم' : course.ownerType === 'school' ? 'محتوى مدرسة' : 'محتوى المنصة'}
+                              {course.ownerType === 'teacher'
+                                ? 'محتوى معلم'
+                                : course.ownerType === 'school'
+                                  ? 'محتوى مدرسة'
+                                  : 'محتوى المنصة'}
                             </div>
                           )}
                         </div>
@@ -181,7 +207,9 @@ export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => 
                       <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-md text-xs font-bold">{course.category}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="font-bold text-emerald-600">{course.price} {course.currency}</div>
+                      <div className="font-bold text-emerald-600">
+                        {course.price} {course.currency}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1 text-xs text-gray-500">
@@ -194,27 +222,58 @@ export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => 
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusMeta.className}`}>{statusMeta.label}</span>
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusMeta.className}`}>{statusMeta.label}</span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${visibilityMeta.className}`}>{visibilityMeta.label}</span>
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2 flex-wrap">
                         {course.approvalStatus !== 'approved' && (
-                          <button onClick={() => handleApprove(course)} className="px-3 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors">
+                          <button
+                            onClick={() => handleApprove(course)}
+                            className="px-3 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
+                          >
                             اعتماد
                           </button>
                         )}
                         {course.approvalStatus !== 'rejected' && (
-                          <button onClick={() => handleReject(course)} className="px-3 py-1 text-xs font-bold text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+                          <button
+                            onClick={() => handleReject(course)}
+                            className="px-3 py-1 text-xs font-bold text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                          >
                             رفض
                           </button>
                         )}
-                        <button onClick={() => handleEdit(course)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل المنهج والإعدادات">
+                        <button
+                          onClick={() => handleEdit(course)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="تعديل الدورة"
+                        >
                           <Edit2 size={18} />
                         </button>
-                        <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" title="معاينة">
+                        <button
+                          className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                          title="معاينة"
+                        >
                           <Eye size={18} />
                         </button>
-                        <button onClick={() => handleDelete(course.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="حذف">
+                        <button
+                          onClick={() => handleTogglePlatformVisibility(course)}
+                          className={`p-2 rounded-lg transition-colors ${
+                            course.showOnPlatform === false
+                              ? 'text-gray-500 hover:bg-gray-100'
+                              : 'text-sky-600 hover:bg-sky-50'
+                          }`}
+                          title={course.showOnPlatform === false ? 'إظهار على المنصة' : 'إخفاء عن المنصة'}
+                        >
+                          {course.showOnPlatform === false ? <Lock size={18} /> : <LockOpen size={18} />}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(course.id)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="حذف"
+                        >
                           <Trash2 size={18} />
                         </button>
                       </div>

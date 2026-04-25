@@ -223,12 +223,12 @@ const Reports: React.FC = () => {
     if (isStudentView && examResults.length === 0) {
         return (
             <div className="space-y-6 pb-20 animate-fade-in">
-                <header className="flex items-center gap-4">
+                <header className="flex items-center gap-3 sm:gap-4">
                     <Link to="/dashboard" className="text-gray-500 hover:text-gray-700">
                         <ArrowRight size={24} />
                     </Link>
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-800">تقارير الأداء</h1>
+                        <h1 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">تقارير الأداء</h1>
                         <p className="text-sm text-gray-500">نظرة شاملة على مستوى التقدم</p>
                     </div>
                 </header>
@@ -236,7 +236,7 @@ const Reports: React.FC = () => {
                     <div className="w-20 h-20 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mb-4">
                         <PieChart size={40} />
                     </div>
-                    <h2 className="text-xl font-bold text-gray-800 mb-2">لا توجد بيانات كافية</h2>
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-2 leading-tight">لا توجد بيانات كافية</h2>
                     <p className="text-gray-500 mb-6">قم بإجراء بعض الاختبارات لنتمكن من تحليل أدائك وتقديم توصيات مخصصة لك.</p>
                     <Link to="/quiz" className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors">
                         ابدأ أول اختبار
@@ -249,23 +249,23 @@ const Reports: React.FC = () => {
     return (
         <div className="space-y-8 pb-20 animate-fade-in">
             {/* Header */}
-            <header className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+            <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3 sm:gap-4">
                     <Link to="/dashboard" className="text-gray-500 hover:text-gray-700">
                         <ArrowRight size={24} />
                     </Link>
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-800">تقارير الأداء</h1>
+                        <h1 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">تقارير الأداء</h1>
                         <p className="text-sm text-gray-500">تحليل ذكي لمستواك بناءً على نتائج اختباراتك</p>
                     </div>
                 </div>
             </header>
 
             {!isStudentView && (
-                <Card className="p-6 border-0 shadow-sm bg-white">
-                    <div className="flex items-start justify-between gap-4 mb-5">
+                <Card className="p-4 sm:p-6 border-0 shadow-sm bg-white">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-5">
                         <div>
-                            <h2 className="text-xl font-bold text-gray-900">لوحة المتابعة حسب الدور</h2>
+                            <h2 className="text-lg sm:text-xl font-bold text-gray-900 leading-tight">لوحة المتابعة حسب الدور</h2>
                             <p className="text-sm text-gray-500 mt-1">
                                 {roleScopeTitle[user.role] || 'نطاقك الحالي'} - لمتابعة الطلاب الضعاف والمهارات الأضعف وخطط التدخل.
                             </p>
@@ -279,7 +279,7 @@ const Reports: React.FC = () => {
                         <div className="text-sm text-gray-500">جارٍ تحميل التقارير المجمعة...</div>
                     ) : scopedAnalytics ? (
                         <div className="space-y-6">
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                 <div className="rounded-2xl bg-gray-50 p-4">
                                     <div className="text-xs text-gray-500 mb-1">الطلاب داخل النطاق</div>
                                     <div className="text-2xl font-black text-gray-900">{scopedAnalytics.scope.studentCount}</div>
@@ -298,12 +298,12 @@ const Reports: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="grid lg:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 <div className="space-y-3">
                                     <div className="font-bold text-gray-900">الطلاب الأضعف حاليًا</div>
                                     {scopedAnalytics.weakestStudents.length > 0 ? scopedAnalytics.weakestStudents.slice(0, 5).map((student) => (
                                         <div key={student.id} className="border border-gray-100 rounded-xl p-4 bg-gray-50/60">
-                                            <div className="flex items-center justify-between gap-3 mb-2">
+                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-2">
                                                 <div>
                                                     <div className="font-bold text-gray-900">{student.name}</div>
                                                     <div className="text-xs text-gray-500">
@@ -336,7 +336,7 @@ const Reports: React.FC = () => {
                                     <div className="font-bold text-gray-900">المهارات الأضعف على مستوى النطاق</div>
                                     {scopedAnalytics.weakestSkills.length > 0 ? scopedAnalytics.weakestSkills.slice(0, 6).map((skill) => (
                                         <div key={`${skill.skillId || skill.skill}`} className="border border-gray-100 rounded-xl p-4 bg-white">
-                                            <div className="flex items-center justify-between gap-3 mb-2">
+                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-2">
                                                 <div>
                                                     <div className="font-bold text-gray-900">{skill.skill}</div>
                                                     <div className="text-xs text-gray-500">{skill.section || 'مهارة فرعية'}</div>
@@ -355,7 +355,7 @@ const Reports: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="grid lg:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 <div className="space-y-3">
                                     <div className="font-bold text-gray-900">المواد التي تحتاج تدخلًا</div>
                                     {scopedAnalytics.subjectSummaries.length > 0 ? scopedAnalytics.subjectSummaries.slice(0, 6).map((subject) => (
@@ -404,7 +404,7 @@ const Reports: React.FC = () => {
             <>
             {/* 1. Performance Analysis (A) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="p-6 flex flex-col items-center text-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-white border-0 shadow-md">
+                <Card className="p-5 sm:p-6 flex flex-col items-center text-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-white border-0 shadow-md">
                     <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-3">
                         <TrendingUp size={24} className="text-white" />
                     </div>
@@ -412,7 +412,7 @@ const Reports: React.FC = () => {
                     <div className="text-sm font-medium text-indigo-100">متوسط الدرجات</div>
                 </Card>
                 
-                <Card className="p-6 flex flex-col items-center text-center justify-center border-0 shadow-sm bg-emerald-50">
+                <Card className="p-5 sm:p-6 flex flex-col items-center text-center justify-center border-0 shadow-sm bg-emerald-50">
                     <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-3">
                         <Award size={24} />
                     </div>
@@ -420,7 +420,7 @@ const Reports: React.FC = () => {
                     <div className="text-sm font-medium text-emerald-600">أفضل أداء ({stats?.bestSubject.score}%)</div>
                 </Card>
 
-                <Card className="p-6 flex flex-col items-center text-center justify-center border-0 shadow-sm bg-rose-50">
+                <Card className="p-5 sm:p-6 flex flex-col items-center text-center justify-center border-0 shadow-sm bg-rose-50">
                     <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mb-3">
                         <AlertTriangle size={24} />
                     </div>
@@ -431,7 +431,7 @@ const Reports: React.FC = () => {
 
             {/* 2. Smart Recommendations (D) */}
             {weakestSkill && weakestSkill.mastery < 70 && (
-                <Card className="p-6 border-0 shadow-md bg-gradient-to-r from-amber-50 to-orange-50 relative overflow-hidden">
+                <Card className="p-5 sm:p-6 border-0 shadow-md bg-gradient-to-r from-amber-50 to-orange-50 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-2 h-full bg-amber-400"></div>
                     <div className="flex items-start gap-4">
                         <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center shrink-0">
@@ -453,7 +453,7 @@ const Reports: React.FC = () => {
                                     {weakestSkillRecommendation.actionText ? <div className="text-amber-800">الإجراء المقترح الآن: <span className="font-bold">{weakestSkillRecommendation.actionText}</span></div> : null}
                                 </div>
                             ) : null}
-                            <div className="flex flex-wrap gap-3">
+                            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
                                 <Link to={weakestSkillRecommendation.lessonLink || "/courses"} className="bg-white text-gray-800 px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-gray-50 flex items-center gap-2 border border-gray-200">
                                     <Video size={16} className="text-indigo-500" />
                                     مراجعة الدرس
@@ -475,7 +475,7 @@ const Reports: React.FC = () => {
             )}
 
             {/* 3. Skill Analysis & Actions (B & C) */}
-            <Card className="p-6 shadow-sm border-0">
+            <Card className="p-5 sm:p-6 shadow-sm border-0">
                 <div className="flex items-center gap-2 mb-6">
                     <PieChart className="text-indigo-500" size={24} />
                     <h2 className="text-xl font-bold text-gray-800">تحليل المهارات التفصيلي</h2>

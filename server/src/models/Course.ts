@@ -31,6 +31,7 @@ const courseSchema = new Schema(
     instructorBio: { type: String, default: "" },
     modules: { type: [moduleSchema], default: [] },
     isPublished: { type: Boolean, default: false },
+    showOnPlatform: { type: Boolean, default: true },
     isPackage: { type: Boolean, default: false },
     packageType: { type: String, enum: ["courses", "videos", "tests"], default: "courses" },
     originalPrice: { type: Number, default: null },

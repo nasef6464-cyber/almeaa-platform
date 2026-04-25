@@ -65,7 +65,7 @@ export const CourseLanding: React.FC<CourseLandingProps> = ({ course }) => {
                         {/* Description Section */}
                         <section className="bg-white p-6 md:p-10 rounded-3xl shadow-sm border border-gray-100">
                             <h2 className="text-2xl font-black text-gray-900 mb-8">ماذا ستتعلم في هذه الدورة؟</h2>
-                            <div className="grid md:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {[
                                     'تأسيس شامل من الصفر في جميع المهارات',
                                     'استراتيجيات الحل السريع والذكي',
@@ -95,7 +95,7 @@ export const CourseLanding: React.FC<CourseLandingProps> = ({ course }) => {
                                     <p className="text-gray-600 leading-relaxed text-sm md:text-base mb-8">
                                         {course.instructorBio || 'مدرس خبير بخبرة تزيد عن 10 سنوات في تدريس مناهج القدرات والتحصيلي. ساعد آلاف الطلاب في تحقيق درجات متميزة والالتحاق بأفضل الجامعات.'}
                                     </p>
-                                    <div className="flex gap-8">
+                                    <div className="grid grid-cols-2 gap-4 sm:flex sm:gap-8">
                                         <div className="text-center">
                                             <p className="text-2xl font-black text-gray-900">10k+</p>
                                             <p className="text-xs text-gray-400 mt-1">طالب</p>
@@ -236,7 +236,7 @@ export const CourseLanding: React.FC<CourseLandingProps> = ({ course }) => {
 
             {/* Main Layout Grid */}
             <div className="max-w-7xl mx-auto px-4 relative z-10 pt-8 md:pt-16">
-                <div className="grid lg:grid-cols-3 gap-8 md:gap-12 items-start">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 md:gap-12 items-start">
                     
                     {/* Left Column: Info & Content */}
                     <div className="lg:col-span-2 space-y-8 md:space-y-12">
@@ -246,7 +246,7 @@ export const CourseLanding: React.FC<CourseLandingProps> = ({ course }) => {
                                 <span className="bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">جديد</span>
                                 <span className="bg-white/10 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{course.category}</span>
                             </div>
-                            <h1 className="text-3xl md:text-5xl font-black mb-6 leading-tight text-right">
+                            <h1 className="text-2xl sm:text-3xl md:text-5xl font-black mb-6 leading-tight text-right break-words">
                                 {course.title}
                             </h1>
                             <p className="text-gray-300 text-sm md:text-base mb-8 max-w-2xl leading-relaxed">
@@ -293,22 +293,22 @@ export const CourseLanding: React.FC<CourseLandingProps> = ({ course }) => {
                         </div>
 
                         {/* Tabs Navigation */}
-                        <div className="flex border-b border-gray-200 sticky top-0 bg-gray-50/90 backdrop-blur-md z-20 pt-4">
+                        <div className="flex overflow-x-auto border-b border-gray-200 sticky top-0 bg-gray-50/90 backdrop-blur-md z-20 pt-4">
                             <button 
                                 onClick={() => setActiveTab('overview')}
-                                className={`px-6 md:px-8 py-4 font-bold text-sm md:text-base transition-all ${activeTab === 'overview' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-indigo-600'}`}
+                                className={`shrink-0 px-6 md:px-8 py-4 font-bold text-sm md:text-base transition-all ${activeTab === 'overview' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-indigo-600'}`}
                             >
                                 نظرة عامة
                             </button>
                             <button 
                                 onClick={() => setActiveTab('syllabus')}
-                                className={`px-6 md:px-8 py-4 font-bold text-sm md:text-base transition-all ${activeTab === 'syllabus' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-indigo-600'}`}
+                                className={`shrink-0 px-6 md:px-8 py-4 font-bold text-sm md:text-base transition-all ${activeTab === 'syllabus' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-indigo-600'}`}
                             >
                                 منهج الدورة
                             </button>
                             <button 
                                 onClick={() => setActiveTab('reviews')}
-                                className={`px-6 md:px-8 py-4 font-bold text-sm md:text-base transition-all ${activeTab === 'reviews' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-indigo-600'}`}
+                                className={`shrink-0 px-6 md:px-8 py-4 font-bold text-sm md:text-base transition-all ${activeTab === 'reviews' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-indigo-600'}`}
                             >
                                 المراجعات
                             </button>
@@ -344,11 +344,11 @@ export const CourseLanding: React.FC<CourseLandingProps> = ({ course }) => {
                                 </div>
                             </div>
                             
-                            <div className="p-8">
-                                <div className="flex items-center justify-between mb-6">
+                            <div className="p-5 sm:p-8">
+                                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
                                     <div className="flex flex-col">
                                         <span className="text-gray-400 line-through text-sm">{course.originalPrice || course.price + 100} {course.currency}</span>
-                                        <span className="text-4xl font-black text-indigo-600">{course.price} {course.currency}</span>
+                                        <span className="text-3xl sm:text-4xl font-black text-indigo-600">{course.price} {course.currency}</span>
                                     </div>
                                     <div className="bg-rose-50 text-rose-600 px-3 py-1 rounded-full text-xs font-black animate-pulse">
                                         خصم 30%

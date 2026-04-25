@@ -105,6 +105,32 @@ export const api = {
       body: payload,
       token,
     }),
+  getPaymentSettings: (token?: string | null) =>
+    request<unknown>("/payments/settings", {
+      token,
+    }),
+  updatePaymentSettings: (payload: unknown, token?: string | null) =>
+    request<unknown>("/payments/settings", {
+      method: "PATCH",
+      body: payload,
+      token,
+    }),
+  getPaymentRequests: (token?: string | null) =>
+    request<{ requests: unknown[] }>("/payments/requests", {
+      token,
+    }),
+  createPaymentRequest: (payload: unknown, token?: string | null) =>
+    request<{ request: unknown }>("/payments/requests", {
+      method: "POST",
+      body: payload,
+      token,
+    }),
+  reviewPaymentRequest: (id: string, payload: unknown, token?: string | null) =>
+    request<{ request: unknown; user?: unknown }>(`/payments/requests/${id}/review`, {
+      method: "PATCH",
+      body: payload,
+      token,
+    }),
   getTaxonomyBootstrap: () =>
     request<{ paths: unknown[]; levels: unknown[]; subjects: unknown[]; sections: unknown[]; skills: unknown[] }>("/taxonomy/bootstrap"),
   createPath: (payload: unknown, token?: string | null) =>
@@ -194,6 +220,16 @@ export const api = {
     }),
   getContentBootstrap: () =>
     request<{ topics: unknown[]; lessons: unknown[]; libraryItems: unknown[]; groups: unknown[]; b2bPackages: unknown[]; accessCodes: unknown[] }>("/content/bootstrap"),
+  getHomepageSettings: (token?: string | null) =>
+    request<unknown>("/content/homepage-settings", {
+      token,
+    }),
+  updateHomepageSettings: (payload: unknown, token?: string | null) =>
+    request<unknown>("/content/homepage-settings", {
+      method: "PATCH",
+      body: payload,
+      token,
+    }),
   createTopic: (payload: unknown, token?: string | null) =>
     request<unknown>("/content/topics", {
       method: "POST",

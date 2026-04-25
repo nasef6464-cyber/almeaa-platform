@@ -18,7 +18,7 @@ export const Step: React.FC = () => {
                 title: subject.name,
                 subtitle: 'تأسيس - تدريب - نماذج',
                 color: colors[index % colors.length],
-                link: `/category/p_step/${subject.id}`
+      link: `/category/p_step?subject=${subject.id}`
             };
         })
     ];

@@ -198,30 +198,30 @@ export const Achievements: React.FC = () => {
 
     return (
         <div className="space-y-6 pb-20">
-            <header className="flex items-center gap-4">
+            <header className="flex items-start gap-3 sm:gap-4">
                 <Link to="/dashboard" className="text-gray-500 hover:text-gray-700"><ArrowRight /></Link>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-800">الإنجازات</h1>
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">الإنجازات</h1>
                     <p className="text-sm text-gray-500">سجل النجاحات والأوسمة والتقدم الحقيقي داخل المنصة</p>
                 </div>
             </header>
 
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-5 sm:p-6 text-white shadow-lg relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
 
                 <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
-                    <div className="flex items-center gap-4">
-                        <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-3xl font-black border-4 border-white/30">
+                    <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-right">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-2xl sm:text-3xl font-black border-4 border-white/30">
                             {currentLevel}
                         </div>
                         <div>
-                            <h2 className="text-2xl font-bold">المستوى {currentLevel}</h2>
+                            <h2 className="text-xl sm:text-2xl font-bold">المستوى {currentLevel}</h2>
                             <p className="text-indigo-200">تقدمك محسوب من الدروس والاختبارات والنشاط الحقيقي</p>
                         </div>
                     </div>
 
                     <div className="w-full md:w-1/2">
-                        <div className="flex justify-between text-sm font-bold mb-2">
+                        <div className="flex justify-between gap-4 text-sm font-bold mb-2">
                             <span>{derivedPoints} نقطة</span>
                             <span>{nextLevelPoints} نقطة</span>
                         </div>
@@ -231,7 +231,7 @@ export const Achievements: React.FC = () => {
                                 style={{ width: `${progressToNextLevel}%` }}
                             ></div>
                         </div>
-                        <p className="text-xs text-indigo-200 mt-2 text-left">باقي {remainingPoints} نقطة للوصول إلى المستوى التالي</p>
+                        <p className="text-xs text-indigo-200 mt-2 text-right sm:text-left">باقي {remainingPoints} نقطة للوصول إلى المستوى التالي</p>
                     </div>
                 </div>
             </div>
@@ -268,7 +268,7 @@ export const Achievements: React.FC = () => {
                 </div>
             </section>
 
-            <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <Card className="p-5 border border-gray-100">
                     <div className="text-sm text-gray-500 mb-2">الدروس المكتملة</div>
                     <div className="text-2xl font-black text-gray-900">{derivedStats.completedLessons}</div>
@@ -287,7 +287,7 @@ export const Achievements: React.FC = () => {
                 </Card>
             </section>
 
-            <section className="bg-white rounded-2xl border border-gray-100 p-6">
+            <section className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6">
                 <h3 className="text-lg font-bold text-gray-800 mb-6">سجل النشاط</h3>
                 {activityTimeline.length === 0 ? (
                     <div className="text-center py-10 text-gray-500">

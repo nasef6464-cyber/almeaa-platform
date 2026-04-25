@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { Topic } from '../types';
 import { VideoModal } from './VideoModal';
+import { openExternalUrl } from '../utils/openExternalUrl';
 
 interface SkillDetailsModalProps {
   isOpen: boolean;
@@ -247,7 +248,7 @@ export const SkillDetailsModal: React.FC<SkillDetailsModalProps> = ({ isOpen, on
                               {relatedLibrarySuggestions.map((item) => (
                                 <button
                                   key={item.id}
-                                  onClick={() => item.url && window.open(item.url, '_blank', 'noopener,noreferrer')}
+                                  onClick={() => openExternalUrl(item.url)}
                                   className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-right hover:border-emerald-200 hover:shadow-sm transition-all"
                                 >
                                   <div className="flex items-center justify-between gap-3">
@@ -371,7 +372,7 @@ export const SkillDetailsModal: React.FC<SkillDetailsModalProps> = ({ isOpen, on
                               {relatedLibrarySuggestions.map((item) => (
                                 <button
                                   key={item.id}
-                                  onClick={() => item.url && window.open(item.url, '_blank', 'noopener,noreferrer')}
+                                  onClick={() => openExternalUrl(item.url)}
                                   className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-right hover:border-emerald-200 hover:shadow-sm transition-all"
                                 >
                                   <div className="flex items-center justify-between gap-3">

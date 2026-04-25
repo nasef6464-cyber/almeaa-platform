@@ -107,16 +107,16 @@ const Courses: React.FC = () => {
     return (
         <div className="space-y-6 pb-20">
             {/* Header */}
-            <header className="flex items-center gap-4">
+            <header className="flex items-start gap-3 sm:gap-4">
                 <Link to="/" className="text-gray-500 hover:text-gray-700"><ArrowRight /></Link>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-800">دوراتي</h1>
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">دوراتي</h1>
                     <p className="text-sm text-gray-500">متابعة تقدمك في الدورات المسجلة</p>
                 </div>
             </header>
 
             {/* Search & Filter Bar */}
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-1">
                     <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                     <input 
@@ -127,7 +127,7 @@ const Courses: React.FC = () => {
                         className="w-full pr-10 pl-4 py-3 rounded-xl border border-gray-200 focus:border-secondary-500 focus:ring-1 focus:ring-secondary-500 outline-none transition-all"
                     />
                 </div>
-                <button className="bg-white border border-gray-200 text-gray-600 px-4 rounded-xl hover:bg-gray-50 transition-colors">
+                <button className="bg-white border border-gray-200 text-gray-600 px-4 py-3 rounded-xl hover:bg-gray-50 transition-colors w-full sm:w-auto flex items-center justify-center">
                     <Filter size={20} />
                 </button>
             </div>
@@ -157,7 +157,7 @@ const Courses: React.FC = () => {
             </div>
 
             {/* Courses Grid */}
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {displayedCourses.map((course) => {
                     const isExpanded = expandedCourseId === course.id;
                     return (
@@ -177,7 +177,7 @@ const Courses: React.FC = () => {
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
                                 
                                 <div className="absolute bottom-0 left-0 right-0 p-5">
-                                    <div className="flex justify-between items-start mb-1">
+                                    <div className="flex justify-between items-start gap-3 mb-1">
                                         <span className="text-xs font-bold text-amber-400 mb-1 block">{course.category}</span>
                                         <div className="flex text-amber-400 text-xs">
                                             {[...Array(5)].map((_, i) => (
@@ -185,7 +185,7 @@ const Courses: React.FC = () => {
                                             ))}
                                         </div>
                                     </div>
-                                    <h3 className="font-bold text-lg text-white mb-1 leading-snug">{course.title}</h3>
+                                    <h3 className="font-bold text-base sm:text-lg text-white mb-1 leading-snug break-words">{course.title}</h3>
                                     <div className="flex items-center gap-2 text-gray-300 text-xs">
                                         <User size={12} />
                                         <span>{course.instructor}</span>
@@ -202,7 +202,7 @@ const Courses: React.FC = () => {
                             <div className="p-5 flex-1 flex flex-col bg-white">
                                 {/* Basic Progress Info */}
                                 <div className="mb-4">
-                                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                    <div className="flex justify-between gap-3 text-xs text-gray-500 mb-1">
                                         <span>{course.progress}% مكتمل</span>
                                         <span>{course.modules?.reduce((acc, m) => acc + m.lessons.length, 0) || 0} دروس</span>
                                     </div>
@@ -244,12 +244,12 @@ const Courses: React.FC = () => {
                                                 {course.modules?.map(module => module.lessons.map((item, idx) => {
                                                     const isCompleted = completedLessons.includes(item.id);
                                                     return (
-                                                    <div key={item.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-xs">
-                                                        <div className="flex items-center gap-2">
+                                                    <div key={item.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-2 bg-gray-50 rounded-lg text-xs">
+                                                        <div className="flex items-center gap-2 min-w-0">
                                                             <div className={`w-2 h-2 rounded-full ${isCompleted ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
-                                                            <span className={isCompleted ? 'text-gray-800 font-medium' : 'text-gray-600'}>{item.title}</span>
+                                                            <span className={`${isCompleted ? 'text-gray-800 font-medium' : 'text-gray-600'} break-words`}>{item.title}</span>
                                                         </div>
-                                                        <span className="text-gray-400">{item.duration}</span>
+                                                        <span className="text-gray-400 self-start sm:self-auto">{item.duration}</span>
                                                     </div>
                                                 )})) || <p className="text-xs text-gray-400">لا يوجد منهج متاح.</p>}
                                             </div>
@@ -274,7 +274,7 @@ const Courses: React.FC = () => {
             </div>
 
             {displayedCourses.length === 0 && (
-                <div className="text-center py-12 text-gray-400">
+                <div className="text-center py-8 sm:py-12 text-gray-400">
                     <BookOpen size={48} className="mx-auto mb-4 opacity-20" />
                     <p>لا توجد دورات في هذه القائمة.</p>
                 </div>
@@ -286,7 +286,7 @@ const Courses: React.FC = () => {
 const TabButton = ({ label, count, isActive, onClick }: { label: string; count: number; isActive: boolean; onClick: () => void }) => (
     <button 
         onClick={onClick}
-        className={`pb-3 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
+        className={`pb-3 text-sm font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
             isActive 
                 ? 'text-secondary-600 border-secondary-500' 
                 : 'text-gray-500 border-transparent hover:text-gray-700'

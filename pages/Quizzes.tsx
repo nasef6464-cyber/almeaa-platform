@@ -54,6 +54,7 @@ const Quizzes: React.FC = () => {
   const canAccessQuiz = useMemo(
     () => (quiz: (typeof quizzes)[number]) => {
       if (!quiz.isPublished || (quiz.type ?? 'quiz') !== 'quiz') return false;
+      if (quiz.showOnPlatform === false) return false;
 
       if (quiz.dueDate) {
         const deadline = new Date(`${quiz.dueDate}T23:59:59`);
@@ -128,6 +129,7 @@ const Quizzes: React.FC = () => {
       quizzes
         .filter((quiz) => {
           if (!quiz.isPublished || (quiz.type ?? 'quiz') !== 'quiz') return false;
+          if (quiz.showOnPlatform === false) return false;
           if (quiz.access.type !== 'paid') return false;
           return !canAccessQuiz(quiz);
         })
@@ -230,7 +232,7 @@ const Quizzes: React.FC = () => {
         <Link to="/" className="text-gray-500 hover:text-gray-700">
           <ArrowRight />
         </Link>
-        <h1 className="text-2xl font-bold text-gray-800">اختباراتي</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">اختباراتي</h1>
       </header>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -240,11 +242,11 @@ const Quizzes: React.FC = () => {
         <StatCard icon={<FileText size={24} />} value={totalQuizzes} label="محاولات مسجلة" color="emerald" />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="bg-secondary-500 text-white p-4 text-center font-bold text-lg">مركز الاختبارات</div>
           <div className="p-6 space-y-5">
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <ActionCard
                 icon={<Zap size={24} />}
                 title="اختبار ساهر الذاتي"
@@ -266,7 +268,7 @@ const Quizzes: React.FC = () => {
 
             {weakSkillRecommendations.length > 0 && (
               <div className="rounded-2xl border border-amber-100 bg-amber-50/40 p-5 space-y-4">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
                     <h3 className="font-bold text-gray-900">اختبارات مقترحة حسب المهارات الضعيفة</h3>
                     <p className="text-sm text-gray-600 mt-1">
@@ -278,7 +280,7 @@ const Quizzes: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                   {weakSkillRecommendations.map((item) => (
                     <div key={item.key} className="rounded-xl border border-white/80 bg-white/80 p-4 space-y-3">
                       <div className="space-y-1">
@@ -309,7 +311,7 @@ const Quizzes: React.FC = () => {
                       <div className="space-y-2">
                         <Link
                           to={item.recommendedQuiz ? `/quiz/${item.recommendedQuiz.id}` : '/quiz'}
-                          className="bg-gray-900 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-gray-800 transition-colors text-center block"
+                          className="bg-gray-900 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-gray-800 transition-colors text-center block w-full"
                         >
                           {item.recommendedQuiz ? 'ابدأ الاختبار المقترح' : 'أنشئ اختبار ساهر لهذه المهارة'}
                         </Link>
@@ -320,7 +322,7 @@ const Quizzes: React.FC = () => {
                                 ? `/category/${item.recommendedLesson.pathId}?subject=${item.subjectId}&tab=skills`
                                 : '/courses'
                             }
-                            className="bg-white border border-gray-200 text-gray-800 px-4 py-2 rounded-lg font-bold text-sm hover:bg-gray-50 transition-colors text-center block"
+                            className="bg-white border border-gray-200 text-gray-800 px-4 py-2 rounded-lg font-bold text-sm hover:bg-gray-50 transition-colors text-center block w-full"
                           >
                             راجع الشرح أولًا
                           </Link>
@@ -330,7 +332,7 @@ const Quizzes: React.FC = () => {
                             href={item.recommendedResource.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-2 rounded-lg font-bold text-sm hover:bg-amber-100 transition-colors text-center block"
+                            className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-2 rounded-lg font-bold text-sm hover:bg-amber-100 transition-colors text-center block w-full"
                           >
                             افتح الملف الداعم
                           </a>
@@ -679,11 +681,11 @@ const StatCard = ({
   };
 
   return (
-    <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+    <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between gap-3">
       <div className={`w-12 h-12 rounded-full flex items-center justify-center ${colorClasses[color].split(' ')[0]} ${colorClasses[color].split(' ')[1]}`}>
         {icon}
       </div>
-      <div className="text-left">
+      <div className="text-right sm:text-left">
         <div className="font-bold text-2xl text-gray-800 dir-ltr">{value}</div>
         <div className="text-xs text-gray-500 font-medium">{label}</div>
       </div>

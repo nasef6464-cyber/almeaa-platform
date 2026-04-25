@@ -103,9 +103,10 @@ export const Header: React.FC = () => {
       { id: '1', label: text.main, link: '/', iconName: 'home' },
     ];
 
+    const canSeeHiddenPaths = ['admin', 'teacher', 'supervisor'].includes(user?.role || '');
     const activePaths = paths.filter(
       (path) =>
-        path.isActive !== false &&
+        (canSeeHiddenPaths || path.isActive !== false) &&
         path.showInNavbar !== false &&
         typeof path.id === 'string' &&
         path.id.trim().length > 0 &&
@@ -224,9 +225,9 @@ export const Header: React.FC = () => {
 
   return (
     <header className="bg-white border-b border-gray-100 sticky top-0 z-50 shadow-sm font-sans">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-20">
-          <div className="flex items-center gap-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16 sm:h-20 gap-3">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button
               className="md:hidden p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
               onClick={() => setIsMobileMenuOpen((value) => !value)}
@@ -234,11 +235,11 @@ export const Header: React.FC = () => {
               {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
 
-            <Link to="/" className="flex items-center gap-2">
-              <div className="text-2xl font-black text-amber-500 flex items-baseline">
+            <Link to="/" className="flex items-center gap-2 min-w-0">
+              <div className="text-lg sm:text-2xl font-black text-amber-500 flex items-baseline min-w-0">
                 <span className="text-blue-900">{text.platform}</span>
                 <span className="mx-1">{text.hundred}</span>
-                <span className="text-xs font-normal text-gray-400 block -mt-2">{text.subtitle}</span>
+                <span className="hidden sm:block text-xs font-normal text-gray-400 -mt-2">{text.subtitle}</span>
               </div>
             </Link>
           </div>
@@ -295,13 +296,13 @@ export const Header: React.FC = () => {
             })}
           </nav>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             <button className="text-gray-500 hover:text-amber-500 transition-colors">
-              <Search size={22} />
+              <Search size={20} />
             </button>
 
             <Link to="/cart" className="relative text-gray-500 hover:text-amber-500 transition-colors">
-              <ShoppingCart size={22} />
+              <ShoppingCart size={20} />
               <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                 0
               </span>
@@ -312,7 +313,7 @@ export const Header: React.FC = () => {
                 <>
                   <button
                     onClick={() => setIsUserMenuOpen((value) => !value)}
-                    className="flex items-center gap-2 hover:bg-gray-50 p-1 pr-3 rounded-full border border-transparent hover:border-gray-100 transition-all"
+                    className="flex items-center gap-2 hover:bg-gray-50 p-1 sm:pr-3 rounded-full border border-transparent hover:border-gray-100 transition-all"
                   >
                     <div className="hidden lg:block text-left">
                       <span className="block text-xs text-gray-500 font-normal">{text.account}</span>
@@ -323,7 +324,7 @@ export const Header: React.FC = () => {
                     <img
                       src={user.photoURL}
                       alt="User"
-                      className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
+                      className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border-2 border-white shadow-sm"
                     />
                   </button>
 
@@ -366,7 +367,7 @@ export const Header: React.FC = () => {
               ) : (
                 <button
                   onClick={() => setIsLoginModalOpen(true)}
-                  className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold transition-colors"
+                  className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-3 sm:px-4 py-2 rounded-lg font-bold transition-colors"
                 >
                   <LogIn size={18} />
                   <span className="hidden sm:inline">{text.login}</span>
@@ -379,7 +380,7 @@ export const Header: React.FC = () => {
 
       {isMobileMenuOpen ? (
         <div className="md:hidden fixed inset-0 z-40 bg-white overflow-y-auto pb-20 animate-fade-in">
-          <div className="p-4">
+          <div className="p-4 pt-20">
             {navigationMenu.map((item, index) => {
               const icon = item.iconName ? NavIcons[item.iconName] : null;
 

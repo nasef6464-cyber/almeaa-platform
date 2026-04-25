@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { Lesson, LessonType } from '../../../types';
 import { Save, X, Video, FileText, HelpCircle, Video as VideoIcon, Youtube } from 'lucide-react';
 import { QuizBuilder } from '../QuizBuilder';
@@ -21,6 +21,7 @@ export const UnifiedLessonBuilder: React.FC<UnifiedLessonBuilderProps> = ({
   const [lesson, setLesson] = useState<Lesson>(initialLesson);
   const [showQuizBuilder, setShowQuizBuilder] = useState(false);
   const [showQuestionBuilder, setShowQuestionBuilder] = useState(false);
+  const [validationError, setValidationError] = useState('');
   const { quizzes, paths, subjects, sections, skills } = useStore();
 
   const availableMainSkills = useMemo(
@@ -88,26 +89,33 @@ export const UnifiedLessonBuilder: React.FC<UnifiedLessonBuilderProps> = ({
   };
 
   const handleSave = () => {
+    handleValidatedSave();
+    return;
+  };
+
+  const handleValidatedSave = () => {
     if (!lesson.title) {
-      alert('يرجى إدخال عنوان الدرس');
+      setValidationError('يرجى إدخال عنوان الدرس.');
       return;
     }
     if (!lesson.pathId) {
-      alert('يرجى اختيار المسار قبل حفظ الدرس');
+      setValidationError('يرجى اختيار المسار قبل حفظ الدرس.');
       return;
     }
     if (!lesson.subjectId) {
-      alert('يرجى اختيار المادة قبل حفظ الدرس');
+      setValidationError('يرجى اختيار المادة قبل حفظ الدرس.');
       return;
     }
     if (!lesson.sectionId) {
-      alert('يرجى اختيار المهارة الرئيسة قبل حفظ الدرس');
+      setValidationError('يرجى اختيار المهارة الرئيسة قبل حفظ الدرس.');
       return;
     }
     if (!lesson.skillIds || lesson.skillIds.length === 0) {
-      alert('يرجى ربط الدرس بمهارة فرعية واحدة على الأقل');
+      setValidationError('يرجى ربط الدرس بمهارة فرعية واحدة على الأقل.');
       return;
     }
+
+    setValidationError('');
     onSave(moduleId, lesson);
   };
 
@@ -125,6 +133,12 @@ export const UnifiedLessonBuilder: React.FC<UnifiedLessonBuilderProps> = ({
         </div>
 
         <div className="p-6 overflow-y-auto flex-1 space-y-6">
+          {validationError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {validationError}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-1">اسم الدرس</label>
@@ -306,6 +320,39 @@ export const UnifiedLessonBuilder: React.FC<UnifiedLessonBuilderProps> = ({
                   />
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">رابط التسجيل بعد الحصة</label>
+                  <input
+                    type="text"
+                    value={lesson.recordingUrl || ''}
+                    onChange={event => setLesson({ ...lesson, recordingUrl: event.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                    placeholder="https://..."
+                  />
+                </div>
+                <label className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 mt-6 md:mt-0">
+                  <input
+                    type="checkbox"
+                    checked={lesson.showRecordingOnPlatform === true}
+                    onChange={event => setLesson({ ...lesson, showRecordingOnPlatform: event.target.checked })}
+                    className="accent-indigo-600"
+                  />
+                  <span className="text-sm font-bold text-gray-700">إظهار التسجيل للطالب بعد الحصة</span>
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">تعليمات الدخول أو التجهيز</label>
+                <textarea
+                  value={lesson.joinInstructions || ''}
+                  onChange={event => setLesson({ ...lesson, joinInstructions: event.target.value })}
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none resize-y"
+                  placeholder="مثال: ادخل قبل الموعد بعشر دقائق، جهّز القلم والدفتر، واستخدم اسمك الحقيقي داخل الجلسة."
+                />
+              </div>
             </div>
           )}
 
@@ -351,7 +398,7 @@ export const UnifiedLessonBuilder: React.FC<UnifiedLessonBuilderProps> = ({
             إلغاء
           </button>
           <button
-            onClick={handleSave}
+            onClick={handleValidatedSave}
             className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
           >
             <Save size={18} /> حفظ التغييرات
@@ -387,3 +434,4 @@ export const UnifiedLessonBuilder: React.FC<UnifiedLessonBuilderProps> = ({
     </div>
   );
 };
+

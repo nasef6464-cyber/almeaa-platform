@@ -13,6 +13,7 @@ import { B2BPackageModel } from "../models/B2BPackage.js";
 import { AccessCodeModel } from "../models/AccessCode.js";
 import { UserModel } from "../models/User.js";
 import { QuizResultModel } from "../models/QuizResult.js";
+import { HomepageSettingsModel } from "../models/HomepageSettings.js";
 
 const topicSchema = z.object({
   id: z.string().optional(),
@@ -22,6 +23,7 @@ const topicSchema = z.object({
   title: z.string().min(1),
   parentId: z.string().nullable().optional(),
   order: z.number().default(0),
+  showOnPlatform: z.boolean().default(true),
   lessonIds: z.array(z.string()).default([]),
   quizIds: z.array(z.string()).default([]),
 });
@@ -37,6 +39,11 @@ const lessonSchema = z.object({
   content: z.string().optional(),
   videoUrl: z.string().optional(),
   fileUrl: z.string().optional(),
+  meetingUrl: z.string().optional(),
+  meetingDate: z.string().optional(),
+  recordingUrl: z.string().optional(),
+  joinInstructions: z.string().optional(),
+  showRecordingOnPlatform: z.boolean().optional(),
   quizId: z.string().nullable().optional(),
   order: z.number().default(0),
   isLocked: z.boolean().default(false),
@@ -141,6 +148,7 @@ const librarySchema = z.object({
   sectionId: z.string().nullable().optional(),
   skillIds: z.array(z.string()).min(1),
   url: z.string().optional(),
+  showOnPlatform: z.boolean().default(true),
   ownerType: z.enum(["platform", "teacher", "school"]).optional(),
   ownerId: z.string().optional(),
   createdBy: z.string().optional(),
@@ -204,7 +212,151 @@ const schoolImportSchema = z.object({
   rows: z.array(schoolImportRowSchema).min(1),
 });
 
+const homepageStatSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  mode: z.enum(["dynamic", "manual"]).default("dynamic"),
+  source: z.enum(["students", "courses", "assets", "rating"]).default("students"),
+  manualValue: z.string().optional(),
+});
+
+const homepageTestimonialSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  degree: z.string().optional(),
+  text: z.string().min(1),
+  image: z.string().optional(),
+});
+
+const homepageSettingsSchema = z.object({
+  hero: z
+    .object({
+      badgeText: z.string().optional(),
+      titlePrefix: z.string().optional(),
+      titleHighlight: z.string().optional(),
+      titleSuffix: z.string().optional(),
+      description: z.string().optional(),
+      primaryCtaLabel: z.string().optional(),
+      primaryCtaLink: z.string().optional(),
+      secondaryCtaLabel: z.string().optional(),
+      secondaryCtaLink: z.string().optional(),
+      imageUrl: z.string().optional(),
+      floatingCardTitle: z.string().optional(),
+      floatingCardSubtitle: z.string().optional(),
+      floatingCardProgressLabel: z.string().optional(),
+      floatingCardProgressValue: z.string().optional(),
+    })
+    .optional(),
+  stats: z.array(homepageStatSchema).optional(),
+  testimonials: z.array(homepageTestimonialSchema).optional(),
+  sections: z
+    .object({
+      featuredCoursesTitle: z.string().optional(),
+      featuredCoursesSubtitle: z.string().optional(),
+      featuredArticlesTitle: z.string().optional(),
+      featuredArticlesSubtitle: z.string().optional(),
+      whyChooseTitle: z.string().optional(),
+      whyChooseDescription: z.string().optional(),
+      testimonialsTitle: z.string().optional(),
+      testimonialsSubtitle: z.string().optional(),
+    })
+    .optional(),
+  featuredPathIds: z.array(z.string()).optional(),
+  featuredCourseIds: z.array(z.string()).optional(),
+  featuredArticleLessonIds: z.array(z.string()).optional(),
+});
+
+const defaultHomepageSettings = {
+  key: "default",
+  hero: {
+    badgeText: "المنصة الأولى للقدرات والتحصيلي",
+    titlePrefix: "حقق",
+    titleHighlight: "المئة",
+    titleSuffix: "في اختباراتك",
+    description:
+      "رحلة تعليمية ذكية تجمع بين التدريب المكثف، الشروحات التفاعلية، والتحليل الدقيق لنقاط ضعفك لضمان أعلى الدرجات.",
+    primaryCtaLabel: "ابدأ التدريب مجانًا",
+    primaryCtaLink: "/dashboard",
+    secondaryCtaLabel: "تصفح الدورات",
+    secondaryCtaLink: "/courses",
+    imageUrl: "https://img.freepik.com/free-photo/saudi-arab-boy-student-wearing-thobe-holding-tablet_1258-122164.jpg",
+    floatingCardTitle: "منصة المئة",
+    floatingCardSubtitle: "مستواك: متقدم",
+    floatingCardProgressLabel: "التقدم",
+    floatingCardProgressValue: "75%",
+  },
+  stats: [
+    { id: "students", label: "طالب وطالبة", mode: "dynamic", source: "students", manualValue: "" },
+    { id: "courses", label: "دورة تدريبية", mode: "dynamic", source: "courses", manualValue: "" },
+    { id: "assets", label: "مواد تعليمية", mode: "dynamic", source: "assets", manualValue: "" },
+    { id: "rating", label: "تقييم عام", mode: "dynamic", source: "rating", manualValue: "" },
+  ],
+  sections: {
+    featuredCoursesTitle: "الدورات الأكثر طلبًا",
+    featuredCoursesSubtitle: "اختر دورتك وابدأ رحلة التفوق اليوم",
+    whyChooseTitle: "لماذا يختار الطلاب منصة المئة؟",
+    whyChooseDescription:
+      "نحن لا نقدم مجرد دورات، بل نقدم نظامًا بيئيًا متكاملًا يضمن لك الفهم العميق والتدريب المستمر.",
+    testimonialsTitle: "قصص نجاح نعتز بها",
+    testimonialsSubtitle: "انضم لآلاف الطلاب الذين حققوا أحلامهم معنا",
+  },
+  testimonials: [
+    {
+      id: "t1",
+      name: "سارة العتيبي",
+      degree: "98% قدرات",
+      text: "المنصة غيرت طريقة مذاكرتي تمامًا. تحليل نقاط الضعف ساعدني أركز جهدي في المكان الصح.",
+      image: "https://i.pravatar.cc/100?img=5",
+    },
+    {
+      id: "t2",
+      name: "فهد الشمري",
+      degree: "96% تحصيلي",
+      text: "شروحات الفيزياء والكيمياء بسطت لي المعلومات بشكل عجيب. شكرًا لكل القائمين على المنصة.",
+      image: "https://i.pravatar.cc/100?img=11",
+    },
+    {
+      id: "t3",
+      name: "نورة السالم",
+      degree: "99% قدرات",
+      text: "اختبارات المحاكاة كانت مطابقة جدًا للاختبار الحقيقي، دخلت الاختبار وأنا واثقة جدًا.",
+      image: "https://i.pravatar.cc/100?img=9",
+    },
+  ],
+  featuredPathIds: [],
+  featuredCourseIds: [],
+};
+
 export const contentRouter = Router();
+
+contentRouter.get(
+  "/homepage-settings",
+  optionalAuth,
+  asyncHandler(async (_req, res) => {
+    let settings = await HomepageSettingsModel.findOne({ key: "default" });
+    if (!settings) {
+      settings = await HomepageSettingsModel.create(defaultHomepageSettings);
+    }
+
+    return res.json(settings);
+  }),
+);
+
+contentRouter.patch(
+  "/homepage-settings",
+  requireAuth,
+  requireRole(["admin"]),
+  asyncHandler(async (req, res) => {
+    const payload = homepageSettingsSchema.parse(req.body);
+    const settings = await HomepageSettingsModel.findOneAndUpdate(
+      { key: "default" },
+      { $set: payload, $setOnInsert: { key: "default" } },
+      { new: true, upsert: true },
+    );
+
+    return res.json(settings);
+  }),
+);
 
 contentRouter.get(
   "/bootstrap",
@@ -215,13 +367,15 @@ contentRouter.get(
       : {
           $or: [{ approvalStatus: "approved" }, { approvalStatus: { $exists: false } }, { approvalStatus: null }],
         };
+    const topicFilter = isStaffRole(req.authUser?.role) ? {} : { showOnPlatform: { $ne: false } };
     const libraryFilter = isStaffRole(req.authUser?.role)
       ? {}
       : {
+          showOnPlatform: { $ne: false },
           $or: [{ approvalStatus: "approved" }, { approvalStatus: { $exists: false } }, { approvalStatus: null }],
         };
     const [topics, lessons, libraryItems, groups, b2bPackages, accessCodes] = await Promise.all([
-      TopicModel.find().sort({ subjectId: 1, order: 1 }),
+      TopicModel.find(topicFilter).sort({ subjectId: 1, order: 1 }),
       LessonModel.find(lessonFilter).sort({ createdAt: -1 }),
       LibraryItemModel.find(libraryFilter).sort({ createdAt: -1 }),
       GroupModel.find().sort({ createdAt: -1 }),

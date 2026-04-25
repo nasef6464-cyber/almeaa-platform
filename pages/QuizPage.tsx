@@ -12,6 +12,20 @@ interface QuestionThreadItem {
 }
 
 const OPTION_LABELS = ['أ', 'ب', 'ج', 'د', 'هـ', 'و'];
+const INITIAL_QA_THREAD: QuestionThreadItem[] = [
+  {
+    id: 'seed-student',
+    author: 'محمد أحمد',
+    role: 'student',
+    message: 'في السؤال الثالث، لماذا لم نستخدم قانون المساحة بدلًا من المحيط؟',
+  },
+  {
+    id: 'seed-teacher',
+    author: 'المعلم (أحمد)',
+    role: 'teacher',
+    message: 'لأن المطلوب في السؤال هو إيجاد طول السياج الخارجي، والسياج يمثل المحيط وليس المساحة الداخلية.',
+  },
+];
 
 export const QuizPage: React.FC = () => {
   const { quizId } = useParams();
@@ -38,20 +52,7 @@ export const QuizPage: React.FC = () => {
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [accessMessage, setAccessMessage] = useState('هذا الاختبار غير متاح لك حاليًا.');
   const [qaDraft, setQaDraft] = useState('');
-  const [qaThread, setQaThread] = useState<QuestionThreadItem[]>([
-    {
-      id: 'seed-student',
-      author: 'محمد أحمد',
-      role: 'student',
-      message: 'في السؤال الثالث، لماذا لم نستخدم قانون المساحة بدلًا من المحيط؟',
-    },
-    {
-      id: 'seed-teacher',
-      author: 'المعلم (أحمد)',
-      role: 'teacher',
-      message: 'لأن المطلوب في السؤال هو إيجاد طول السياج الخارجي، والسياج يمثل المحيط وليس المساحة الداخلية.',
-    },
-  ]);
+  const [qaThread, setQaThread] = useState<QuestionThreadItem[]>(INITIAL_QA_THREAD);
 
   useEffect(() => {
     const foundQuiz = quizzes.find((item) => item.id === quizId);
@@ -296,6 +297,18 @@ export const QuizPage: React.FC = () => {
     navigate('/results');
   };
 
+  const handleRestartQuiz = () => {
+    if (!quiz) return;
+
+    setSelectedOptions({});
+    setCurrentQuestionIndex(0);
+    setIsFinished(false);
+    setQaDraft('');
+    setQaThread(INITIAL_QA_THREAD);
+    setTimeLeft(quiz.settings.timeLimit && quiz.settings.timeLimit > 0 ? quiz.settings.timeLimit * 60 : null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   if (hasAccess === null) {
     return <div className="min-h-screen flex items-center justify-center">جاري التحميل...</div>;
   }
@@ -335,15 +348,15 @@ export const QuizPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 py-4 sm:py-8">
       <div className="max-w-4xl mx-auto px-4">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">{quiz.title}</h1>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800 break-words">{quiz.title}</h1>
             {quiz.description && <p className="text-gray-500 mt-1 text-sm">{quiz.description}</p>}
           </div>
           {timeLeft !== null && !isFinished && (
-            <div className="flex items-center gap-2 bg-amber-50 text-amber-600 px-4 py-2 rounded-xl font-bold">
+            <div className="self-start md:self-auto flex items-center gap-2 bg-amber-50 text-amber-600 px-4 py-2 rounded-xl font-bold">
               <Clock size={20} />
               <span>{Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}</span>
             </div>
@@ -359,15 +372,15 @@ export const QuizPage: React.FC = () => {
               />
             </div>
 
-            <div className="p-8">
-              <div className="flex justify-between items-center mb-6">
+            <div className="p-4 sm:p-8">
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center mb-6">
                 <span className="text-sm font-bold text-gray-500">السؤال {currentQuestionIndex + 1} من {quizQuestions.length}</span>
                 <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded font-bold">{currentQuestion?.difficulty}</span>
               </div>
 
-              <div className="text-lg text-gray-800 mb-8" dangerouslySetInnerHTML={{ __html: currentQuestion?.text || '' }} />
+              <div className="text-base sm:text-lg text-gray-800 mb-8 break-words" dangerouslySetInnerHTML={{ __html: currentQuestion?.text || '' }} />
 
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-x-4 sm:gap-x-6 gap-y-4">
                 {currentQuestion?.options.map((option, index) => (
                   <button
                     key={index}
@@ -378,7 +391,7 @@ export const QuizPage: React.FC = () => {
                         : 'border-gray-200 hover:border-indigo-200 hover:bg-gray-50'
                     }`}
                   >
-                    <span className="flex-1 text-sm md:text-base font-bold text-gray-700 leading-relaxed text-center">
+                    <span className="flex-1 text-sm md:text-base font-bold text-gray-700 leading-relaxed text-center break-words">
                       {option}
                     </span>
                     <div className="flex items-center gap-3 shrink-0">
@@ -398,11 +411,11 @@ export const QuizPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-gray-50 p-4 border-t border-gray-100 flex justify-between items-center">
+            <div className="bg-gray-50 p-4 border-t border-gray-100 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
               <button
                 onClick={handlePrev}
                 disabled={currentQuestionIndex === 0}
-                className="px-6 py-2 rounded-xl font-bold text-gray-600 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="w-full sm:w-auto px-6 py-2 rounded-xl font-bold text-gray-600 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <ArrowRight size={18} />
                 السابق
@@ -411,14 +424,14 @@ export const QuizPage: React.FC = () => {
               {currentQuestionIndex === quizQuestions.length - 1 ? (
                 <button
                   onClick={handleFinish}
-                  className="bg-emerald-600 text-white px-8 py-2 rounded-xl font-bold hover:bg-emerald-700 transition-colors"
+                  className="w-full sm:w-auto bg-emerald-600 text-white px-8 py-2 rounded-xl font-bold hover:bg-emerald-700 transition-colors"
                 >
                   إنهاء الاختبار
                 </button>
               ) : (
                 <button
                   onClick={handleNext}
-                  className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                  className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
                 >
                   التالي
                   <ArrowLeft size={18} />
@@ -464,21 +477,21 @@ export const QuizPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex justify-center gap-4">
-                <button onClick={() => navigate('/')} className="px-6 py-2 border border-gray-200 text-gray-600 rounded-xl font-bold hover:bg-gray-50 transition-colors">
+              <div className="flex flex-col sm:flex-row justify-center gap-4">
+                <button onClick={() => navigate('/')} className="w-full sm:w-auto px-6 py-2 border border-gray-200 text-gray-600 rounded-xl font-bold hover:bg-gray-50 transition-colors">
                   العودة للرئيسية
                 </button>
-                <button onClick={() => window.location.reload()} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors">
+                <button onClick={handleRestartQuiz} className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors">
                   إعادة الاختبار
                 </button>
               </div>
 
               <div className="mt-8 pt-8 border-t border-gray-100 flex flex-col sm:flex-row justify-center gap-4">
-                <button onClick={() => navigate(buildSelfQuizLink(false))} className="bg-amber-50 text-amber-600 px-6 py-3 rounded-xl font-bold hover:bg-amber-100 transition-colors flex items-center justify-center gap-2">
+                <button onClick={() => navigate(buildSelfQuizLink(false))} className="w-full sm:w-auto bg-amber-50 text-amber-600 px-6 py-3 rounded-xl font-bold hover:bg-amber-100 transition-colors flex items-center justify-center gap-2">
                   <FileQuestion size={20} />
                   طلب اختبار مشابه
                 </button>
-                <button onClick={() => navigate(buildSelfQuizLink(true))} className="bg-emerald-50 text-emerald-600 px-6 py-3 rounded-xl font-bold hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2">
+                <button onClick={() => navigate(buildSelfQuizLink(true))} className="w-full sm:w-auto bg-emerald-50 text-emerald-600 px-6 py-3 rounded-xl font-bold hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2">
                   <Target size={20} />
                   اختبار للمهارات الضعيفة
                 </button>

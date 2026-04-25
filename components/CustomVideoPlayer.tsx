@@ -228,7 +228,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ url, title
             <motion.div 
                 initial={false}
                 animate={{ opacity: showControls ? 1 : 0, y: showControls ? 0 : 20 }}
-                className="absolute bottom-0 left-0 right-0 z-20 p-4 md:p-6 bg-gradient-to-t from-black/90 via-black/40 to-transparent pt-20"
+                className="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-3 sm:p-4 md:p-6 pt-16 sm:pt-20"
             >
                 {/* Progress Bar */}
                 <div className="relative group/progress mb-4">
@@ -248,8 +248,8 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ url, title
                     />
                 </div>
 
-                <div className="flex items-center justify-between text-white">
-                    <div className="flex items-center gap-4 md:gap-6">
+                <div className="flex flex-col gap-3 text-white sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap items-center gap-3 sm:gap-4 md:gap-6">
                         {/* Play/Pause */}
                         <button onClick={handlePlayPause} className="hover:text-indigo-400 transition-colors">
                             {playing ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
@@ -266,12 +266,12 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ url, title
                         </div>
 
                         {/* Time */}
-                        <div className="text-xs md:text-sm font-medium font-mono">
+                        <div className="text-xs md:text-sm font-medium font-mono whitespace-nowrap">
                             {formatTime(played * duration)} / {formatTime(duration)}
                         </div>
 
                         {/* Volume */}
-                        <div className="flex items-center gap-2 group/volume">
+                        <div className="hidden sm:flex items-center gap-2 group/volume">
                             <button onClick={handleToggleMuted} className="hover:text-indigo-400 transition-colors">
                                 {muted || volume === 0 ? <VolumeX size={20} /> : volume < 0.5 ? <Volume1 size={20} /> : <Volume2 size={20} />}
                             </button>
@@ -287,9 +287,12 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ url, title
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-4 md:gap-6">
-                        <button className="hover:text-indigo-400 transition-colors">
+                    <div className="flex items-center justify-between gap-4 sm:justify-end md:gap-6">
+                        <button className="hidden sm:inline-flex hover:text-indigo-400 transition-colors">
                             <Settings size={20} />
+                        </button>
+                        <button onClick={handleToggleMuted} className="sm:hidden hover:text-indigo-400 transition-colors">
+                            {muted || volume === 0 ? <VolumeX size={20} /> : volume < 0.5 ? <Volume1 size={20} /> : <Volume2 size={20} />}
                         </button>
                         <button onClick={toggleFullscreen} className="hover:text-indigo-400 transition-colors">
                             <Maximize size={20} />

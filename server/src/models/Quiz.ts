@@ -32,6 +32,7 @@ const quizSchema = new Schema(
     targetUserIds: { type: [String], default: [] },
     dueDate: { type: String, default: null },
     isPublished: { type: Boolean, default: false },
+    showOnPlatform: { type: Boolean, default: true },
     ownerType: { type: String, enum: ["platform", "teacher", "school"], default: "platform" },
     ownerId: { type: String, default: "" },
     createdBy: { type: String, default: "" },

@@ -94,56 +94,56 @@ const Home: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-end">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Ù…Ø±Ø­Ø¨Ø§Ù‹ØŒ {user.name.split(' ')[0]} ðŸ‘‹</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Ù…Ø±Ø­Ø¨Ø§Ù‹ØŒ {user.name.split(' ')[0]} ðŸ‘‹</h2>
           <p className="text-gray-500">Ù„Ù†ÙˆØ§ØµÙ„ Ø±Ø­Ù„Ø© Ø§Ù„ØªØ¹Ù„Ù… Ø§Ù„ÙŠÙˆÙ…</p>
         </div>
-        <Link to="/gamification" className="bg-secondary-100 text-secondary-600 px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2">
+        <Link to="/gamification" className="w-full sm:w-auto bg-secondary-100 text-secondary-600 px-4 py-2 rounded-full text-sm font-bold flex items-center justify-center gap-2">
           <TrendingUp size={16} />
           Ø§Ù„Ù…Ø³ØªÙˆÙ‰ 12
         </Link>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <Link to="/quiz" className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-3 group">
+            <Link to="/quiz" className="min-h-[130px] bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center justify-center text-center gap-3 group">
               <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center group-hover:bg-purple-100 transition-colors">
                 <Zap size={24} />
               </div>
               <span className="font-bold text-gray-800 text-sm">Ø§Ù„Ø§Ø®ØªØ¨Ø§Ø±Ø§Øª Ø§Ù„Ù…Ø­Ø§ÙƒÙŠØ©</span>
             </Link>
 
-            <Link to="/quizzes" className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-3 group">
+            <Link to="/quizzes" className="min-h-[130px] bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center justify-center text-center gap-3 group">
               <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center group-hover:bg-blue-100 transition-colors">
                 <FileText size={24} />
               </div>
               <span className="font-bold text-gray-800 text-sm">Ø§Ø®ØªØ¨Ø§Ø±Ø§ØªÙŠ</span>
             </Link>
 
-            <Link to="/reports" className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-3 group">
+            <Link to="/reports" className="min-h-[130px] bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center justify-center text-center gap-3 group">
               <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center group-hover:bg-emerald-100 transition-colors">
                 <PieChart size={24} />
               </div>
               <span className="font-bold text-gray-800 text-sm">ØªÙ‚Ø§Ø±ÙŠØ±ÙŠ</span>
             </Link>
 
-            <Link to="/favorites" className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-3 group">
+            <Link to="/favorites" className="min-h-[130px] bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center justify-center text-center gap-3 group">
               <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center group-hover:bg-rose-100 transition-colors">
                 <Heart size={24} />
               </div>
               <span className="font-bold text-gray-800 text-sm">Ø§Ù„Ø£Ø³Ø¦Ù„Ø© Ø§Ù„Ù…ÙØ¶Ù„Ø©</span>
             </Link>
 
-            <Link to="/plan" className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-3 group">
+            <Link to="/plan" className="min-h-[130px] bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center justify-center text-center gap-3 group">
               <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center group-hover:bg-indigo-100 transition-colors">
                 <MapIcon size={24} />
               </div>
               <span className="font-bold text-gray-800 text-sm">Ø®ÙØ·ØªÙŠ</span>
             </Link>
 
-            <Link to="/qa" className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-3 group">
+            <Link to="/qa" className="min-h-[130px] bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center justify-center text-center gap-3 group">
               <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center group-hover:bg-amber-100 transition-colors">
                 <HelpCircle size={24} />
               </div>
@@ -152,7 +152,7 @@ const Home: React.FC = () => {
           </div>
 
           <section>
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center mb-4">
               <h3 className="text-lg font-bold">Ø§Ù„ÙƒÙˆØ±Ø³Ø§Øª Ø§Ù„Ù†Ø´Ø·Ø©</h3>
               <Link to="/courses" className="text-primary-600 text-sm font-medium">Ø¹Ø±Ø¶ Ø§Ù„ÙƒÙ„</Link>
             </div>
@@ -167,13 +167,13 @@ const Home: React.FC = () => {
                   </div>
                   <div className="p-4 flex-1 flex flex-col justify-between">
                     <div>
-                      <div className="flex justify-between items-start mb-2">
+                      <div className="flex justify-between items-start gap-3 mb-2">
                         <span className="bg-gray-100 text-gray-600 text-[10px] px-2 py-1 rounded-full">{course.level}</span>
                         <div className="flex items-center text-amber-400 text-sm font-bold">
                           <span>â˜…</span> {course.rating}
                         </div>
                       </div>
-                      <h4 className="font-bold text-gray-900 leading-snug mb-1">{course.title}</h4>
+                      <h4 className="font-bold text-gray-900 leading-snug mb-1 break-words">{course.title}</h4>
                       <p className="text-xs text-gray-500 mb-3">Ø§Ù„Ù…Ø¯Ø±Ø³: {course.instructor}</p>
                     </div>
                     <div className="space-y-3">
@@ -197,14 +197,14 @@ const Home: React.FC = () => {
           <SmartLearningPath skills={smartSkills} />
 
           <section>
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center mb-4">
               <h3 className="text-lg font-bold">Ø§Ù„Ø¬Ø¯ÙˆÙ„ Ø§Ù„Ø¯Ø±Ø§Ø³ÙŠ</h3>
             </div>
             <div className="space-y-3">
               {scheduleItems.map((item) => (
                 <div
                   key={item.id}
-                  className={`p-4 rounded-xl border flex justify-between items-center ${
+                  className={`p-4 rounded-xl border flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center ${
                     item.status === 'in-progress' ? 'bg-secondary-50 border-secondary-200' : 'bg-white border-gray-100'
                   }`}
                 >
@@ -224,7 +224,7 @@ const Home: React.FC = () => {
                       <p className="text-sm text-gray-500">{item.day}</p>
                     </div>
                   </div>
-                  <div className="text-left">
+                  <div className="text-right sm:text-left self-start sm:self-auto">
                     <span className="block font-bold text-gray-800">{item.duration}</span>
                     {item.status === 'in-progress' && <span className="text-xs text-secondary-600 font-bold animate-pulse">Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø¢Ù†</span>}
                   </div>
@@ -234,7 +234,7 @@ const Home: React.FC = () => {
           </section>
 
           <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center mb-6">
               <h3 className="text-lg font-bold flex items-center gap-2">
                 <AlertTriangle className="text-secondary-500" size={20} />
                 Ù†Ù‚Ø§Ø· Ø§Ù„Ø¶Ø¹Ù

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+﻿import React, { useState, useMemo } from 'react';
 import { useStore } from '../../store/useStore';
 import { Skill, CategoryPath, CategorySubject, CategorySection } from '../../types';
 import { Target, Search, Filter, Plus, BookOpen, HelpCircle, Edit2, Trash2, Link as LinkIcon, Unlink, FolderTree, BarChart3, TrendingUp, TrendingDown, AlertCircle, FileText } from 'lucide-react';
@@ -16,6 +16,7 @@ export const SkillsManager: React.FC = () => {
     const [subjectFilter, setSubjectFilter] = useState<string>('all');
     const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
     const [activeTab, setActiveTab] = useState<'skills' | 'taxonomy' | 'reports'>('skills');
+    const [taxonomyError, setTaxonomyError] = useState('');
 
     // Taxonomy form states
     const [newPathName, setNewPathName] = useState('');
@@ -38,7 +39,6 @@ export const SkillsManager: React.FC = () => {
 
     const handleCreateSkill = () => {
         if (!paths?.length || !subjects?.length || !sections?.length) {
-            alert('يجب إضافة مسار ومادة ومهارة رئيسة واحدة على الأقل قبل إنشاء مهارة.');
             return;
         }
         const newSkill: Skill = {
@@ -62,6 +62,16 @@ export const SkillsManager: React.FC = () => {
         };
         createSkill(newSkill);
         setSelectedSkill(newSkill);
+    };
+
+    const handleCreateSkillWithFeedback = () => {
+        if (!paths?.length || !subjects?.length || !sections?.length) {
+            setTaxonomyError('يجب إضافة مسار ومادة ومهارة رئيسة واحدة على الأقل قبل إنشاء مهارة.');
+            return;
+        }
+
+        setTaxonomyError('');
+        handleCreateSkill();
     };
 
     const handleAddPath = () => {
@@ -620,19 +630,28 @@ export const SkillsManager: React.FC = () => {
                 </div>
                 <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
                     <button 
-                        onClick={() => setActiveTab('skills')}
+                        onClick={() => {
+                            setTaxonomyError('');
+                            setActiveTab('skills');
+                        }}
                         className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'skills' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
                         المهارات
                     </button>
                     <button 
-                        onClick={() => setActiveTab('taxonomy')}
+                        onClick={() => {
+                            setTaxonomyError('');
+                            setActiveTab('taxonomy');
+                        }}
                         className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'taxonomy' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
                         التصنيفات (المسارات والمواد والمهارات الرئيسة)
                     </button>
                     <button 
-                        onClick={() => setActiveTab('reports')}
+                        onClick={() => {
+                            setTaxonomyError('');
+                            setActiveTab('reports');
+                        }}
                         className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'reports' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
                         تقارير المهارات
@@ -679,8 +698,13 @@ export const SkillsManager: React.FC = () => {
                                 ))}
                             </select>
                         </div>
+                        {taxonomyError && (
+                            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 md:min-w-[320px]">
+                                {taxonomyError}
+                            </div>
+                        )}
                         <button 
-                            onClick={handleCreateSkill}
+                            onClick={handleCreateSkillWithFeedback}
                             className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm whitespace-nowrap"
                         >
                             <Plus size={18} />
@@ -1059,3 +1083,4 @@ export const SkillsManager: React.FC = () => {
         </div>
     );
 };
+

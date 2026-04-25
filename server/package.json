@@ -13,7 +13,8 @@
     "seed:courses:api": "tsx src/scripts/seedCoursesViaApi.ts",
     "seed:users": "tsx src/scripts/seedDemoUsers.ts",
     "seed:operational": "tsx src/scripts/seedOperationalScenario.ts",
-    "seed:operational:api": "tsx src/scripts/seedOperationalScenarioApi.ts"
+    "seed:operational:api": "tsx src/scripts/seedOperationalScenarioApi.ts",
+    "smoke:operational:api": "tsx src/scripts/smokeOperationalJourneysApi.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

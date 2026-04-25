@@ -27,6 +27,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { CustomVideoPlayer } from './CustomVideoPlayer';
 import { useStore } from '../store/useStore';
+import { openExternalUrl } from '../utils/openExternalUrl';
 
 interface CoursePlayerProps {
   course: Course;
@@ -105,7 +106,7 @@ export const CoursePlayer: React.FC<CoursePlayerProps> = ({ course, onBack }) =>
       return;
     }
 
-    window.open(activeLesson.fileUrl, '_blank', 'noopener,noreferrer');
+      openExternalUrl(activeLesson.fileUrl);
   };
 
   const handleBack = () => {
@@ -136,12 +137,12 @@ export const CoursePlayer: React.FC<CoursePlayerProps> = ({ course, onBack }) =>
 
   return (
     <div className={`min-h-screen flex flex-col ${isDarkMode ? 'bg-[#0f172a] text-white' : 'bg-gray-50 text-gray-900'} transition-colors duration-300`} dir="rtl">
-      <header className={`h-16 flex items-center justify-between px-4 md:px-6 border-b ${isDarkMode ? 'border-gray-800 bg-[#1e293b]' : 'border-gray-200 bg-white'} sticky top-0 z-50 shadow-sm`}>
-        <div className="flex items-center gap-4">
+      <header className={`h-16 flex items-center justify-between px-3 sm:px-4 md:px-6 border-b ${isDarkMode ? 'border-gray-800 bg-[#1e293b]' : 'border-gray-200 bg-white'} sticky top-0 z-50 shadow-sm`}>
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           <button onClick={handleBack} className={`p-2 rounded-lg hover:bg-gray-100 ${isDarkMode ? 'hover:bg-gray-800' : ''} transition-colors`}>
             <ArrowRight size={20} />
           </button>
-          <div className="hidden md:block">
+          <div className="hidden md:block min-w-0">
             <h1 className="font-black text-lg truncate max-w-[300px]">{course.title}</h1>
             <p className="text-[10px] text-gray-500 font-bold">تقدمك: {progress}%</p>
           </div>
@@ -162,7 +163,7 @@ export const CoursePlayer: React.FC<CoursePlayerProps> = ({ course, onBack }) =>
 
       <div className="flex-1 flex overflow-hidden relative">
         <main className={`flex-1 overflow-y-auto transition-all duration-300 ${isSidebarOpen ? 'lg:mr-80' : 'mr-0'}`}>
-          <div className="max-w-5xl mx-auto p-4 md:p-8">
+          <div className="max-w-5xl mx-auto p-4 sm:p-6 md:p-8">
             {activeLesson ? (
               <motion.div
                 key={activeLesson.id}
@@ -175,48 +176,48 @@ export const CoursePlayer: React.FC<CoursePlayerProps> = ({ course, onBack }) =>
                   {activeLesson.type === 'video' ? (
                     <CustomVideoPlayer key={activeLesson.id} url={activeLesson.videoUrl || ''} title={activeLesson.title} />
                   ) : activeLesson.type === 'quiz' ? (
-                    <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center bg-gradient-to-br from-indigo-600 to-purple-700 text-white">
-                      <div className="w-20 h-20 bg-white/20 rounded-3xl flex items-center justify-center mb-6">
+                    <div className="w-full h-full flex flex-col items-center justify-center p-5 sm:p-8 text-center bg-gradient-to-br from-indigo-600 to-purple-700 text-white">
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/20 rounded-3xl flex items-center justify-center mb-6">
                         <BarChart size={48} />
                       </div>
-                      <h2 className="text-3xl font-black mb-4">{activeLesson.title}</h2>
+                      <h2 className="text-2xl sm:text-3xl font-black mb-4 leading-tight">{activeLesson.title}</h2>
                       <p className="text-indigo-100 mb-8 max-w-md">هذا الاختبار سيساعدك على قياس فهمك للمحتوى المرتبط بهذه الدورة قبل متابعة الدروس التالية.</p>
                       <button
                         onClick={handleOpenLessonQuiz}
                         disabled={!activeLesson.quizId}
-                        className="bg-white text-indigo-600 px-10 py-4 rounded-2xl font-black text-lg hover:bg-indigo-50 transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="bg-white text-indigo-600 px-6 sm:px-10 py-4 rounded-2xl font-black text-base sm:text-lg hover:bg-indigo-50 transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
                       >
                         ابدأ الاختبار الآن
                       </button>
                     </div>
                   ) : activeLesson.type === 'file' ? (
-                    <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center bg-gray-50 text-gray-900">
-                      <div className="w-20 h-20 bg-rose-100 text-rose-600 rounded-3xl flex items-center justify-center mb-6">
+                    <div className="w-full h-full flex flex-col items-center justify-center p-5 sm:p-8 text-center bg-gray-50 text-gray-900">
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-rose-100 text-rose-600 rounded-3xl flex items-center justify-center mb-6">
                         <FileText size={48} />
                       </div>
-                      <h2 className="text-3xl font-black mb-4">{activeLesson.title}</h2>
+                      <h2 className="text-2xl sm:text-3xl font-black mb-4 leading-tight">{activeLesson.title}</h2>
                       <p className="text-gray-500 mb-8 max-w-md">يمكنك استعراض هذا الملف أو تحميله للمذاكرة لاحقًا من داخل نفس الدرس.</p>
-                      <div className="flex gap-4">
+                      <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
                         <button
                           onClick={() => handleOpenLessonFile('download')}
                           disabled={!activeLesson.fileUrl}
-                          className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-base sm:text-lg hover:bg-indigo-700 transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
                         >
                           <Download size={20} /> تحميل الملف
                         </button>
                         <button
                           onClick={() => handleOpenLessonFile('preview')}
                           disabled={!activeLesson.fileUrl}
-                          className="bg-white border border-gray-200 text-gray-700 px-8 py-4 rounded-2xl font-black text-lg hover:bg-gray-50 transition-all shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="bg-white border border-gray-200 text-gray-700 px-8 py-4 rounded-2xl font-black text-base sm:text-lg hover:bg-gray-50 transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
                         >
                           <Eye size={20} /> استعراض
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center bg-gray-100 text-gray-600">
+                    <div className="w-full h-full flex flex-col items-center justify-center p-5 sm:p-8 text-center bg-gray-100 text-gray-600">
                       <FileText size={64} className="mb-4 opacity-20" />
-                      <h2 className="text-2xl font-bold mb-2">محتوى غير متاح</h2>
+                      <h2 className="text-xl sm:text-2xl font-bold mb-2">محتوى غير متاح</h2>
                     </div>
                   )}
                 </div>
@@ -229,26 +230,26 @@ export const CoursePlayer: React.FC<CoursePlayerProps> = ({ course, onBack }) =>
                       </span>
                       <span className="text-xs text-gray-500 font-bold">{activeLesson.duration}</span>
                     </div>
-                    <h2 className="text-2xl md:text-3xl font-black">{activeLesson.title}</h2>
+                    <h2 className="text-xl sm:text-2xl md:text-3xl font-black leading-tight break-words">{activeLesson.title}</h2>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
                     <button
                       onClick={handleMarkComplete}
-                      className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all ${completedLessons.includes(activeLesson.id) ? 'bg-emerald-100 text-emerald-600' : 'bg-white border border-gray-200 hover:bg-gray-50 shadow-sm'}`}
+                      className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all w-full sm:w-auto ${completedLessons.includes(activeLesson.id) ? 'bg-emerald-100 text-emerald-600' : 'bg-white border border-gray-200 hover:bg-gray-50 shadow-sm'}`}
                     >
                       <CheckCircle size={18} /> {completedLessons.includes(activeLesson.id) ? 'مكتمل' : 'تحديد كمكتمل'}
                     </button>
                     <button
                       onClick={() => handleNavigateBetweenLessons('prev')}
                       disabled={activeLessonIndex <= 0}
-                      className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white border border-gray-200 hover:bg-gray-50 shadow-sm'}`}
+                      className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white border border-gray-200 hover:bg-gray-50 shadow-sm'}`}
                     >
                       <SkipBack size={18} /> السابق
                     </button>
                     <button
                       onClick={() => handleNavigateBetweenLessons('next')}
                       disabled={activeLessonIndex === -1 || activeLessonIndex >= flattenedLessons.length - 1}
-                      className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
                     >
                       التالي <SkipForward size={18} />
                     </button>
@@ -256,10 +257,10 @@ export const CoursePlayer: React.FC<CoursePlayerProps> = ({ course, onBack }) =>
                 </div>
 
                 <div className="pt-8">
-                  <div className={`flex border-b ${isDarkMode ? 'border-gray-800' : 'border-gray-200'} mb-8`}>
-                    <button className="px-6 py-4 text-indigo-600 border-b-2 border-indigo-600 font-black text-sm">الوصف</button>
-                    <button className={`px-6 py-4 font-bold text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>المصادر</button>
-                    <button className={`px-6 py-4 font-bold text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>المناقشات</button>
+                  <div className={`flex overflow-x-auto border-b ${isDarkMode ? 'border-gray-800' : 'border-gray-200'} mb-8`}>
+                    <button className="shrink-0 px-6 py-4 text-indigo-600 border-b-2 border-indigo-600 font-black text-sm">الوصف</button>
+                    <button className={`shrink-0 px-6 py-4 font-bold text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>المصادر</button>
+                    <button className={`shrink-0 px-6 py-4 font-bold text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>المناقشات</button>
                   </div>
                   <div className={`leading-relaxed ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                     <p className="mb-4">{lessonDescription}</p>
@@ -282,10 +283,10 @@ export const CoursePlayer: React.FC<CoursePlayerProps> = ({ course, onBack }) =>
 
         <aside className={`fixed lg:absolute top-16 lg:top-0 right-0 bottom-0 w-80 ${isDarkMode ? 'bg-[#1e293b] border-r border-gray-800' : 'bg-white border-r border-gray-200'} z-40 transition-transform duration-300 shadow-xl lg:shadow-none ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
           <div className="h-full flex flex-col">
-            <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+            <div className="p-4 sm:p-6 border-b border-gray-100 dark:border-gray-800">
               <h3 className="font-black text-lg mb-4">محتوى الدورة</h3>
               <div className="space-y-2">
-                <div className="flex justify-between text-xs font-bold text-gray-500">
+                <div className="flex justify-between gap-4 text-xs font-bold text-gray-500">
                   <span>إتمام الدورة</span>
                   <span>{progress}%</span>
                 </div>
@@ -300,7 +301,7 @@ export const CoursePlayer: React.FC<CoursePlayerProps> = ({ course, onBack }) =>
                 <div key={module.id} className="border-b border-gray-50 dark:border-gray-800/50">
                   <button
                     onClick={() => toggleModule(module.id)}
-                    className={`w-full flex items-center justify-between p-4 text-right transition-colors ${expandedModules.includes(module.id) ? (isDarkMode ? 'bg-indigo-500/5' : 'bg-indigo-50/50') : ''}`}
+                    className={`w-full flex items-center justify-between gap-3 p-4 text-right transition-colors ${expandedModules.includes(module.id) ? (isDarkMode ? 'bg-indigo-500/5' : 'bg-indigo-50/50') : ''}`}
                   >
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${expandedModules.includes(module.id) ? 'bg-indigo-600 text-white' : (isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500')}`}>
@@ -326,7 +327,7 @@ export const CoursePlayer: React.FC<CoursePlayerProps> = ({ course, onBack }) =>
                             <button
                               key={lesson.id}
                               onClick={() => handleLessonClick(lesson)}
-                              className={`w-full p-4 flex items-center justify-between group transition-all border-r-4 ${activeLesson?.id === lesson.id ? 'border-indigo-600 bg-indigo-600/5' : 'border-transparent hover:bg-gray-100 dark:hover:bg-gray-800/50'}`}
+                              className={`w-full p-4 flex items-center justify-between gap-3 group transition-all border-r-4 ${activeLesson?.id === lesson.id ? 'border-indigo-600 bg-indigo-600/5' : 'border-transparent hover:bg-gray-100 dark:hover:bg-gray-800/50'}`}
                             >
                               <div className="flex items-center gap-3">
                                 <div className={`transition-colors ${isCompleted ? 'text-emerald-500' : (activeLesson?.id === lesson.id ? 'text-indigo-600' : 'text-gray-400')}`}>

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { LibraryItem } from '../../types';
-import { Plus, Edit2, Trash2, FileText } from 'lucide-react';
+import { Plus, Edit2, Trash2, FileText, Lock, LockOpen } from 'lucide-react';
 
 interface LibraryManagerProps {
   subjectId: string;
@@ -20,6 +20,7 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
 
   const [isEditing, setIsEditing] = useState(false);
   const [editingItem, setEditingItem] = useState<Partial<LibraryItem> | null>(null);
+  const [validationError, setValidationError] = useState('');
 
   const subjectItems = libraryItems.filter((item) => item.subjectId === subjectId);
   const currentSubject = subjects.find((item) => item.id === subjectId);
@@ -59,19 +60,21 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
 
   const handleSave = () => {
     if (!currentSubject?.pathId) {
-      alert('تعذر تحديد المسار المرتبط بهذه المادة.');
+      setValidationError('تعذر تحديد المسار المرتبط بهذه المادة.');
       return;
     }
 
     if (!editingItem?.sectionId) {
-      alert('اختر المهارة الرئيسة أولًا.');
+      setValidationError('اختر المهارة الرئيسة أولًا.');
       return;
     }
 
     if (!editingItem?.skillIds || editingItem.skillIds.length === 0) {
-      alert('اختر مهارة فرعية واحدة على الأقل لربط الملف بها.');
+      setValidationError('اختر مهارة فرعية واحدة على الأقل لربط الملف بها.');
       return;
     }
+
+    setValidationError('');
 
     if (editingItem?.id) {
       updateLibraryItem(editingItem.id, {
@@ -90,7 +93,8 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
         subjectId,
         sectionId: editingItem.sectionId,
         skillIds: editingItem.skillIds || [],
-        url: editingItem?.url || ''
+        url: editingItem?.url || '',
+        showOnPlatform: editingItem?.showOnPlatform !== false
       });
     }
 
@@ -107,6 +111,10 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
     setEditingItem((prev) => ({ ...prev, skillIds: nextIds }));
   };
 
+  const handleTogglePlatformVisibility = (item: LibraryItem) => {
+    updateLibraryItem(item.id, { showOnPlatform: item.showOnPlatform === false });
+  };
+
   if (isEditing) {
     return (
       <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in">
@@ -115,6 +123,12 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
         </h3>
 
         <div className="space-y-4 max-w-2xl">
+          {validationError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {validationError}
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-1">عنوان الملف</label>
             <input
@@ -224,6 +238,16 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
             مصدر الربط هنا هو مركز المهارات الحقيقي: المهارة الرئيسة ثم المهارات الفرعية التابعة لها، وليس مواضيع التأسيس.
           </p>
 
+          <label className="flex items-center gap-3 bg-gray-50 p-3 rounded-xl cursor-pointer">
+            <input
+              type="checkbox"
+              checked={editingItem?.showOnPlatform !== false}
+              onChange={(event) => setEditingItem((prev) => ({ ...prev, showOnPlatform: event.target.checked }))}
+              className="w-5 h-5 text-indigo-600 rounded"
+            />
+            <span className="font-medium text-gray-700">إظهار هذا الملف على المنصة</span>
+          </label>
+
           <div className="flex gap-3 pt-4">
             <button
               onClick={handleSave}
@@ -235,6 +259,7 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
               onClick={() => {
                 setIsEditing(false);
                 setEditingItem(null);
+                setValidationError('');
               }}
               className="bg-gray-100 text-gray-700 px-6 py-2 rounded-xl font-bold hover:bg-gray-200"
             >
@@ -255,7 +280,8 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
         </div>
         <button
           onClick={() => {
-            setEditingItem({ sectionId: undefined, skillIds: [] });
+            setValidationError('');
+            setEditingItem({ sectionId: undefined, skillIds: [], showOnPlatform: false });
             setIsEditing(true);
           }}
           className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2"
@@ -295,6 +321,12 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
               <span>{item.downloads} تحميل</span>
             </div>
 
+            <div className="mb-3">
+              <span className={`px-2 py-1 rounded-full text-xs font-bold ${item.showOnPlatform === false ? 'bg-gray-100 text-gray-600' : 'bg-sky-50 text-sky-700'}`}>
+                {item.showOnPlatform === false ? 'مخفي عن المنصة' : 'ظاهر على المنصة'}
+              </span>
+            </div>
+
             <div className="flex flex-wrap gap-2 mt-auto">
               {(item.skillIds || []).slice(0, 3).map((skillId) => {
                 const skillName = skills.find((skill) => skill.id === skillId)?.name;
@@ -310,6 +342,15 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
                   +{(item.skillIds || []).length - 3}
                 </span>
               )}
+            </div>
+            <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100">
+              <button
+                onClick={() => handleTogglePlatformVisibility(item)}
+                className={`p-2 rounded-lg transition-colors ${item.showOnPlatform === false ? 'text-gray-500 hover:bg-gray-100' : 'text-sky-600 hover:bg-sky-50'}`}
+                title={item.showOnPlatform === false ? 'إظهار الملف على المنصة' : 'إخفاء الملف عن المنصة'}
+              >
+                {item.showOnPlatform === false ? <Lock size={18} /> : <LockOpen size={18} />}
+              </button>
             </div>
           </div>
         ))}

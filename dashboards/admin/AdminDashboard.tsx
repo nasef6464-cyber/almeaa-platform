@@ -13,6 +13,7 @@ import {
     User,
     Users,
     Award,
+    Video,
 } from 'lucide-react';
 import { DashboardLayout } from '../../components/DashboardLayout';
 import { useStore } from '../../store/useStore';
@@ -25,6 +26,8 @@ import { LessonsManager } from './LessonsManager';
 import { QuizzesManager } from './QuizzesManager';
 import { SkillsTreeManager } from './SkillsTreeManager';
 import { FinancialManager } from './FinancialManager';
+import { HomepageManager } from './HomepageManager';
+import { LiveSessionsManager } from './LiveSessionsManager';
 
 type ReviewQueueItem = {
     id: string;
@@ -211,11 +214,37 @@ export const AdminDashboard: React.FC = () => {
         return adminItems;
     }, [user.role]);
 
-    useEffect(() => {
-        if (!menuItems.some((item) => item.id === activeTab)) {
-            setActiveTab(menuItems[0]?.id || 'overview');
+    const enhancedMenuItems = useMemo(() => {
+        let nextItems = [...menuItems];
+        const notificationsIndex = nextItems.findIndex((item) => item.id === 'notifications');
+        const insertIndex = notificationsIndex === -1 ? nextItems.length : notificationsIndex;
+
+        if (user.role === Role.ADMIN && !nextItems.some((item) => item.id === 'homepage')) {
+            nextItems = [
+                ...nextItems.slice(0, insertIndex),
+                { id: 'homepage', label: 'إدارة الصفحة الرئيسية', icon: <BookOpen size={20} /> },
+                ...nextItems.slice(insertIndex),
+            ];
         }
-    }, [activeTab, menuItems]);
+
+        if (!nextItems.some((item) => item.id === 'live-sessions') && [Role.ADMIN, Role.TEACHER, Role.SUPERVISOR].includes(user.role)) {
+            const dynamicInsertIndex = nextItems.findIndex((item) => item.id === 'notifications');
+            const targetIndex = dynamicInsertIndex === -1 ? nextItems.length : dynamicInsertIndex;
+            nextItems = [
+                ...nextItems.slice(0, targetIndex),
+                { id: 'live-sessions', label: 'الحصص المباشرة', icon: <Video size={20} /> },
+                ...nextItems.slice(targetIndex),
+            ];
+        }
+
+        return nextItems;
+    }, [menuItems, user.role]);
+
+    useEffect(() => {
+        if (!enhancedMenuItems.some((item) => item.id === activeTab)) {
+            setActiveTab(enhancedMenuItems[0]?.id || 'overview');
+        }
+    }, [activeTab, enhancedMenuItems]);
 
     const renderSidebar = () => (
         <div className="py-6 space-y-1">
@@ -225,7 +254,7 @@ export const AdminDashboard: React.FC = () => {
                     {user.role === Role.ADMIN ? 'التحكم الكامل بالمنصة' : user.role === Role.TEACHER ? 'لوحة تشغيل المعلم والمحتوى' : 'لوحة متابعة المشرف'}
                 </p>
             </div>
-            {menuItems.map((item) => (
+            {enhancedMenuItems.map((item) => (
                 <button
                     key={item.id}
                     onClick={() => setActiveTab(item.id)}
@@ -493,25 +522,12 @@ export const AdminDashboard: React.FC = () => {
                 return <SchoolsManager />;
             case 'financial':
                 return <FinancialManager />;
+            case 'homepage':
+                return <HomepageManager />;
+            case 'live-sessions':
+                return <LiveSessionsManager />;
             default:
                 return renderOverview();
-                return (
-                    <div className="flex items-center justify-center h-[calc(100vh-8rem)] animate-fade-in">
-                        <div className="text-center max-w-sm">
-                            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-amber-50 mb-6">
-                                <div className="text-amber-500 scale-150">
-                                    {menuItems.find((item) => item.id === activeTab)?.icon}
-                                </div>
-                            </div>
-                            <h2 className="text-2xl font-bold text-gray-900 mb-3">
-                                {menuItems.find((item) => item.id === activeTab)?.label}
-                            </h2>
-                            <p className="text-gray-500 leading-relaxed">
-                                هذا القسم قيد التطوير. سيتم إضافة واجهات التحكم والإدارة الخاصة به قريبًا.
-                            </p>
-                        </div>
-                    </div>
-                );
         }
     };
 

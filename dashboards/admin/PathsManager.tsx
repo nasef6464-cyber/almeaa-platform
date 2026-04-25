@@ -9,7 +9,7 @@ import { LibraryManager } from './LibraryManager';
 import { 
   FolderOpen, BookOpen, Target, FileQuestion, 
   Award, Library, ChevronLeft, Plus, Settings,
-  Layers, Package, LayoutGrid, X, Lock
+  Layers, Package, LayoutGrid, X, Lock, LockOpen
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 
@@ -124,8 +124,14 @@ export const PathsManager: React.FC = () => {
     
     setEditingPath(null);
     setNewPathName('');
+    setNewPathColor('indigo');
+    setNewPathIcon('ðŸ“š');
     setNewPathIconUrl('');
+    setNewPathIconStyle('default');
     setNewPathParentId('');
+    setNewPathDesc('');
+    setNewPathShowInNavbar(false);
+    setNewPathIsActive(false);
     setIsPathModalOpen(false);
   };
 
@@ -153,6 +159,11 @@ export const PathsManager: React.FC = () => {
       title: 'حذف مسار',
       message: 'هل أنت متأكد من حذف هذا المسار وجميع مواده ومراحله؟'
     });
+  };
+
+  const handleTogglePathActive = (path: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    useStore.getState().updatePath(path.id, { isActive: path.isActive === false });
   };
 
   const handleAddLevel = () => {
@@ -309,7 +320,19 @@ export const PathsManager: React.FC = () => {
             <p className="text-gray-500 text-sm mt-1">اختر المسار لإدارة مواده وباقاته.</p>
           </div>
           <button 
-            onClick={() => setIsPathModalOpen(true)}
+            onClick={() => {
+              setEditingPath(null);
+              setNewPathName('');
+              setNewPathColor('indigo');
+              setNewPathIcon('ðŸ“š');
+              setNewPathIconUrl('');
+              setNewPathIconStyle('default');
+              setNewPathParentId('');
+              setNewPathDesc('');
+              setNewPathShowInNavbar(false);
+              setNewPathIsActive(false);
+              setIsPathModalOpen(true);
+            }}
             className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2"
           >
             <Plus size={18} />
@@ -331,6 +354,17 @@ export const PathsManager: React.FC = () => {
                     {getPathIcon(path)}
                   </div>
                   <div className="flex gap-2">
+                      <button
+                        onClick={(e) => handleTogglePathActive(path, e)}
+                        className={`transition-colors p-2 rounded-lg ${
+                          path.isActive === false
+                            ? 'text-gray-500 hover:bg-gray-100'
+                            : 'text-sky-600 hover:bg-sky-50'
+                        }`}
+                        title={path.isActive === false ? 'إظهار المسار على المنصة' : 'إخفاء المسار عن المنصة'}
+                      >
+                        {path.isActive === false ? <Lock size={18} /> : <LockOpen size={18} />}
+                      </button>
                       <button onClick={(e) => openEditPath(path, e)} className="text-gray-400 hover:text-indigo-600 transition-colors p-2">
                         <Settings size={18} />
                       </button>
@@ -340,6 +374,15 @@ export const PathsManager: React.FC = () => {
                   </div>
                 </div>
                 <h3 className="text-xl font-bold text-gray-800 mb-2">{path.name}</h3>
+                <div className="mb-3">
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-bold ${
+                      path.isActive === false ? 'bg-gray-100 text-gray-600' : 'bg-sky-50 text-sky-700'
+                    }`}
+                  >
+                    {path.isActive === false ? 'مخفي عن المنصة' : 'ظاهر على المنصة'}
+                  </span>
+                </div>
                 <div className="flex items-center gap-4 text-sm text-gray-500">
                   <span className="flex items-center gap-1"><Layers size={14} /> {pathSubs.length} مواد</span>
                 </div>

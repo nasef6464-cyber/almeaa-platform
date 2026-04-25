@@ -1,10 +1,10 @@
-
+﻿
 import React, { useState, Suspense } from 'react';
 import { 
     Clock, TrendingUp, AlertTriangle, Zap, FileText, 
     PieChart, Heart, Map as MapIcon, HelpCircle, LayoutDashboard, 
     ShoppingCart, ChevronLeft, Menu, X, Target, Loader2, CheckCircle, BookOpen, Star,
-    Route as RouteIcon, Brain, Calendar, User
+    Route as RouteIcon, Brain, Calendar, User, Video
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { ProgressBar } from '../components/ui/ProgressBar';
@@ -100,7 +100,8 @@ const formatQuizCardDate = (createdAt?: number) => {
 };
 
 const PathsTab = () => {
-    const { paths: storePaths, courses, enrolledPaths, enrollPath, unenrollPath, enrolledCourses, completedLessons } = useStore();
+    const { paths: storePaths, courses, enrolledPaths, enrollPath, unenrollPath, enrolledCourses, completedLessons, user } = useStore();
+    const canSeeHiddenPaths = ['admin', 'teacher', 'supervisor'].includes(user?.role || '');
     
     // Fallback for icons and colors
     const getPathStyle = (pathId: string) => {
@@ -111,6 +112,7 @@ const PathsTab = () => {
     };
 
     const dPaths = storePaths
+        .filter(p => canSeeHiddenPaths || p.isActive !== false)
         .filter(p => typeof p.id === 'string' && p.id.trim().length > 0 && typeof p.name === 'string' && p.name.trim().length > 0)
         .map(p => ({
             id: p.id,
@@ -241,18 +243,79 @@ const SmartPathTab = () => {
 };
 
 const SessionsTab = () => {
-    const { recentActivity } = useStore();
+    const { recentActivity, lessons, user } = useStore();
     const sessions = recentActivity.filter(a => a.type === 'session_booked');
+    const liveSessions = lessons
+        .filter((lesson) => ['live_youtube', 'zoom', 'google_meet', 'teams'].includes(lesson.type))
+        .filter((lesson) => {
+            if (lesson.showOnPlatform === false && user.role === 'student') return false;
+            if (lesson.approvalStatus && lesson.approvalStatus !== 'approved' && user.role === 'student') return false;
+            if (lesson.accessControl === 'public' || !lesson.accessControl) return true;
+            if (lesson.accessControl === 'specific_groups') {
+                const userGroups = user.groupIds || [];
+                return (lesson.allowedGroupIds || []).some((groupId: string) => userGroups.includes(groupId));
+            }
+            return user.role !== 'student' || user.subscription?.plan === 'premium' || (user.subscription?.purchasedPackages || []).length > 0;
+        })
+        .sort((a, b) => {
+            const aDate = a.meetingDate ? new Date(a.meetingDate).getTime() : Number.MAX_SAFE_INTEGER;
+            const bDate = b.meetingDate ? new Date(b.meetingDate).getTime() : Number.MAX_SAFE_INTEGER;
+            return aDate - bDate;
+        })
+        .slice(0, 3);
 
     return (
         <div className="space-y-6 animate-fade-in">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
                 <h2 className="text-2xl font-bold text-gray-800">جلساتي الخاصة</h2>
-                <Link to="/book-session" className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2">
-                    <Calendar size={18} />
-                    حجز حصة جديدة
-                </Link>
+                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    <Link to="/live-sessions" className="bg-white border border-indigo-200 text-indigo-700 px-5 py-2 rounded-xl font-bold hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2">
+                        <Video size={18} />
+                        الحصص المباشرة
+                    </Link>
+                    <Link to="/book-session" className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
+                        <Calendar size={18} />
+                        حجز حصة جديدة
+                    </Link>
+                </div>
             </div>
+
+            {liveSessions.length > 0 && (
+                <Card className="p-5 border border-indigo-100 bg-indigo-50/60">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div className="text-right">
+                            <h3 className="text-lg font-bold text-gray-900">أقرب الحصص المباشرة</h3>
+                            <p className="text-sm text-gray-600 mt-1">هذه الحصص متاحة لك الآن من المعلمين أو الإدارة داخل المنصة.</p>
+                        </div>
+                        <Link to="/live-sessions" className="text-indigo-700 font-bold hover:text-indigo-800 transition-colors">
+                            عرض كل الحصص
+                        </Link>
+                    </div>
+                    <div className="grid gap-3 mt-4">
+                        {liveSessions.map((lesson) => (
+                            <div key={lesson.id} className="bg-white rounded-xl border border-indigo-100 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                <div className="text-right">
+                                    <div className="font-bold text-gray-900">{lesson.title}</div>
+                                    <div className="text-sm text-gray-500 mt-1">
+                                        {lesson.meetingDate
+                                            ? new Date(lesson.meetingDate).toLocaleString('ar-SA', {
+                                                year: 'numeric',
+                                                month: 'long',
+                                                day: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                            })
+                                            : 'سيُحدد الموعد قريبًا'}
+                                    </div>
+                                </div>
+                                <Link to="/live-sessions" className="text-sm font-bold text-indigo-700 hover:text-indigo-800 transition-colors">
+                                    تفاصيل الحصة
+                                </Link>
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+            )}
 
             {sessions.length > 0 ? (
                 <div className="grid gap-4">
@@ -277,7 +340,7 @@ const SessionsTab = () => {
                 <div className="text-center py-12 bg-white rounded-2xl border border-gray-100">
                     <Calendar size={48} className="mx-auto text-gray-300 mb-4" />
                     <h3 className="text-lg font-bold text-gray-700 mb-2">لا توجد جلسات قادمة</h3>
-                    <p className="text-gray-500 mb-6">احجز حصة خاصة مع نخبة من المعلمين لمساعدتك في نقاط ضعفك.</p>
+                    <p className="text-gray-500 mb-6">احجز حصة خاصة مع نخبة من المعلمين أو تابع الحصص المباشرة المتاحة داخل المنصة.</p>
                     <Link to="/book-session" className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-indigo-700 transition-colors inline-block">
                         احجز الآن
                     </Link>
@@ -452,6 +515,7 @@ const Dashboard: React.FC = () => {
 const OverviewTab = ({ setActiveTab }: { setActiveTab: (tab: any) => void }) => {
     const { courses, user, enrolledCourses, completedLessons, examResults, recentActivity, paths: storePaths, enrolledPaths } = useStore();
     const smartPathSkills = buildSmartPathSkillsFromResults(examResults);
+    const canSeeHiddenPaths = ['admin', 'teacher', 'supervisor'].includes(user?.role || '');
     
     // Debugging logs as requested
     console.log("Dashboard Data:", { enrolledCourses, completedLessons, examResults });
@@ -540,8 +604,9 @@ const OverviewTab = ({ setActiveTab }: { setActiveTab: (tab: any) => void }) => 
     const enrolledPathSet = new Set(enrolledPaths ?? []);
     const hasExplicitEnrolledPaths = enrolledPathSet.size > 0;
     const relevantPaths = hasExplicitEnrolledPaths
-        ? storePaths.filter((path) => enrolledPathSet.has(path.id))
+        ? storePaths.filter((path) => enrolledPathSet.has(path.id) && (canSeeHiddenPaths || path.isActive !== false))
         : storePaths.filter((path) => {
+            if (!canSeeHiddenPaths && path.isActive === false) return false;
             const pathName = normalize(path.name);
             const pathId = normalize(path.id);
             return activeCourses.some((course) => {
@@ -571,12 +636,12 @@ const OverviewTab = ({ setActiveTab }: { setActiveTab: (tab: any) => void }) => 
     return (
     <div className="space-y-8 animate-fade-in pb-20">
         {/* Header */}
-        <div className="flex justify-between items-end">
+        <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-end">
             <div>
-                <h2 className="text-3xl font-bold text-gray-800 mb-2">لوحة تحكم ذكية - مرحباً، {user.name.split(' ')[0]} 👋</h2>
-                <p className="text-gray-500 text-lg">جاهز لتحقيق أهدافك اليوم؟</p>
+                <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2 leading-tight">لوحة تحكم ذكية - مرحباً، {user.name.split(' ')[0]} 👋</h2>
+                <p className="text-gray-500 text-base md:text-lg">جاهز لتحقيق أهدافك اليوم؟</p>
             </div>
-            <Link to="/book-session" className="bg-indigo-100 text-indigo-700 px-4 py-2 md:px-6 md:py-3 rounded-2xl text-sm font-bold flex items-center gap-2 shadow-sm hover:bg-indigo-200 transition-colors">
+            <Link to="/book-session" className="w-full md:w-auto bg-indigo-100 text-indigo-700 px-4 py-2 md:px-6 md:py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-indigo-200 transition-colors">
                 <Clock size={20} />
                 <span className="hidden md:inline">حجز حصة خاصة</span>
                 <span className="md:hidden">حجز حصة</span>
@@ -587,9 +652,9 @@ const OverviewTab = ({ setActiveTab }: { setActiveTab: (tab: any) => void }) => 
             <div className="lg:col-span-2 space-y-8">
                 
                 {/* 1. Smart Summary Cards */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <Card className="p-4 flex flex-col items-center text-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-white border-0">
-                        <div className="font-black text-3xl mb-1">{overallProgress}%</div>
+                        <div className="font-black text-2xl sm:text-3xl mb-1">{overallProgress}%</div>
                         <div className="text-xs font-medium text-indigo-100">التقدم العام</div>
                     </Card>
                     <Card className="p-4 flex flex-col items-center text-center justify-center">
@@ -622,7 +687,7 @@ const OverviewTab = ({ setActiveTab }: { setActiveTab: (tab: any) => void }) => 
                             </div>
                             <Link 
                                 to={smartAction.link || '#'}
-                                className={`${smartAction.btnBg} text-white px-6 py-3 rounded-xl font-bold text-sm transition-colors shadow-sm whitespace-nowrap`}
+                                className={`${smartAction.btnBg} w-full md:w-auto text-center text-white px-6 py-3 rounded-xl font-bold text-sm transition-colors shadow-sm`}
                             >
                                 {smartAction.buttonText}
                             </Link>
@@ -672,25 +737,25 @@ const OverviewTab = ({ setActiveTab }: { setActiveTab: (tab: any) => void }) => 
 
                 {/* Quick Access Grid (Shortcuts) */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4">
-                    <button onClick={() => setActiveTab('saher')} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-2 group">
+                    <button onClick={() => setActiveTab('saher')} className="min-h-[120px] bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center justify-center text-center gap-2 group">
                         <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition-colors">
                             <Zap size={24} />
                         </div>
                         <span className="font-bold text-gray-800 text-xs">ساهر</span>
                     </button>
-                    <button onClick={() => setActiveTab('quizzes')} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-2 group">
+                    <button onClick={() => setActiveTab('quizzes')} className="min-h-[120px] bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center justify-center text-center gap-2 group">
                         <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
                             <FileText size={24} />
                         </div>
                         <span className="font-bold text-gray-800 text-xs">اختباراتي</span>
                     </button>
-                    <button onClick={() => setActiveTab('reports')} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-2 group">
+                    <button onClick={() => setActiveTab('reports')} className="min-h-[120px] bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center justify-center text-center gap-2 group">
                         <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                             <PieChart size={24} />
                         </div>
                         <span className="font-bold text-gray-800 text-xs">التقارير</span>
                     </button>
-                    <button onClick={() => setActiveTab('plan')} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-2 group">
+                    <button onClick={() => setActiveTab('plan')} className="min-h-[120px] bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center justify-center text-center gap-2 group">
                         <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
                                 <MapIcon size={24} />
                         </div>
@@ -703,7 +768,7 @@ const OverviewTab = ({ setActiveTab }: { setActiveTab: (tab: any) => void }) => 
             <div className="space-y-8">
                 {/* 4. Recent Activity (100% from useStore) */}
                 <section className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-                    <div className="flex justify-between items-center mb-6">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center mb-6">
                         <h3 className="text-lg font-bold text-gray-900">آخر الأنشطة</h3>
                     </div>
                     {recentActivity.length > 0 ? (
@@ -850,14 +915,14 @@ const SaherTab = () => {
     return (
         <div className="max-w-3xl mx-auto space-y-8 animate-fade-in">
             {/* Hero Card */}
-            <div className="bg-[#a855f7] text-white rounded-2xl p-8 md:p-12 shadow-lg shadow-purple-100 text-center relative overflow-hidden">
+            <div className="bg-[#a855f7] text-white rounded-2xl p-5 sm:p-8 md:p-12 shadow-lg shadow-purple-100 text-center relative overflow-hidden">
                 <div className="relative z-10">
-                    <h1 className="text-3xl font-bold mb-3">اختبار "ساهر" السريع</h1>
-                    <p className="text-purple-100 text-lg mb-8">اختبر معرفتك في جميع المواد باختبار شامل وسريع</p>
+                    <h1 className="text-2xl sm:text-3xl font-bold mb-3 leading-tight">اختبار "ساهر" السريع</h1>
+                    <p className="text-purple-100 text-base sm:text-lg mb-6 sm:mb-8">اختبر معرفتك في جميع المواد باختبار شامل وسريع</p>
                     
                     <Link 
                         to="/quiz" 
-                        className="inline-block bg-white text-[#a855f7] px-8 py-3 rounded-xl font-bold text-lg hover:bg-gray-50 transition-transform hover:-translate-y-1 shadow-md"
+                        className="inline-flex w-full sm:w-auto justify-center bg-white text-[#a855f7] px-6 sm:px-8 py-3 rounded-xl font-bold text-base sm:text-lg hover:bg-gray-50 transition-transform hover:-translate-y-1 shadow-md"
                     >
                         ابدأ اختبار ساهر
                     </Link>
@@ -873,7 +938,7 @@ const SaherTab = () => {
                         <h3 className="text-lg font-bold text-gray-800">ترشيحات سريعة حسب نقاط الضعف</h3>
                         <p className="text-sm text-gray-500 mt-1">هذه التوصيات مبنية على نتائجك الأخيرة لمساعدتك على العلاج بسرعة.</p>
                     </div>
-                    <div className="grid md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {weakSkillRecommendations.map(item => (
                             <Card key={item.key} className="p-4 border border-amber-100">
                                 <div className="space-y-3 text-right">
@@ -937,14 +1002,14 @@ const SaherTab = () => {
                 <div className="space-y-4">
                     {saherTests.length > 0 ? (
                         saherTests.map(test => (
-                            <Card key={test.id} className="p-4 flex justify-between items-center hover:shadow-md transition-all border border-gray-100">
+                            <Card key={test.id} className="p-4 flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center hover:shadow-md transition-all border border-gray-100">
                                 {/* Button on Left (End in Flex RTL) */}
-                                <Link to={`/quiz/${test.id}`} className="bg-amber-500 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-amber-600 transition-colors shadow-sm">
+                                <Link to={`/quiz/${test.id}`} className="w-full sm:w-auto text-center bg-amber-500 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-amber-600 transition-colors shadow-sm">
                                     تفاصيل
                                 </Link>
 
                                 {/* Content on Right (Start in Flex RTL) */}
-                                <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-4 self-end sm:self-auto">
                                     <div className="text-right">
                                         <h4 className="font-bold text-gray-800 text-sm md:text-base">{test.title}</h4>
                                         <span className="text-gray-400 text-sm font-sans font-medium">{formatQuizCardDate(test.createdAt)}</span>
@@ -968,12 +1033,12 @@ const SaherTab = () => {
                 <div className="space-y-4">
                     {centralTests.length > 0 ? (
                         centralTests.map(test => (
-                            <Card key={test.id} className="p-4 flex justify-between items-center hover:shadow-md transition-all border border-amber-100">
-                                <Link to={`/quiz/${test.id}`} className="bg-amber-500 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-amber-600 transition-colors shadow-sm">
+                            <Card key={test.id} className="p-4 flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center hover:shadow-md transition-all border border-amber-100">
+                                <Link to={`/quiz/${test.id}`} className="w-full sm:w-auto text-center bg-amber-500 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-amber-600 transition-colors shadow-sm">
                                     دخول
                                 </Link>
 
-                                <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-4 self-end sm:self-auto">
                                     <div className="text-right">
                                         <h4 className="font-bold text-gray-800 text-sm md:text-base">{test.title}</h4>
                                         <span className="text-gray-400 text-sm font-sans font-medium">{formatQuizCardDate(test.createdAt)}</span>
@@ -996,3 +1061,4 @@ const SaherTab = () => {
 };
 
 export default Dashboard;
+

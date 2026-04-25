@@ -17,7 +17,7 @@ export const Tahsili: React.FC = () => {
             title: 'الباقات',
             subtitle: 'عروض حصرية',
             color: 'bg-[#e11d48]',
-            link: '/category/tahsili/packages',
+            link: '/category/p_tahsili?tab=packages',
             isPillSubtitle: true
         },
         ...pathSubjects.map((subject, index) => {
@@ -27,7 +27,7 @@ export const Tahsili: React.FC = () => {
                 title: subject.name,
                 subtitle: 'شروحات - تجميعات - تدريب',
                 color: colors[index % colors.length],
-                link: `/category/p_tahsili/${subject.id}`
+      link: `/category/p_tahsili?subject=${subject.id}`
             };
         })
     ];

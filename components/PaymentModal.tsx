@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { X, CreditCard, Landmark, Wallet, CheckCircle2, ChevronLeft, ShieldCheck, Lock } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { api } from '../services/api';
+import { PaymentMethodKey, PaymentSettings } from '../types';
 
 interface PaymentModalProps {
     isOpen: boolean;
@@ -9,17 +11,53 @@ interface PaymentModalProps {
     type?: 'course' | 'package' | 'skill' | 'test';
 }
 
-type PaymentMethod = 'card' | 'transfer' | 'wallet';
+const fallbackSettings: PaymentSettings = {
+    key: 'default',
+    currency: 'SAR',
+    manualReviewRequired: true,
+    card: {
+        enabled: true,
+        label: 'بطاقة بنكية',
+        instructions: 'سيتم إرسال رابط دفع آمن بعد مراجعة الطلب.',
+    },
+    transfer: {
+        enabled: true,
+        label: 'تحويل بنكي',
+        bankName: '',
+        accountName: '',
+        accountNumber: '',
+        iban: '',
+        instructions: '',
+        publishDetailsToStudents: true,
+    },
+    wallet: {
+        enabled: true,
+        label: 'محفظة إلكترونية',
+        providerName: '',
+        phoneNumber: '',
+        instructions: '',
+        publishDetailsToStudents: true,
+    },
+    notes: '',
+};
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, item, type = 'course' }) => {
     const [step, setStep] = useState<'method' | 'details' | 'success'>('method');
-    const [method, setMethod] = useState<PaymentMethod | null>(null);
+    const [method, setMethod] = useState<PaymentMethodKey | null>(null);
     const [loading, setLoading] = useState(false);
+    const [settingsLoading, setSettingsLoading] = useState(false);
+    const [settings, setSettings] = useState<PaymentSettings>(fallbackSettings);
     const [accessCode, setAccessCode] = useState('');
     const [accessCodeLoading, setAccessCodeLoading] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
-    const { completePurchase, redeemAccessCode } = useStore();
+    const [cardHolderName, setCardHolderName] = useState('');
+    const [cardLast4, setCardLast4] = useState('');
+    const [transferReference, setTransferReference] = useState('');
+    const [walletNumber, setWalletNumber] = useState('');
+    const [receiptUrl, setReceiptUrl] = useState('');
+    const [notes, setNotes] = useState('');
+    const { redeemAccessCode } = useStore();
 
     useEffect(() => {
         if (!isOpen) {
@@ -33,7 +71,52 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, ite
         setAccessCodeLoading(false);
         setActionError(null);
         setSuccessMessage(null);
+        setCardHolderName('');
+        setCardLast4('');
+        setTransferReference('');
+        setWalletNumber('');
+        setReceiptUrl('');
+        setNotes('');
     }, [isOpen, item?.id, type]);
+
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+
+        let cancelled = false;
+
+        const loadSettings = async () => {
+            setSettingsLoading(true);
+            try {
+                const response = await api.getPaymentSettings();
+                if (!cancelled && response) {
+                    setSettings(response as PaymentSettings);
+                }
+            } catch {
+                if (!cancelled) {
+                    setSettings(fallbackSettings);
+                }
+            } finally {
+                if (!cancelled) {
+                    setSettingsLoading(false);
+                }
+            }
+        };
+
+        void loadSettings();
+        return () => {
+            cancelled = true;
+        };
+    }, [isOpen]);
+
+    const enabledMethods = useMemo(
+        () =>
+            (['card', 'transfer', 'wallet'] as PaymentMethodKey[]).filter(
+                (key) => settings[key]?.enabled,
+            ),
+        [settings],
+    );
 
     if (!isOpen || !item) return null;
 
@@ -43,7 +126,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, ite
         item?.purchaseType === 'package' ||
         ((modalType === 'skill' || modalType === 'test' || modalType === 'bank') && (item?.packageId || item?.includedCourseIds?.length));
 
-    const handleMethodSelect = (selectedMethod: PaymentMethod) => {
+    const handleMethodSelect = (selectedMethod: PaymentMethodKey) => {
         setActionError(null);
         setMethod(selectedMethod);
         setStep('details');
@@ -56,40 +139,70 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, ite
         return 'الاشتراك في الدورة';
     };
 
-    const getItemName = () => {
-        return item.title || item.name || 'العنصر المحدد';
-    };
+    const getItemName = () => item.title || item.name || 'العنصر المحدد';
+    const getPrice = () => item.price || 0;
+    const getCurrency = () => item.currency || settings.currency || 'SAR';
 
-    const getPrice = () => {
-        return item.price || 0;
-    };
+    const buildPaymentRequestPayload = () => {
+        const packageId = item.packageId || (shouldPurchaseAsPackage ? item.id : undefined);
+        const includedCourseIds = item.includedCourseIds || item.includedCourses || item.courseIds || [];
+        const extraNotes = [
+            notes.trim(),
+            method === 'card' && cardHolderName.trim() ? `اسم حامل البطاقة: ${cardHolderName.trim()}` : '',
+            method === 'card' && cardLast4.trim() ? `آخر 4 أرقام: ${cardLast4.trim()}` : '',
+        ]
+            .filter(Boolean)
+            .join(' | ');
 
-    const getCurrency = () => {
-        return item.currency || 'ر.س';
+        return {
+            itemType: shouldPurchaseAsPackage ? 'package' : type,
+            itemId: item.id,
+            itemName: getItemName(),
+            packageId,
+            includedCourseIds,
+            amount: getPrice(),
+            currency: getCurrency(),
+            paymentMethod: method,
+            transferReference: method === 'transfer' ? transferReference.trim() : '',
+            walletNumber: method === 'wallet' ? walletNumber.trim() : '',
+            receiptUrl: receiptUrl.trim(),
+            notes: extraNotes,
+        };
     };
 
     const handlePayment = async () => {
+        if (!method) {
+            return;
+        }
+
+        if (method === 'transfer' && !transferReference.trim() && !receiptUrl.trim()) {
+            setActionError('أدخل رقم المرجع أو رابط إيصال التحويل حتى نراجع الطلب.');
+            return;
+        }
+
+        if (method === 'wallet' && !walletNumber.trim()) {
+            setActionError('أدخل رقم المحفظة أو رقم الجوال المرتبط بها.');
+            return;
+        }
+
+        if (method === 'card' && !cardHolderName.trim()) {
+            setActionError('أدخل اسم حامل البطاقة حتى نراجع الطلب.');
+            return;
+        }
+
         setLoading(true);
         setActionError(null);
 
         try {
-            if (type === 'course') {
-                await completePurchase({ courseId: item.id });
-                setSuccessMessage(`تم تفعيل الدورة ${getItemName()} على حسابك بنجاح.`);
-            } else if (shouldPurchaseAsPackage) {
-                await completePurchase({
-                    packageId: item.packageId || item.id,
-                    includedCourseIds: item.includedCourseIds || item.includedCourses || item.courseIds || [],
-                });
-                setSuccessMessage(`تم تفعيل الباقة ${getItemName()} على حسابك بنجاح.`);
-            } else {
-                throw new Error('هذا المحتوى مقفل حاليًا ولم يتم ربطه بباقة شراء حقيقية من الإدارة بعد.');
-                setSuccessMessage(`تم تسجيل طلبك على ${getItemName()} بنجاح.`);
-            }
-
+            await api.createPaymentRequest(buildPaymentRequestPayload());
+            setSuccessMessage(
+                settings.manualReviewRequired
+                    ? `تم إرسال طلب الدفع الخاص بـ ${getItemName()} بنجاح، وسيتم مراجعته من الإدارة ثم تفعيل الوصول على حسابك.`
+                    : `تم تسجيل طلب الدفع الخاص بـ ${getItemName()} بنجاح.`,
+            );
             setStep('success');
         } catch (error) {
-            setActionError(error instanceof Error ? error.message : 'تعذر إتمام العملية الآن.');
+            setActionError(error instanceof Error ? error.message : 'تعذر إرسال طلب الدفع الآن.');
         } finally {
             setLoading(false);
         }
@@ -115,6 +228,30 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, ite
         }
     };
 
+    const renderMethodButton = (
+        selectedMethod: PaymentMethodKey,
+        title: string,
+        description: string,
+        icon: React.ReactNode,
+        iconClasses: string,
+    ) => (
+        <button
+            onClick={() => handleMethodSelect(selectedMethod)}
+            className="w-full flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-5 rounded-2xl border-2 border-gray-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all group"
+        >
+            <div className="flex items-center gap-4">
+                <div className={`p-3 rounded-xl transition-colors ${iconClasses}`}>
+                    {icon}
+                </div>
+                <div className="text-right">
+                    <p className="font-bold text-gray-800">{title}</p>
+                    <p className="text-xs text-gray-500">{description}</p>
+                </div>
+            </div>
+            <ChevronLeft size={20} className="text-gray-400" />
+        </button>
+    );
+
     const renderMethodSelector = () => (
         <div className="space-y-4 animate-fade-in">
             <h3 className="text-xl font-black text-gray-800 mb-6 text-right">{getTitle()}</h3>
@@ -124,7 +261,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, ite
                     <p className="font-bold text-amber-900">لديك كود تفعيل؟</p>
                     <p className="text-xs text-amber-700 mt-1">فعّل الباقة أو الدورات مباشرة من نفس النافذة بدون خطوات دفع إضافية.</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row">
                     <input
                         value={accessCode}
                         onChange={(event) => setAccessCode(event.target.value.toUpperCase())}
@@ -141,59 +278,56 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, ite
                 </div>
             </div>
 
+            {settings.notes && (
+                <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700 text-right">
+                    {settings.notes}
+                </div>
+            )}
+
             {actionError && (
                 <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 text-right">
                     {actionError}
                 </div>
             )}
 
-            <button
-                onClick={() => handleMethodSelect('card')}
-                className="w-full flex items-center justify-between p-5 rounded-2xl border-2 border-gray-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all group"
-            >
-                <div className="flex items-center gap-4">
-                    <div className="bg-indigo-100 text-indigo-600 p-3 rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                        <CreditCard size={24} />
-                    </div>
-                    <div className="text-right">
-                        <p className="font-bold text-gray-800">بطاقة بنكية (مدى / فيزا / ماستركارد)</p>
-                        <p className="text-xs text-gray-500">دفع آمن وفوري</p>
-                    </div>
+            {settingsLoading && (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 text-right">
+                    جارٍ تحميل إعدادات الدفع...
                 </div>
-                <ChevronLeft size={20} className="text-gray-400" />
-            </button>
+            )}
 
-            <button
-                onClick={() => handleMethodSelect('transfer')}
-                className="w-full flex items-center justify-between p-5 rounded-2xl border-2 border-gray-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all group"
-            >
-                <div className="flex items-center gap-4">
-                    <div className="bg-amber-100 text-amber-600 p-3 rounded-xl group-hover:bg-amber-600 group-hover:text-white transition-colors">
-                        <Landmark size={24} />
-                    </div>
-                    <div className="text-right">
-                        <p className="font-bold text-gray-800">تحويل بنكي</p>
-                        <p className="text-xs text-gray-500">الراجحي / الأهلي / بنك مصر</p>
-                    </div>
+            {!settingsLoading && enabledMethods.length === 0 && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 text-right">
+                    لا توجد وسيلة دفع مفعلة حاليًا. يمكنك استخدام كود تفعيل أو التواصل مع الإدارة.
                 </div>
-                <ChevronLeft size={20} className="text-gray-400" />
-            </button>
+            )}
 
-            <button
-                onClick={() => handleMethodSelect('wallet')}
-                className="w-full flex items-center justify-between p-5 rounded-2xl border-2 border-gray-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all group"
-            >
-                <div className="flex items-center gap-4">
-                    <div className="bg-emerald-100 text-emerald-600 p-3 rounded-xl group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                        <Wallet size={24} />
-                    </div>
-                    <div className="text-right">
-                        <p className="font-bold text-gray-800">محافظ إلكترونية</p>
-                        <p className="text-xs text-gray-500">STC Pay / Vodafone Cash / Fawry</p>
-                    </div>
-                </div>
-                <ChevronLeft size={20} className="text-gray-400" />
-            </button>
+            {enabledMethods.includes('card') &&
+                renderMethodButton(
+                    'card',
+                    settings.card.label || 'بطاقة بنكية',
+                    settings.card.instructions || 'إرسال طلب دفع ومراجعته من الإدارة أو تفعيل الدفع الآمن لاحقًا.',
+                    <CreditCard size={24} />,
+                    'bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white',
+                )}
+
+            {enabledMethods.includes('transfer') &&
+                renderMethodButton(
+                    'transfer',
+                    settings.transfer.label || 'تحويل بنكي',
+                    settings.transfer.instructions || 'سجّل رقم المرجع أو أرفق رابط إيصال التحويل.',
+                    <Landmark size={24} />,
+                    'bg-amber-100 text-amber-600 group-hover:bg-amber-600 group-hover:text-white',
+                )}
+
+            {enabledMethods.includes('wallet') &&
+                renderMethodButton(
+                    'wallet',
+                    settings.wallet.label || 'محفظة إلكترونية',
+                    settings.wallet.instructions || 'أدخل رقم المحفظة أو الجوال المرتبط بها.',
+                    <Wallet size={24} />,
+                    'bg-emerald-100 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white',
+                )}
         </div>
     );
 
@@ -212,20 +346,29 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, ite
 
             {method === 'card' && (
                 <div className="space-y-4">
-                    <h3 className="text-xl font-black text-gray-800">تفاصيل البطاقة</h3>
-                    <div className="space-y-2">
-                        <label className="text-sm font-bold text-gray-600">رقم البطاقة</label>
-                        <input type="text" placeholder="**** **** **** ****" className="w-full p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                    <h3 className="text-xl font-black text-gray-800">طلب دفع بالبطاقة</h3>
+                    <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
+                        {settings.card.instructions || 'سيتم إرسال رابط دفع آمن أو مراجعة الطلب من الإدارة.'}
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-gray-600">تاريخ الانتهاء</label>
-                            <input type="text" placeholder="MM/YY" className="w-full p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none" />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-gray-600">CVV</label>
-                            <input type="text" placeholder="***" className="w-full p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none" />
-                        </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-600">اسم حامل البطاقة</label>
+                        <input
+                            value={cardHolderName}
+                            onChange={(event) => setCardHolderName(event.target.value)}
+                            type="text"
+                            placeholder="الاسم كما يظهر على البطاقة"
+                            className="w-full p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-600">آخر 4 أرقام من البطاقة (اختياري)</label>
+                        <input
+                            value={cardLast4}
+                            onChange={(event) => setCardLast4(event.target.value.replace(/\D/g, '').slice(0, 4))}
+                            type="text"
+                            placeholder="1234"
+                            className="w-full p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        />
                     </div>
                 </div>
             )}
@@ -234,50 +377,106 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, ite
                 <div className="space-y-4">
                     <h3 className="text-xl font-black text-gray-800">بيانات التحويل</h3>
                     <div className="bg-gray-50 p-6 rounded-2xl space-y-4 border border-gray-100">
-                        <div>
-                            <p className="text-xs text-gray-400">اسم البنك</p>
-                            <p className="font-bold text-gray-800">مصرف الراجحي</p>
-                        </div>
-                        <div>
-                            <p className="text-xs text-gray-400">رقم الآيبان (IBAN)</p>
-                            <p className="font-mono font-bold text-indigo-600 text-lg">SA 1234 5678 9012 3456 7890</p>
-                        </div>
-                        <div>
-                            <p className="text-xs text-gray-400">اسم المستفيد</p>
-                            <p className="font-bold text-gray-800">شركة منصة المئة التعليمية</p>
-                        </div>
+                        {settings.transfer.bankName && (
+                            <div>
+                                <p className="text-xs text-gray-400">اسم البنك</p>
+                                <p className="font-bold text-gray-800">{settings.transfer.bankName}</p>
+                            </div>
+                        )}
+                        {settings.transfer.iban && (
+                            <div>
+                                <p className="text-xs text-gray-400">رقم الآيبان (IBAN)</p>
+                                <p className="font-mono font-bold text-indigo-600 text-lg break-all">{settings.transfer.iban}</p>
+                            </div>
+                        )}
+                        {settings.transfer.accountName && (
+                            <div>
+                                <p className="text-xs text-gray-400">اسم المستفيد</p>
+                                <p className="font-bold text-gray-800">{settings.transfer.accountName}</p>
+                            </div>
+                        )}
+                        {settings.transfer.accountNumber && (
+                            <div>
+                                <p className="text-xs text-gray-400">رقم الحساب</p>
+                                <p className="font-bold text-gray-800">{settings.transfer.accountNumber}</p>
+                            </div>
+                        )}
                     </div>
-                    <p className="text-xs text-amber-600 font-bold bg-amber-50 p-3 rounded-lg">يرجى إرفاق صورة التحويل بعد إتمام العملية لتفعيل الطلب بسرعة.</p>
-                    <button className="w-full py-4 border-2 border-dashed border-indigo-300 rounded-2xl text-indigo-600 font-bold hover:bg-indigo-50 transition-colors">
-                        إرفاق إيصال التحويل
-                    </button>
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-600">رقم مرجع التحويل</label>
+                        <input
+                            value={transferReference}
+                            onChange={(event) => setTransferReference(event.target.value)}
+                            type="text"
+                            placeholder="رقم المرجع أو العملية"
+                            className="w-full p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-600">رابط إيصال التحويل (اختياري)</label>
+                        <input
+                            value={receiptUrl}
+                            onChange={(event) => setReceiptUrl(event.target.value)}
+                            type="text"
+                            placeholder="https://..."
+                            className="w-full p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        />
+                    </div>
                 </div>
             )}
 
             {method === 'wallet' && (
                 <div className="space-y-4">
                     <h3 className="text-xl font-black text-gray-800">الدفع عبر المحفظة</h3>
-                    <div className="space-y-2">
-                        <label className="text-sm font-bold text-gray-600">رقم الهاتف المرتبط بالمحفظة</label>
-                        <input type="text" placeholder="05xxxxxxxx" className="w-full p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                    <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                        {settings.wallet.instructions || 'أدخل رقم المحفظة أو الجوال المرتبط بها ليتم مراجعة الطلب.'}
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="p-4 border-2 border-indigo-500 bg-indigo-50 rounded-xl text-center">
-                            <p className="font-bold text-indigo-700">STC Pay</p>
-                            <p className="text-xs text-indigo-500 mt-1">الأسرع تفعيلًا</p>
+                    {settings.wallet.providerName && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="p-4 border-2 border-emerald-500 bg-emerald-50 rounded-xl text-center">
+                                <p className="font-bold text-emerald-700">{settings.wallet.providerName}</p>
+                                {settings.wallet.phoneNumber && <p className="text-xs text-emerald-500 mt-1">{settings.wallet.phoneNumber}</p>}
+                            </div>
                         </div>
-                        <div className="p-4 border border-gray-200 rounded-xl text-center">
-                            <p className="font-bold text-gray-700">Vodafone Cash</p>
-                            <p className="text-xs text-gray-500 mt-1">أو أي محفظة بديلة</p>
-                        </div>
+                    )}
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-600">رقم المحفظة / الجوال</label>
+                        <input
+                            value={walletNumber}
+                            onChange={(event) => setWalletNumber(event.target.value)}
+                            type="text"
+                            placeholder="05xxxxxxxx"
+                            className="w-full p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-600">رابط إيصال الدفع (اختياري)</label>
+                        <input
+                            value={receiptUrl}
+                            onChange={(event) => setReceiptUrl(event.target.value)}
+                            type="text"
+                            placeholder="https://..."
+                            className="w-full p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        />
                     </div>
                 </div>
             )}
 
+            <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-600">ملاحظات إضافية (اختياري)</label>
+                <textarea
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                    rows={3}
+                    placeholder="أي ملاحظات تريد إضافتها للإدارة"
+                    className="w-full p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                />
+            </div>
+
             <div className="pt-6">
-                <div className="flex justify-between items-center mb-6 bg-gray-50 p-4 rounded-xl">
+                <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center mb-6 bg-gray-50 p-4 rounded-xl">
                     <span className="text-gray-500 font-bold">إجمالي المبلغ:</span>
-                    <span className="text-2xl font-black text-indigo-600">{getPrice()} {getCurrency()}</span>
+                    <span className="text-xl sm:text-2xl font-black text-indigo-600">{getPrice()} {getCurrency()}</span>
                 </div>
 
                 <button
@@ -288,15 +487,15 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, ite
                     {loading ? (
                         <>
                             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            جاري المعالجة...
+                            جارٍ إرسال الطلب...
                         </>
                     ) : (
-                        <>إتمام عملية الدفع <ShieldCheck size={20} /></>
+                        <>إرسال طلب الدفع <ShieldCheck size={20} /></>
                     )}
                 </button>
                 <div className="flex items-center justify-center gap-2 mt-4 text-gray-400 text-xs">
                     <Lock size={12} />
-                    <span>تشفير آمن 256-bit SSL</span>
+                    <span>المراجعة تتم من الإدارة قبل تفعيل الوصول</span>
                 </div>
             </div>
         </div>
@@ -307,26 +506,22 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, ite
             <div className="w-24 h-24 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-8 animate-bounce-slow">
                 <CheckCircle2 size={64} />
             </div>
-            <h3 className="text-3xl font-black text-gray-900 mb-4">مبروك! تمت العملية بنجاح</h3>
-            <p className="text-gray-500 mb-10 max-w-sm mx-auto leading-relaxed">
-                {successMessage || (
-                    <>
-                        تم تفعيل <span className="font-bold text-indigo-600">{getItemName()}</span> في حسابك. يمكنك الآن البدء في رحلة التعلم فورًا.
-                    </>
-                )}
+            <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-4 leading-tight">تم تسجيل الطلب بنجاح</h3>
+            <p className="text-gray-500 mb-8 sm:mb-10 max-w-sm mx-auto leading-relaxed">
+                {successMessage || `تم تسجيل طلب الدفع الخاص بـ ${getItemName()} وسيظهر في طلباتك لحين المراجعة.`}
             </p>
             <button
                 onClick={onClose}
                 className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-lg"
             >
-                ابدأ التعلم الآن
+                إغلاق
             </button>
         </div>
     );
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" dir="rtl">
-            <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden relative animate-scale-up">
+            <div className="bg-white w-full max-w-xl rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden relative animate-scale-up">
                 <button
                     onClick={onClose}
                     className="absolute top-6 left-6 p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors z-10"
@@ -334,7 +529,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, ite
                     <X size={20} />
                 </button>
 
-                <div className="p-8 md:p-12">
+                <div className="p-5 sm:p-8 md:p-12">
                     {step === 'method' && renderMethodSelector()}
                     {step === 'details' && renderDetails()}
                     {step === 'success' && renderSuccess()}

@@ -23,6 +23,14 @@ interface PathLayoutProps {
     children?: React.ReactNode;
 }
 
+const getCardGridClass = (count: number) => {
+    if (count >= 5) return 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 md:gap-6';
+    if (count === 4) return 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6';
+    if (count === 3) return 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6';
+    if (count === 2) return 'grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6';
+    return 'grid grid-cols-1 gap-4 md:gap-6';
+};
+
 const CourseItem: React.FC<{ course: any }> = ({ course }) => {
     const [summary, setSummary] = useState<string | null>(null);
     const [loadingSummary, setLoadingSummary] = useState(false);
@@ -129,25 +137,25 @@ export const PathLayout: React.FC<PathLayoutProps> = ({ title, subtitle, cards, 
     return (
         <div className="bg-white min-h-screen pb-20 font-sans">
             <div className="py-16 text-center px-4">
-                <h1 className="text-3xl md:text-4xl font-black text-[#1e1b4b] mb-4">{title}</h1>
-                <p className="text-gray-500 max-w-2xl mx-auto text-sm md:text-base">{subtitle}</p>
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-[#1e1b4b] mb-4 leading-tight break-words">{title}</h1>
+                <p className="text-gray-500 max-w-2xl mx-auto text-sm md:text-base leading-6">{subtitle}</p>
             </div>
 
             <div className="max-w-7xl mx-auto px-4 mb-16">
-                <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-${cards.length > 4 ? '5' : cards.length} gap-4 md:gap-6`}>
+                <div className={getCardGridClass(cards.length)}>
                     {cards.map((card) => (
                         <Link
                             key={card.id}
                             to={card.link || '#'}
-                            className={`${card.color} rounded-3xl p-6 md:p-8 text-center text-white hover:-translate-y-1 transition-transform shadow-lg flex flex-col justify-center items-center min-h-[160px]`}
+                            className={`${card.color} rounded-3xl p-5 sm:p-6 md:p-8 text-center text-white hover:-translate-y-1 transition-transform shadow-lg flex flex-col justify-center items-center min-h-[160px]`}
                         >
-                            <h2 className="text-2xl md:text-3xl font-black mb-3">{card.title}</h2>
+                            <h2 className="text-xl sm:text-2xl md:text-3xl font-black mb-3 leading-tight break-words">{card.title}</h2>
                             {card.isPillSubtitle ? (
-                                <span className="bg-white/20 px-4 py-1.5 rounded-full text-xs md:text-sm font-bold inline-block">
+                                <span className="bg-white/20 px-4 py-1.5 rounded-full text-xs md:text-sm font-bold inline-block break-words">
                                     {card.subtitle}
                                 </span>
                             ) : (
-                                <span className="text-xs md:text-sm font-bold opacity-90">
+                                <span className="text-xs md:text-sm font-bold opacity-90 break-words">
                                     {card.subtitle}
                                 </span>
                             )}
@@ -160,7 +168,7 @@ export const PathLayout: React.FC<PathLayoutProps> = ({ title, subtitle, cards, 
                 <div className="max-w-7xl mx-auto px-4 mb-16">
                     <div className="mb-8 flex items-center gap-3">
                         <div className="w-2 h-8 bg-[#4f46e5] rounded-full"></div>
-                        <h2 className="text-2xl font-bold text-[#1e1b4b]">{coursesTitle || 'أحدث الدورات'}</h2>
+                        <h2 className="text-xl sm:text-2xl font-bold text-[#1e1b4b] leading-tight">{coursesTitle || 'أحدث الدورات'}</h2>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                         {courses.map((course) => (

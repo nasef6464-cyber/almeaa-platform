@@ -9,6 +9,7 @@ import { AccessCodeModel } from "../models/AccessCode.js";
 import { B2BPackageModel } from "../models/B2BPackage.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { signAccessToken } from "../utils/jwt.js";
+import { applyPurchaseToUser } from "../services/applyPurchaseToUser.js";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -65,9 +66,6 @@ const serializeUser = (user: any) => {
   const { passwordHash, __v, ...safeUser } = plain;
   return safeUser;
 };
-
-const uniqueStrings = (values: Array<string | undefined | null>) =>
-  Array.from(new Set(values.filter((value): value is string => typeof value === "string" && value.trim().length > 0)));
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const buildDocumentQuery = (value: string) =>
@@ -269,39 +267,13 @@ authRouter.post(
   requireAuth,
   asyncHandler(async (req, res) => {
     const payload = purchaseSchema.parse(req.body);
-    const user = await UserModel.findById(req.authUser?.id);
+    const user = await applyPurchaseToUser(req.authUser?.id || "", payload);
 
     if (!user) {
       return res.status(StatusCodes.NOT_FOUND).json({
         message: "User not found",
       });
     }
-
-    const purchasedCourses = uniqueStrings([
-      ...(user.subscription?.purchasedCourses || []),
-      ...(payload.courseId ? [payload.courseId] : []),
-      ...((payload.includedCourseIds || []).map(String)),
-    ]);
-
-    const enrolledCourses = uniqueStrings([
-      ...(user.enrolledCourses || []),
-      ...(payload.courseId ? [payload.courseId] : []),
-      ...((payload.includedCourseIds || []).map(String)),
-    ]);
-
-    const purchasedPackages = uniqueStrings([
-      ...(user.subscription?.purchasedPackages || []),
-      ...(payload.packageId ? [payload.packageId] : []),
-    ]);
-
-    user.subscription = {
-      ...user.subscription,
-      plan: purchasedPackages.length > 0 ? "premium" : (user.subscription?.plan || "free"),
-      purchasedCourses,
-      purchasedPackages,
-    };
-    user.enrolledCourses = enrolledCourses;
-    await user.save();
 
     return res.json({
       user: serializeUser(user),
@@ -359,23 +331,16 @@ authRouter.post(
       });
     }
 
-    const packageId = String(linkedPackage.id || linkedPackage._id);
-    const courseIds = Array.isArray(linkedPackage.courseIds) ? linkedPackage.courseIds.map(String) : [];
-
-    user.subscription = {
-      ...user.subscription,
-      plan: "premium",
-      purchasedPackages: uniqueStrings([...(user.subscription?.purchasedPackages || []), packageId]),
-      purchasedCourses: uniqueStrings([...(user.subscription?.purchasedCourses || []), ...courseIds]),
-    };
-    user.enrolledCourses = uniqueStrings([...(user.enrolledCourses || []), ...courseIds]);
+    const updatedUser = await applyPurchaseToUser(String(user._id), {
+      packageId: String(linkedPackage.id || linkedPackage._id),
+      includedCourseIds: Array.isArray(linkedPackage.courseIds) ? linkedPackage.courseIds.map(String) : [],
+    });
 
     accessCode.currentUses = (accessCode.currentUses || 0) + 1;
-
-    await Promise.all([user.save(), accessCode.save()]);
+    await accessCode.save();
 
     return res.json({
-      user: serializeUser(user),
+      user: serializeUser(updatedUser),
       accessCode,
       package: linkedPackage,
     });

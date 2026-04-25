@@ -494,7 +494,7 @@ const Quiz: React.FC = () => {
             <p className="text-gray-500">اختر نوع البداية: اختبار جاهز من الإدارة أو اختبار ذاتي بمواصفاتك.</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 bg-gray-100 rounded-xl p-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-100 rounded-xl p-1">
             <button
               onClick={() => setEntryMode('prepared')}
               className={`py-3 rounded-lg font-bold transition-colors ${entryMode === 'prepared' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-600'}`}
@@ -531,7 +531,7 @@ const Quiz: React.FC = () => {
                   يمكنك استكمال آخر جلسة محفوظة بنفس الأسئلة والإجابات والوقت المتبقي.
                 </p>
               </div>
-              <div className="flex gap-3">
+              <div className="grid grid-cols-1 sm:flex gap-3">
                 <button
                   onClick={restoreSavedSnapshot}
                   className="px-4 py-2 rounded-lg bg-amber-600 text-white font-bold hover:bg-amber-700 transition-colors"
@@ -563,7 +563,7 @@ const Quiz: React.FC = () => {
                           : 'border-gray-200 hover:border-indigo-200 bg-white'
                       }`}
                     >
-                      <div className="flex justify-between items-center">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
                         <div>
                           <h3 className="font-bold text-gray-800">{quiz.title}</h3>
                           <p className="text-xs text-gray-500 mt-1">
@@ -742,15 +742,15 @@ const Quiz: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white border-b p-4 shadow-sm sticky top-0 z-20">
-        <div className="max-w-4xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-4">
+      <header className="bg-white border-b p-3 sm:p-4 shadow-sm sticky top-0 z-20">
+        <div className="max-w-4xl mx-auto flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+          <div className="flex items-start gap-3 sm:gap-4">
             <button className="text-gray-500 hover:text-gray-800 transition-colors" onClick={handleExitAttempt}>
               <ArrowRight />
             </button>
-            <div>
-              <h1 className="font-bold text-lg">اختبار ذاتي - {selectedSubjectLabel}</h1>
-              <span className={`text-xs px-2 py-0.5 rounded ${
+            <div className="min-w-0">
+              <h1 className="font-bold text-base sm:text-lg leading-tight break-words">اختبار ذاتي - {selectedSubjectLabel}</h1>
+              <span className={`mt-1 inline-flex text-xs px-2 py-0.5 rounded ${
                 difficulty === 'Easy' ? 'bg-emerald-100 text-emerald-700' :
                 difficulty === 'Medium' ? 'bg-amber-100 text-amber-700' :
                 'bg-red-100 text-red-700'
@@ -759,7 +759,7 @@ const Quiz: React.FC = () => {
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2 bg-secondary-50 text-secondary-700 px-3 py-1 rounded-lg font-mono font-bold">
+          <div className="self-start sm:self-auto flex items-center gap-2 bg-secondary-50 text-secondary-700 px-3 py-1 rounded-lg font-mono font-bold">
             <Clock size={18} />
             <span>{formatTime(timeLeft)}</span>
           </div>
@@ -789,16 +789,16 @@ const Quiz: React.FC = () => {
           <ProgressBar percentage={((currentQuestion + 1) / questions.length) * 100} showPercentage={false} color="secondary" />
         </div>
 
-        <div className="bg-amber-500 text-white py-2 px-4 rounded-t-lg flex justify-between items-center font-bold">
+        <div className="bg-amber-500 text-white py-2 px-4 rounded-t-lg flex flex-col gap-1 sm:flex-row sm:justify-between sm:items-center font-bold text-sm sm:text-base">
           <span>وقف</span>
           <span>السؤال {currentQuestion + 1} من {questions.length}</span>
         </div>
 
-        <Card className="rounded-t-none rounded-b-xl p-6 min-h-[400px] flex flex-col">
-          <div className="flex justify-between mb-6">
+        <Card className="rounded-t-none rounded-b-xl p-4 sm:p-6 min-h-[400px] flex flex-col">
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-between mb-6">
             <button
               onClick={() => toggleFavorite(currentQuestion)}
-              className={`${storeFavorites.includes(questions[currentQuestion].id) ? 'bg-rose-50 text-rose-700 hover:bg-rose-100' : 'bg-indigo-50 text-indigo-900 hover:bg-indigo-100'} px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors`}
+              className={`${storeFavorites.includes(questions[currentQuestion].id) ? 'bg-rose-50 text-rose-700 hover:bg-rose-100' : 'bg-indigo-50 text-indigo-900 hover:bg-indigo-100'} w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors`}
             >
               {storeFavorites.includes(questions[currentQuestion].id) ? <Trash2 size={18} /> : <Heart size={18} />}
               {storeFavorites.includes(questions[currentQuestion].id) ? 'مسح من المفضلة' : 'إضافة إلى المفضلة'}
@@ -807,7 +807,7 @@ const Quiz: React.FC = () => {
             <button
               onClick={() => setShowVideo(true)}
               disabled={!questions[currentQuestion].videoUrl}
-              className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors shadow-sm ${
+              className={`w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-sm ${
                 questions[currentQuestion].videoUrl
                   ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 cursor-pointer'
                   : 'bg-gray-100 text-gray-400 cursor-not-allowed'
@@ -819,11 +819,11 @@ const Quiz: React.FC = () => {
           </div>
 
           <div className="flex-1">
-            <p className="text-lg font-medium text-gray-800 leading-loose mb-8 text-right">
+            <p className="text-base sm:text-lg font-medium text-gray-800 leading-loose mb-8 text-right break-words">
               ({currentQuestion + 1}) {questions[currentQuestion].text}
             </p>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4 dir-rtl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-x-4 sm:gap-x-6 gap-y-4 dir-rtl">
               {questions[currentQuestion].options.map((option, idx) => {
                 const isSelected = selectedAnswer === idx || answers[currentQuestion] === idx;
                 let borderClass = 'border-gray-200 hover:border-gray-300 bg-white';
@@ -839,7 +839,7 @@ const Quiz: React.FC = () => {
                     onClick={() => handleAnswerSelect(idx)}
                     className={`min-h-[84px] px-4 py-3 rounded-2xl border-2 transition-all flex items-center justify-between text-right gap-3 shadow-sm ${borderClass}`}
                   >
-                    <span className="flex-1 text-sm md:text-base font-bold text-gray-800 leading-relaxed text-center">
+                    <span className="flex-1 text-sm md:text-base font-bold text-gray-800 leading-relaxed text-center break-words">
                       {option}
                     </span>
                     <div className="flex items-center gap-3 shrink-0">
@@ -864,26 +864,26 @@ const Quiz: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-100">
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mt-8 pt-6 border-t border-gray-100">
             <button
               onClick={handleSaveProgress}
-              className="px-4 py-2 rounded-lg bg-amber-100 text-amber-700 font-bold flex items-center gap-2 hover:bg-amber-200"
+              className="w-full sm:w-auto px-4 py-2 rounded-lg bg-amber-100 text-amber-700 font-bold flex items-center justify-center gap-2 hover:bg-amber-200"
             >
               <Save size={18} />
               <span className="hidden sm:inline">حفظ الإجابة</span>
             </button>
 
-            <div className="flex gap-2">
+            <div className="grid grid-cols-1 sm:flex gap-2 w-full sm:w-auto">
               <button
                 onClick={handlePrev}
                 disabled={currentQuestion === 0}
-                className="px-6 py-3 rounded-lg bg-gray-200 text-gray-600 font-bold disabled:opacity-50"
+                className="w-full sm:w-auto px-6 py-3 rounded-lg bg-gray-200 text-gray-600 font-bold disabled:opacity-50"
               >
                 السابق
               </button>
               <button
                 onClick={handleNext}
-                className="px-6 py-3 rounded-lg bg-indigo-900 text-white font-bold flex items-center gap-2"
+                className="w-full sm:w-auto px-6 py-3 rounded-lg bg-indigo-900 text-white font-bold flex items-center justify-center gap-2"
               >
                 {currentQuestion === questions.length - 1 ? 'إنهاء الاختبار' : 'التالي'}
                 <ArrowLeft size={20} />

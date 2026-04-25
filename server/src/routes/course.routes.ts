@@ -26,6 +26,7 @@ const courseSchema = z.object({
   instructorBio: z.string().optional(),
   modules: z.array(z.any()).default([]),
   isPublished: z.boolean().default(false),
+  showOnPlatform: z.boolean().default(true),
   isPackage: z.boolean().default(false),
   packageType: z.enum(["courses", "videos", "tests"]).optional(),
   originalPrice: z.number().nullable().optional(),
@@ -128,6 +129,7 @@ const buildCourseVisibilityFilter = (authUser?: { role?: string; id?: string }) 
 
   return {
     isPublished: true,
+    showOnPlatform: { $ne: false },
     $or: [{ approvalStatus: "approved" }, { approvalStatus: { $exists: false } }, { approvalStatus: null }],
   };
 };

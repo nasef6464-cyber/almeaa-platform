@@ -12,6 +12,7 @@ const libraryItemSchema = new Schema(
     sectionId: { type: String, default: null, index: true },
     skillIds: { type: [String], default: [] },
     url: { type: String, default: "" },
+    showOnPlatform: { type: Boolean, default: true },
     ownerType: { type: String, enum: ["platform", "teacher", "school"], default: "platform" },
     ownerId: { type: String, default: "" },
     createdBy: { type: String, default: "" },

@@ -57,7 +57,11 @@ export interface Lesson extends ContentWorkflow {
     assignmentDetails?: string; // For assignments
     meetingUrl?: string; // For live sessions
     meetingDate?: string;
+    recordingUrl?: string;
+    joinInstructions?: string;
+    showRecordingOnPlatform?: boolean;
     isLocked?: boolean;
+    showOnPlatform?: boolean;
     accessControl?: 'public' | 'enrolled' | 'specific_groups';
     allowedGroupIds?: string[];
     order: number; // For drag and drop ordering
@@ -120,6 +124,7 @@ export interface Course extends ContentWorkflow {
     qa?: CourseQA[];
     // Advanced LMS Features
     isPublished?: boolean;
+    showOnPlatform?: boolean;
     prerequisiteCourseIds?: string[];
     dripContentEnabled?: boolean;
     certificateEnabled?: boolean;
@@ -206,6 +211,7 @@ export interface Topic {
     title: string;
     parentId?: string | null; // null or undefined for main topics
     order: number;
+    showOnPlatform?: boolean;
     lessonIds: string[]; // attached lessons from library
     quizIds: string[]; // attached quizzes from quiz center
 }
@@ -323,6 +329,7 @@ export interface Quiz extends ContentWorkflow {
     questionIds: string[]; // References to Question bank
     createdAt: number;
     isPublished: boolean;
+    showOnPlatform?: boolean;
     skillIds?: string[];
     targetGroupIds?: string[];
     targetUserIds?: string[];
@@ -369,6 +376,113 @@ export interface UserSubscription {
 }
 
 export type PackageContentType = 'courses' | 'foundation' | 'banks' | 'tests' | 'library' | 'all';
+
+export type PaymentMethodKey = 'card' | 'transfer' | 'wallet';
+
+export interface PaymentMethodSettings {
+    enabled: boolean;
+    label: string;
+    accountName?: string;
+    accountNumber?: string;
+    iban?: string;
+    bankName?: string;
+    instructions?: string;
+    phoneNumber?: string;
+    providerName?: string;
+    publishDetailsToStudents?: boolean;
+}
+
+export interface PaymentSettings {
+    key: string;
+    currency: string;
+    manualReviewRequired: boolean;
+    card: PaymentMethodSettings;
+    transfer: PaymentMethodSettings;
+    wallet: PaymentMethodSettings;
+    notes?: string;
+}
+
+export type PaymentRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface PaymentRequest {
+    id: string;
+    userId: string;
+    userName: string;
+    userEmail: string;
+    itemType: 'course' | 'package' | 'skill' | 'test';
+    itemId: string;
+    itemName: string;
+    packageId?: string;
+    includedCourseIds?: string[];
+    amount: number;
+    currency: string;
+    paymentMethod: PaymentMethodKey;
+    status: PaymentRequestStatus;
+    transferReference?: string;
+    walletNumber?: string;
+    receiptUrl?: string;
+    notes?: string;
+    reviewedBy?: string;
+    reviewedAt?: number | null;
+    reviewerNotes?: string;
+    createdAt?: string | number;
+    updatedAt?: string | number;
+}
+
+export interface HomepageHeroSettings {
+    badgeText?: string;
+    titlePrefix?: string;
+    titleHighlight?: string;
+    titleSuffix?: string;
+    description?: string;
+    primaryCtaLabel?: string;
+    primaryCtaLink?: string;
+    secondaryCtaLabel?: string;
+    secondaryCtaLink?: string;
+    imageUrl?: string;
+    floatingCardTitle?: string;
+    floatingCardSubtitle?: string;
+    floatingCardProgressLabel?: string;
+    floatingCardProgressValue?: string;
+}
+
+export interface HomepageStat {
+    id: string;
+    label: string;
+    mode: 'dynamic' | 'manual';
+    source: 'students' | 'courses' | 'assets' | 'rating';
+    manualValue?: string;
+}
+
+export interface HomepageTestimonial {
+    id: string;
+    name: string;
+    degree?: string;
+    text: string;
+    image?: string;
+}
+
+export interface HomepageSections {
+    featuredCoursesTitle?: string;
+    featuredCoursesSubtitle?: string;
+    featuredArticlesTitle?: string;
+    featuredArticlesSubtitle?: string;
+    whyChooseTitle?: string;
+    whyChooseDescription?: string;
+    testimonialsTitle?: string;
+    testimonialsSubtitle?: string;
+}
+
+export interface HomepageSettings {
+    key: string;
+    hero: HomepageHeroSettings;
+    stats: HomepageStat[];
+    testimonials: HomepageTestimonial[];
+    sections: HomepageSections;
+    featuredPathIds: string[];
+    featuredCourseIds: string[];
+    featuredArticleLessonIds?: string[];
+}
 
 export interface User {
     id: string;
@@ -472,6 +586,7 @@ export interface LibraryItem extends ContentWorkflow {
     sectionId?: string;
     skillIds?: string[];
     url?: string;
+    showOnPlatform?: boolean;
 }
 
 // AI Learning Path Types
@@ -485,4 +600,31 @@ export interface LearningRecommendation {
     priority: 'high' | 'medium' | 'low';
     actionLabel: string;
     link: string;
+}
+
+export type StudyPlanDay =
+    | 'saturday'
+    | 'sunday'
+    | 'monday'
+    | 'tuesday'
+    | 'wednesday'
+    | 'thursday'
+    | 'friday';
+
+export interface StudyPlan {
+    id: string;
+    userId: string;
+    name: string;
+    pathId: string;
+    subjectIds: string[];
+    courseIds: string[];
+    startDate: string;
+    endDate: string;
+    skipCompletedQuizzes: boolean;
+    offDays: StudyPlanDay[];
+    dailyMinutes: number;
+    preferredStartTime?: string;
+    status: 'active' | 'archived';
+    createdAt: number;
+    updatedAt: number;
 }

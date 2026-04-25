@@ -199,9 +199,9 @@ export const SimulatedTestExperience: React.FC<SimulatedTestExperienceProps> = (
                         id: `locked-${mode}-${selectedTest?.id || 'content'}`,
                         packageId: `locked-${mode}-${selectedTest?.id || 'content'}`,
                         purchaseType: 'package',
-                        title: selectedTest?.title || (mode === 'bank' ? 'Ø¨Ø§Ù‚Ø© Ø§Ù„ØªØ¯Ø±ÙŠØ¨' : 'Ø¨Ø§Ù‚Ø© Ø§Ù„Ø§Ø®ØªØ¨Ø§Ø±Ø§Øª'),
+                        title: selectedTest?.title || (mode === 'bank' ? 'باقة التدريب' : 'باقة الاختبارات'),
                         price: 99,
-                        currency: 'Ø±.Ø³',
+                        currency: 'ر.س',
                     }}
                     type={mode === 'bank' ? 'package' : 'test'}
                 />

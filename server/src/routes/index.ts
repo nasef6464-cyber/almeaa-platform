@@ -5,6 +5,7 @@ import { taxonomyRouter } from "./taxonomy.routes.js";
 import { courseRouter } from "./course.routes.js";
 import { quizRouter } from "./quiz.routes.js";
 import { contentRouter } from "./content.routes.js";
+import { paymentRouter } from "./payment.routes.js";
 
 export const apiRouter = Router();
 
@@ -14,3 +15,4 @@ apiRouter.use("/taxonomy", taxonomyRouter);
 apiRouter.use("/content", contentRouter);
 apiRouter.use("/courses", courseRouter);
 apiRouter.use("/quizzes", quizRouter);
+apiRouter.use("/payments", paymentRouter);

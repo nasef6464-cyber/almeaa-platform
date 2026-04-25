@@ -34,7 +34,7 @@ export const navigationMenu: NavItem[] = [
         children: [
             { id: 'quant', label: 'الكمي', link: '/category/p_qudrat?subject=sub_quant' },
             { id: 'verbal', label: 'اللفظي', link: '/category/p_qudrat?subject=sub_verbal' },
-            { id: 'packages', label: 'عروض وباقات القدرات', link: '/category/p_qudrat/packages' }
+      { id: 'packages', label: 'عروض وباقات القدرات', link: '/category/p_qudrat?tab=packages' }
         ]
     },
     {
@@ -47,7 +47,7 @@ export const navigationMenu: NavItem[] = [
             { id: 'physics', label: 'الفيزياء', link: '/category/p_tahsili?subject=sub_physics' },
             { id: 'biology', label: 'الاحياء', link: '/category/p_tahsili?subject=sub_biology' },
             { id: 'chemistry', label: 'الكيمياء', link: '/category/p_tahsili?subject=sub_chemistry' },
-            { id: 'packages', label: 'عروض وباقات التحصيلي', link: '/category/p_tahsili/packages' }
+      { id: 'packages', label: 'عروض وباقات التحصيلي', link: '/category/p_tahsili?tab=packages' }
         ]
     },
     {

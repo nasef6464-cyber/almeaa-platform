@@ -52,6 +52,7 @@ const quizSchema = z.object({
   targetUserIds: z.array(z.string()).default([]),
   dueDate: z.string().nullable().optional(),
   isPublished: z.boolean().default(false),
+  showOnPlatform: z.boolean().default(true),
   ownerType: z.enum(["platform", "teacher", "school"]).optional(),
   ownerId: z.string().optional(),
   createdBy: z.string().optional(),
@@ -282,6 +283,7 @@ quizRouter.get(
         ? {}
         : {
             isPublished: true,
+            showOnPlatform: { $ne: false },
             $or: [{ approvalStatus: "approved" }, { approvalStatus: { $exists: false } }, { approvalStatus: null }],
           },
     ).sort({ createdAt: -1 });
@@ -614,6 +616,7 @@ quizRouter.post(
           ? payload.approvalStatus || workflowDefaults.approvalStatus
           : workflowDefaults.approvalStatus,
       isPublished: req.authUser?.role === "admin" ? payload.isPublished : false,
+      showOnPlatform: typeof payload.showOnPlatform === "boolean" ? payload.showOnPlatform : false,
       skillIds: resolvedSkillIds,
     });
     res.status(StatusCodes.CREATED).json(created);

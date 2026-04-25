@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { Quiz, Question } from '../../types';
-import { Plus, Search, Edit2, Trash2, Save, X, Settings, Link as LinkIcon, Users, FileQuestion, Filter, CheckCircle2 } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Save, X, Settings, Link as LinkIcon, Users, FileQuestion, Filter, CheckCircle2, Lock, LockOpen } from 'lucide-react';
 import { UnifiedQuestionBuilder } from './builders/UnifiedQuestionBuilder';
 
 interface QuizBuilderProps {
@@ -46,11 +46,14 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
       targetUserIds: [],
       dueDate: '',
       isPublished: false,
+      showOnPlatform: false,
     };
   });
 
   const [isAutoGenerateModalOpen, setIsAutoGenerateModalOpen] = useState(false);
   const [isAddQuestionModalOpen, setIsAddQuestionModalOpen] = useState(false);
+  const [operationError, setOperationError] = useState('');
+  const [operationMessage, setOperationMessage] = useState('');
   const [autoGenConfig, setAutoGenConfig] = useState({
     difficulty: { Easy: 3, Medium: 5, Hard: 2 },
     skillIds: [] as string[]
@@ -117,39 +120,63 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
 
   const [isAiGenerating, setIsAiGenerating] = useState(false);
 
-  const handleCopyLink = (text: string) => {
+  const handleCopyLinkWithFeedback = async (text: string) => {
+    setOperationError('');
+    setOperationMessage('');
+
     if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text).then(() => alert('تم نسخ الرابط!')).catch(() => alert('فشل النسخ'));
-    } else {
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      textArea.style.position = "absolute";
-      textArea.style.left = "-999999px";
-      document.body.appendChild(textArea);
-      textArea.select();
       try {
-        document.execCommand('copy');
-        alert('تم نسخ الرابط!');
+        await navigator.clipboard.writeText(text);
+        setOperationMessage('تم نسخ الرابط بنجاح.');
       } catch (error) {
-        alert('فشل نسخ الرابط');
+        setOperationError('تعذر نسخ الرابط الآن. جرّب مرة أخرى.');
       }
+      return;
+    }
+
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'absolute';
+    textArea.style.left = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.select();
+
+    try {
+      document.execCommand('copy');
+      setOperationMessage('تم نسخ الرابط بنجاح.');
+    } catch (error) {
+      setOperationError('تعذر نسخ الرابط الآن. جرّب مرة أخرى.');
+    } finally {
       textArea.remove();
     }
   };
 
+  const handleCopyLink = (text: string) => {
+    void handleCopyLinkWithFeedback(text);
+    return;
+  };
+
   const handleAutoGenerate = async () => {
+    await handleAutoGenerateWithFeedback();
+    return;
+  };
+
+  const handleAutoGenerateWithFeedback = async () => {
+    setOperationError('');
+    setOperationMessage('');
+
     let pool = questions;
-    
+
     if (currentQuiz.pathId) {
-       pool = pool.filter(q => q.pathId === currentQuiz.pathId || q.subject === currentQuiz.subjectId);
+      pool = pool.filter(q => q.pathId === currentQuiz.pathId || q.subject === currentQuiz.subjectId);
     }
-    
+
     if (currentQuiz.subjectId) {
-       pool = pool.filter(q => q.subject === currentQuiz.subjectId);
+      pool = pool.filter(q => q.subject === currentQuiz.subjectId);
     }
 
     if (currentQuiz.sectionId) {
-       pool = pool.filter(q => q.sectionId === currentQuiz.sectionId);
+      pool = pool.filter(q => q.sectionId === currentQuiz.sectionId);
     }
 
     if (autoGenConfig.skillIds && autoGenConfig.skillIds.length > 0) {
@@ -157,8 +184,6 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
     }
 
     const selectedIds: string[] = [];
-    
-    // Helper to pick random questions
     const pickRandom = (arr: Question[], count: number) => {
       const shuffled = [...arr].sort(() => 0.5 - Math.random());
       return shuffled.slice(0, count).map(q => q.id);
@@ -168,7 +193,6 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
     const mediumQuestions = pool.filter(q => q.difficulty === 'Medium');
     const hardQuestions = pool.filter(q => q.difficulty === 'Hard');
 
-    // Make sure we handle if count requested is larger than available pool
     const easyCount = Math.min(easyQuestions.length, autoGenConfig.difficulty.Easy || 0);
     const mediumCount = Math.min(mediumQuestions.length, autoGenConfig.difficulty.Medium || 0);
     const hardCount = Math.min(hardQuestions.length, autoGenConfig.difficulty.Hard || 0);
@@ -183,46 +207,46 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
     if (missingCount > 0) {
       const useAi = window.confirm(`لم يتم العثور على عدد كافٍ من الأسئلة في المنصة (مطلوب: ${totalRequested}، متوفر: ${selectedIds.length}). هل تريد توليد الباقي (${missingCount}) باستخدام الذكاء الاصطناعي؟`);
       if (useAi) {
-         setIsAiGenerating(true);
-         try {
-           const { generateQuizQuestion } = await import('../../services/geminiService');
-           let topicName = "القدرات العامة";
-           if (currentQuiz.subjectId) {
-              topicName = subjects.find(s => s.id === currentQuiz.subjectId)?.name || topicName;
-           }
-           if (autoGenConfig.skillIds.length > 0) {
-              const skillNames = autoGenConfig.skillIds.map(id => skills.find(skill => skill.id === id)?.name).filter(Boolean);
-              if (skillNames.length > 0) {
-                 topicName += " - " + skillNames.join(', ');
-              }
-           }
-           
-           for(let i=0; i<missingCount; i++) {
-              const generated = await generateQuizQuestion(topicName);
-              if (generated) {
-                const newQ: Question = {
-                  id: `q_ai_${Date.now()}_${i}`,
-                  text: generated.question,
-                  options: generated.options,
-                  correctOptionIndex: generated.correctIndex,
-                  explanation: generated.explanation,
-                  type: 'mcq',
-                  difficulty: 'Medium', // Default to medium for AI
-                  pathId: currentQuiz.pathId || '',
-                  subject: currentQuiz.subjectId || '',
-                  sectionId: currentQuiz.sectionId,
-                  skillIds: autoGenConfig.skillIds
-                };
-                addQuestion(newQ);
-                selectedIds.push(newQ.id);
-              }
-           }
-         } catch(e) {
-           console.error("AI Generation failed", e);
-           alert("حدث خطأ أثناء التوليد بالذكاء الاصطناعي.");
-         } finally {
-            setIsAiGenerating(false);
-         }
+        setIsAiGenerating(true);
+        try {
+          const { generateQuizQuestion } = await import('../../services/geminiService');
+          let topicName = 'القدرات العامة';
+          if (currentQuiz.subjectId) {
+            topicName = subjects.find(s => s.id === currentQuiz.subjectId)?.name || topicName;
+          }
+          if (autoGenConfig.skillIds.length > 0) {
+            const skillNames = autoGenConfig.skillIds.map(id => skills.find(skill => skill.id === id)?.name).filter(Boolean);
+            if (skillNames.length > 0) {
+              topicName += ` - ${skillNames.join(', ')}`;
+            }
+          }
+
+          for (let i = 0; i < missingCount; i += 1) {
+            const generated = await generateQuizQuestion(topicName);
+            if (generated) {
+              const newQ: Question = {
+                id: `q_ai_${Date.now()}_${i}`,
+                text: generated.question,
+                options: generated.options,
+                correctOptionIndex: generated.correctIndex,
+                explanation: generated.explanation,
+                type: 'mcq',
+                difficulty: 'Medium',
+                pathId: currentQuiz.pathId || '',
+                subject: currentQuiz.subjectId || '',
+                sectionId: currentQuiz.sectionId,
+                skillIds: autoGenConfig.skillIds
+              };
+              addQuestion(newQ);
+              selectedIds.push(newQ.id);
+            }
+          }
+        } catch (e) {
+          console.error('AI Generation failed', e);
+          setOperationError('تعذر إكمال التوليد بالذكاء الاصطناعي الآن.');
+        } finally {
+          setIsAiGenerating(false);
+        }
       }
     }
 
@@ -230,9 +254,9 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
       ...prev,
       questionIds: [...new Set([...(prev.questionIds || []), ...selectedIds])]
     }));
-    
+
     setIsAutoGenerateModalOpen(false);
-    alert(`تمت إضافة ${selectedIds.length} سؤال بنجاح!`);
+    setOperationMessage(`تمت إضافة ${selectedIds.length} سؤال بنجاح.`);
   };
 
   const handleSaveNewQuestion = (savedQuestion: Partial<Question>) => {
@@ -253,6 +277,8 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
   };
 
   const handleCreateNew = () => {
+    setOperationError('');
+    setOperationMessage('');
     setCurrentQuiz({
       title: '',
       description: '',
@@ -275,12 +301,15 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
       targetUserIds: [],
       dueDate: '',
       isPublished: false,
+      showOnPlatform: false,
     });
     setIsEditing(true);
     setActiveTab('info');
   };
 
   const handleEdit = (quiz: Quiz) => {
+    setOperationError('');
+    setOperationMessage('');
     setCurrentQuiz(quiz);
     setIsEditing(true);
     setActiveTab('info');
@@ -292,11 +321,23 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
     }
   };
 
+  const handleTogglePlatformVisibility = (quiz: Quiz) => {
+    updateQuiz(quiz.id, { showOnPlatform: quiz.showOnPlatform === false });
+  };
+
   const handleSave = () => {
+    handleSaveWithFeedback();
+    return;
+  };
+
+  const handleSaveWithFeedback = () => {
     if (!currentQuiz.title || !currentQuiz.subjectId) {
-      alert('يرجى إدخال عنوان الاختبار وتحديد المادة.');
+      setOperationError('يرجى إدخال عنوان الاختبار وتحديد المادة.');
       return;
     }
+
+    setOperationError('');
+    setOperationMessage('');
 
     const quizPayload = { ...currentQuiz };
     delete (quizPayload as any).skillIds;
@@ -311,6 +352,8 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
       } as Quiz;
       addQuiz(newQuiz);
     }
+
+    setOperationMessage('تم حفظ الاختبار بنجاح.');
     setIsEditing(false);
   };
 
@@ -379,7 +422,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
           </div>
           <div className="flex items-center gap-3">
             <button 
-              onClick={handleSave}
+              onClick={handleSaveWithFeedback}
               className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2"
             >
               <Save size={18} />
@@ -387,6 +430,12 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
             </button>
           </div>
         </div>
+
+        {(operationError || operationMessage) && (
+          <div className={`mx-6 mt-6 rounded-xl border px-4 py-3 text-sm font-medium ${operationError ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+            {operationError || operationMessage}
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex border-b border-gray-200 bg-white px-6">
@@ -819,7 +868,19 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
                     />
                     <div>
                       <span className="block font-bold text-gray-800">نشر الاختبار</span>
-                      <span className="block text-xs text-gray-500">سيكون الاختبار متاحاً للطلاب حسب إعدادات الوصول.</span>
+                      <span className="block text-xs text-gray-500">الاختبار يصبح جاهزًا ومعتمدًا داخل المستودع.</span>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer mt-4">
+                    <input 
+                      type="checkbox" 
+                      checked={currentQuiz.showOnPlatform !== false}
+                      onChange={(e) => setCurrentQuiz(prev => ({ ...prev, showOnPlatform: e.target.checked }))}
+                      className="w-5 h-5 text-sky-600 rounded focus:ring-sky-500"
+                    />
+                    <div>
+                      <span className="block font-bold text-gray-800">إظهار الاختبار على المنصة</span>
+                      <span className="block text-xs text-gray-500">يمكن إبقاء الاختبار في مركز الاختبارات فقط دون عرضه للطلاب الآن.</span>
                     </div>
                   </label>
                 </div>
@@ -831,7 +892,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
                       <p className="text-xs text-indigo-600 mt-1">يمكنك استخدام هذا الرابط للتسويق أو إرساله للطلاب مباشرة.</p>
                     </div>
                     <button 
-                      onClick={() => handleCopyLink(`${window.location.origin}/quiz/${currentQuiz.id}`)}
+                      onClick={() => void handleCopyLinkWithFeedback(`${window.location.origin}/quiz/${currentQuiz.id}`)}
                       className="bg-white text-indigo-600 px-4 py-2 rounded-lg font-bold text-sm border border-indigo-200 hover:bg-indigo-50 transition-colors flex items-center gap-2"
                     >
                       <LinkIcon size={16} />
@@ -898,7 +959,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
                 </div>
                 <div className="flex justify-end gap-2 mt-6 md:col-span-3">
                   <button onClick={() => setIsAutoGenerateModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">إلغاء</button>
-                  <button disabled={isAiGenerating} onClick={handleAutoGenerate} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <button disabled={isAiGenerating} onClick={handleAutoGenerateWithFeedback} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
                     {isAiGenerating ? 'جاري التوليد بالذكاء الاصطناعي...' : 'توليد'}
                   </button>
                 </div>
@@ -934,6 +995,12 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
           إنشاء اختبار جديد
         </button>
       </div>
+
+      {(operationError || operationMessage) && (
+        <div className={`rounded-xl border px-4 py-3 text-sm font-medium ${operationError ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+          {operationError || operationMessage}
+        </div>
+      )}
 
       {/* Filters & Search */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4">
@@ -985,11 +1052,18 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
                       <span className="font-bold text-gray-700">{quiz.questionIds.length} سؤال</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                        quiz.isPublished ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                      }`}>
-                        {quiz.isPublished ? 'منشور' : 'مسودة'}
-                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                          quiz.isPublished ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                        }`}>
+                          {quiz.isPublished ? 'جاهز في المستودع' : 'مسودة'}
+                        </span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                          quiz.showOnPlatform === false ? 'bg-gray-100 text-gray-600' : 'bg-sky-50 text-sky-700'
+                        }`}>
+                          {quiz.showOnPlatform === false ? 'مخفي عن المنصة' : 'معروض على المنصة'}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
@@ -1000,10 +1074,21 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
                           <Trash2 size={18} />
                         </button>
                         <button 
-                          onClick={() => handleCopyLink(`${window.location.origin}/quiz/${quiz.id}`)}
+                          onClick={() => void handleCopyLinkWithFeedback(`${window.location.origin}/quiz/${quiz.id}`)}
                           className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors" title="نسخ الرابط"
                         >
                           <LinkIcon size={18} />
+                        </button>
+                        <button
+                          onClick={() => handleTogglePlatformVisibility(quiz)}
+                          className={`p-2 rounded-lg transition-colors ${
+                            quiz.showOnPlatform === false
+                              ? 'text-gray-500 hover:bg-gray-100'
+                              : 'text-sky-600 hover:bg-sky-50'
+                          }`}
+                          title={quiz.showOnPlatform === false ? 'إظهار الاختبار على المنصة' : 'إخفاء الاختبار عن المنصة'}
+                        >
+                          {quiz.showOnPlatform === false ? <Lock size={18} /> : <LockOpen size={18} />}
                         </button>
                       </div>
                     </td>
@@ -1024,3 +1109,4 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
     </div>
   );
 };
+

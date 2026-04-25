@@ -20,6 +20,7 @@ import { useStore } from '../store/useStore';
 import { Card } from '../components/ui/Card';
 import { VideoModal } from '../components/VideoModal';
 import { Topic } from '../types';
+import { openExternalUrl } from '../utils/openExternalUrl';
 
 export const SubjectLearningPage: React.FC = () => {
   const { pathId, subjectId } = useParams();
@@ -246,7 +247,7 @@ export const SubjectLearningPage: React.FC = () => {
   );
 
   const renderTabs = () => (
-    <div className="flex flex-wrap justify-center gap-3 mb-12">
+    <div className="grid grid-cols-1 sm:flex sm:flex-wrap justify-center gap-3 mb-12">
       {[
         { id: 'courses', label: 'الدورات', icon: <BookOpen size={18} /> },
         { id: 'skills', label: 'التأسيس', icon: <Target size={18} /> },
@@ -264,7 +265,7 @@ export const SubjectLearningPage: React.FC = () => {
               content: tab.id === 'skills' ? searchParams.get('content') : null,
             });
           }}
-          className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all ${
+          className={`w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all ${
             activeTab === tab.id
               ? 'bg-[#f59e0b] text-white shadow-md'
               : 'bg-white text-gray-600 border border-gray-200 hover:border-[#f59e0b] hover:text-[#f59e0b]'
@@ -279,10 +280,10 @@ export const SubjectLearningPage: React.FC = () => {
 
   return (
     <div className="bg-gray-50 min-h-screen pb-20 font-sans" dir="rtl">
-      <div className="bg-[#2e2b70] py-16 relative overflow-hidden">
+      <div className="bg-[#2e2b70] py-12 sm:py-16 relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 text-center relative z-10">
-          <h1 className="text-4xl font-black text-white mb-4">{currentPathName} ({currentSubjectName})</h1>
-          <p className="text-indigo-200 max-w-2xl mx-auto text-lg">تأسيس شامل، تدريب مكثف، واختبارات محاكية</p>
+          <h1 className="text-2xl sm:text-4xl font-black text-white mb-4 leading-tight">{currentPathName} ({currentSubjectName})</h1>
+          <p className="text-indigo-200 max-w-2xl mx-auto text-base sm:text-lg">تأسيس شامل، تدريب مكثف، واختبارات محاكية</p>
         </div>
       </div>
 
@@ -387,16 +388,16 @@ export const SubjectLearningPage: React.FC = () => {
                 <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mb-6">
                   <Download size={14} /> {item.downloads} تحميل
                 </div>
-                <div className="mt-auto grid grid-cols-2 gap-3">
+                <div className="mt-auto grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     className="bg-emerald-50 text-emerald-600 py-2.5 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2"
-                    onClick={() => item.url && window.open(item.url, '_blank', 'noopener,noreferrer')}
+                    onClick={() => openExternalUrl(item.url)}
                   >
                     <Eye size={16} /> عرض
                   </button>
                   <button
                     className="bg-indigo-50 text-indigo-600 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2"
-                    onClick={() => item.url && window.open(item.url, '_blank', 'noopener,noreferrer')}
+                    onClick={() => openExternalUrl(item.url)}
                   >
                     <Download size={16} /> تحميل
                   </button>
@@ -412,12 +413,12 @@ export const SubjectLearningPage: React.FC = () => {
 
         {activeTab === 'questions' && (
           <div className="space-y-6 animate-fade-in">
-            <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100">
               <div>
                 <h3 className="text-xl font-bold text-gray-800">بنك الأسئلة الشامل</h3>
                 <p className="text-gray-500 mt-1">تدرب على {subjectQuestions.length} سؤال في مختلف المهارات</p>
               </div>
-              <button onClick={() => navigate('/quiz')} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors">
+              <button onClick={() => navigate('/quiz')} className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors">
                 ابدأ التدريب العشوائي
               </button>
             </div>
@@ -615,7 +616,7 @@ export const SubjectLearningPage: React.FC = () => {
                                   {relatedLibrarySuggestions.map((item) => (
                                     <button
                                       key={item.id}
-                                      onClick={() => item.url && window.open(item.url, '_blank', 'noopener,noreferrer')}
+                                      onClick={() => openExternalUrl(item.url)}
                                       className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-right hover:border-emerald-200 hover:shadow-sm transition-all"
                                     >
                                       <div className="flex items-center justify-between gap-3">
@@ -731,7 +732,7 @@ export const SubjectLearningPage: React.FC = () => {
                                   {relatedLibrarySuggestions.map((item) => (
                                     <button
                                       key={item.id}
-                                      onClick={() => item.url && window.open(item.url, '_blank', 'noopener,noreferrer')}
+                                      onClick={() => openExternalUrl(item.url)}
                                       className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-right hover:border-emerald-200 hover:shadow-sm transition-all"
                                     >
                                       <div className="flex items-center justify-between gap-3">

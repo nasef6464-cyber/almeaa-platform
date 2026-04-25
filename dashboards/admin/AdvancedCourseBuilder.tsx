@@ -36,6 +36,7 @@ export const AdvancedCourseBuilder: React.FC<AdvancedCourseBuilderProps> = ({ in
     thumbnail: '',
     modules: [],
     isPublished: false,
+    showOnPlatform: false,
     fakeRating: 5.0,
     fakeStudentsCount: 0,
     features: [],
@@ -603,6 +604,19 @@ export const AdvancedCourseBuilder: React.FC<AdvancedCourseBuilderProps> = ({ in
                           <div>
                             <span className="block font-bold text-gray-800">نشر الدورة</span>
                             <span className="text-xs text-gray-500">جعل الدورة مرئية للطلاب.</span>
+                          </div>
+                        </label>
+
+                        <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+                          <input 
+                            type="checkbox" 
+                            checked={courseData.showOnPlatform !== false}
+                            onChange={(e) => setCourseData({...courseData, showOnPlatform: e.target.checked})}
+                            className="w-5 h-5 text-sky-600 rounded focus:ring-sky-500 mt-0.5"
+                          />
+                          <div>
+                            <span className="block font-bold text-gray-800">إظهار الدورة على المنصة</span>
+                            <span className="text-xs text-gray-500">إيقافها يبقي الدورة في المستودع للإعداد دون ظهورها للطلاب.</span>
                           </div>
                         </label>
 

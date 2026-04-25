@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Lesson } from '../../types';
-import { Plus, Search, Edit2, Trash2, Play, FileText } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Play, FileText, Lock, LockOpen } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { UnifiedLessonBuilder } from './builders/UnifiedLessonBuilder';
 
@@ -23,6 +23,11 @@ const getStatusMeta = (lesson: Lesson) => {
 
   return { label: 'محتوى قديم', className: 'bg-gray-100 text-gray-600' };
 };
+
+const getVisibilityMeta = (lesson: Lesson) =>
+  lesson.showOnPlatform === false
+    ? { label: 'مخفي عن المنصة', className: 'bg-gray-100 text-gray-600' }
+    : { label: 'ظاهر على المنصة', className: 'bg-sky-50 text-sky-700' };
 
 export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => {
   const { user, lessons: globalLessons, addLesson, updateLesson, deleteLesson, paths, subjects, sections, skills } = useStore();
@@ -70,6 +75,7 @@ export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => 
     pathId: selectedPathId || '',
     skillIds: [],
     order: 1,
+    showOnPlatform: false,
   });
 
   const availableMainSkills = useMemo(
@@ -98,6 +104,7 @@ export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => 
       pathId: selectedPathId || '',
       skillIds: [],
       order: lessons.length + 1,
+      showOnPlatform: false,
     });
     setIsEditing(true);
   };
@@ -119,6 +126,7 @@ export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => 
       id: `l_${Date.now()}_copy`,
       title: `${lesson.title} (نسخة)`,
       approvalStatus: 'draft',
+      showOnPlatform: false,
     };
     addLesson(duplicatedLesson);
   };
@@ -145,6 +153,12 @@ export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => 
   const handleReject = (lesson: Lesson) => {
     updateLesson(lesson.id, {
       approvalStatus: 'rejected',
+    });
+  };
+
+  const handleTogglePlatformVisibility = (lesson: Lesson) => {
+    updateLesson(lesson.id, {
+      showOnPlatform: lesson.showOnPlatform === false,
     });
   };
 
@@ -304,7 +318,12 @@ export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => 
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusMeta.className}`}>{statusMeta.label}</span>
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusMeta.className}`}>{statusMeta.label}</span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${getVisibilityMeta(lesson).className}`}>
+                          {getVisibilityMeta(lesson).label}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -318,6 +337,15 @@ export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => 
                             رفض
                           </button>
                         )}
+                        <button
+                          onClick={() => handleTogglePlatformVisibility(lesson)}
+                          className={`p-2 rounded-lg transition-colors ${
+                            lesson.showOnPlatform === false ? 'text-gray-500 hover:bg-gray-100' : 'text-sky-600 hover:bg-sky-50'
+                          }`}
+                          title={lesson.showOnPlatform === false ? 'إظهار الدرس على المنصة' : 'إخفاء الدرس عن المنصة'}
+                        >
+                          {lesson.showOnPlatform === false ? <Lock size={18} /> : <LockOpen size={18} />}
+                        </button>
                         <button onClick={() => handleDuplicate(lesson)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="نسخ">
                           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                         </button>

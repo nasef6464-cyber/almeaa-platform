@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Quiz } from '../../types';
-import { Plus, Search, Edit2, Trash2, FileQuestion } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, FileQuestion, Lock, LockOpen } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { QuizBuilder } from './QuizBuilder';
 
@@ -19,7 +19,7 @@ const getStatusMeta = (quiz: Quiz) => {
   }
 
   if (quiz.approvalStatus === 'approved' && quiz.isPublished) {
-    return { label: 'معتمد ومنشور', className: 'bg-emerald-50 text-emerald-600' };
+    return { label: 'معتمد في المستودع', className: 'bg-emerald-50 text-emerald-600' };
   }
 
   if (quiz.approvalStatus === 'approved') {
@@ -31,6 +31,11 @@ const getStatusMeta = (quiz: Quiz) => {
     className: quiz.isPublished ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-600',
   };
 };
+
+const getVisibilityMeta = (quiz: Quiz) =>
+  quiz.showOnPlatform === false
+    ? { label: 'مخفي عن المنصة', className: 'bg-gray-100 text-gray-600' }
+    : { label: 'معروض على المنصة', className: 'bg-sky-50 text-sky-700' };
 
 export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filterType }) => {
   const {
@@ -45,25 +50,29 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
     questions,
     addQuiz,
   } = useStore();
+
   const canReview = user.role === 'admin';
   const managedPathIds = user.managedPathIds || [];
   const managedSubjectIds = user.managedSubjectIds || [];
-  const allowedPaths = user.role === 'teacher'
-    ? paths.filter((path) => managedPathIds.length === 0 || managedPathIds.includes(path.id))
-    : paths;
-  const allowedSubjects = user.role === 'teacher'
-    ? subjects.filter((subject) => {
-        if (managedSubjectIds.length > 0) return managedSubjectIds.includes(subject.id);
-        if (managedPathIds.length > 0) return managedPathIds.includes(subject.pathId);
-        return true;
-      })
-    : subjects;
+  const allowedPaths =
+    user.role === 'teacher'
+      ? paths.filter((path) => managedPathIds.length === 0 || managedPathIds.includes(path.id))
+      : paths;
+  const allowedSubjects =
+    user.role === 'teacher'
+      ? subjects.filter((subject) => {
+          if (managedSubjectIds.length > 0) return managedSubjectIds.includes(subject.id);
+          if (managedPathIds.length > 0) return managedPathIds.includes(subject.pathId);
+          return true;
+        })
+      : subjects;
 
   const [selectedPathId, setSelectedPathId] = useState('');
   const [selectedSubjectId, setSelectedSubjectId] = useState(subjectId || '');
   const [selectedSectionId, setSelectedSectionId] = useState('');
   const [selectedSkillId, setSelectedSkillId] = useState('');
   const [modeFilter, setModeFilter] = useState<'all' | 'regular' | 'saher' | 'central'>('all');
+  const [visibilityFilter, setVisibilityFilter] = useState<'all' | 'shown' | 'hidden'>('all');
   const [isEditing, setIsEditing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
@@ -102,9 +111,24 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
         if (selectedPathId && !subjectId && !selectedSubjectId && quiz.pathId !== selectedPathId) return false;
         if (selectedSkillId && (!quiz.skillIds || !quiz.skillIds.includes(selectedSkillId))) return false;
         if (modeFilter !== 'all' && (quiz.mode || 'regular') !== modeFilter) return false;
+        if (visibilityFilter === 'shown' && quiz.showOnPlatform === false) return false;
+        if (visibilityFilter === 'hidden' && quiz.showOnPlatform !== false) return false;
         return true;
       }),
-    [filterType, globalQuizzes, managedPathIds, managedSubjectIds, modeFilter, selectedPathId, selectedSectionId, selectedSkillId, selectedSubjectId, subjectId, user.role],
+    [
+      filterType,
+      globalQuizzes,
+      managedPathIds,
+      managedSubjectIds,
+      modeFilter,
+      selectedPathId,
+      selectedSectionId,
+      selectedSkillId,
+      selectedSubjectId,
+      subjectId,
+      user.role,
+      visibilityFilter,
+    ],
   );
 
   const filteredQuizzes = useMemo(
@@ -112,14 +136,31 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
     [quizzes, searchTerm],
   );
 
-  const modeCounts = useMemo(
+  const counts = useMemo(
     () => ({
       all: globalQuizzes.length,
       saher: globalQuizzes.filter((quiz) => (quiz.mode || 'regular') === 'saher').length,
       central: globalQuizzes.filter((quiz) => (quiz.mode || 'regular') === 'central').length,
+      hidden: globalQuizzes.filter((quiz) => quiz.showOnPlatform === false).length,
     }),
     [globalQuizzes],
   );
+
+  const scopedCounts = useMemo(
+    () => ({
+      total: quizzes.length,
+      visible: quizzes.filter((quiz) => quiz.showOnPlatform !== false).length,
+      hidden: quizzes.filter((quiz) => quiz.showOnPlatform === false).length,
+      pending: quizzes.filter((quiz) => quiz.approvalStatus === 'pending_review').length,
+    }),
+    [quizzes],
+  );
+
+  const managerTitle = filterType === 'bank' ? 'مستودع التدريبات' : 'مستودع الاختبارات';
+  const managerDescription =
+    filterType === 'bank'
+      ? 'هذا المستودع لحفظ بنوك التدريب والأسئلة القصيرة. ظهورها للطالب في صفحة التدريب قرار منفصل من الإدارة عبر الفتح أو الإخفاء.'
+      : 'هذا المستودع لحفظ الاختبارات. اعتماد الاختبار داخل المستودع لا يعني ظهوره للطالب إلا بعد فتحه على المنصة.';
 
   const quizzesWithoutQuestions = useMemo(
     () => globalQuizzes.filter((quiz) => (quiz.questionIds || []).length === 0).length,
@@ -180,7 +221,7 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
       description: '',
       pathId: selectedPathId || '',
       subjectId: selectedSubjectId || '',
-      type: 'quiz',
+      type: filterType || 'quiz',
       mode,
       settings: {
         showExplanations: true,
@@ -193,6 +234,7 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
       questionIds: [],
       createdAt: Date.now(),
       isPublished: false,
+      showOnPlatform: false,
       targetGroupIds: [],
       targetUserIds: [],
       dueDate: '',
@@ -222,6 +264,7 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
       title: `${quiz.title} (نسخة)`,
       approvalStatus: 'draft',
       isPublished: false,
+      showOnPlatform: false,
     });
   };
 
@@ -237,6 +280,12 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
     updateQuiz(quiz.id, {
       approvalStatus: 'rejected',
       isPublished: false,
+    });
+  };
+
+  const handleTogglePlatformVisibility = (quiz: Quiz) => {
+    updateQuiz(quiz.id, {
+      showOnPlatform: quiz.showOnPlatform === false,
     });
   };
 
@@ -260,8 +309,8 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">مركز الاختبارات</h2>
-          <p className="text-gray-500 text-sm mt-1">إدارة الاختبارات واعتماد ما يضيفه المعلمون أو المدارس قبل توجيهه للطلاب.</p>
+          <h2 className="text-2xl font-bold text-gray-800">{managerTitle}</h2>
+          <p className="text-gray-500 text-sm mt-1">{managerDescription}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -280,27 +329,49 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <div className="bg-white border border-gray-100 rounded-xl p-4">
-          <p className="text-xs text-gray-500 mb-1">إجمالي الاختبارات</p>
-          <p className="text-2xl font-black text-gray-900">{modeCounts.all}</p>
+          <p className="text-xs text-gray-500 mb-1">إجمالي العناصر في هذا المستودع</p>
+          <p className="text-2xl font-black text-gray-900">{scopedCounts.total}</p>
         </div>
         <div className="bg-white border border-purple-100 rounded-xl p-4">
-          <p className="text-xs text-purple-500 mb-1">اختبارات ساهر</p>
-          <p className="text-2xl font-black text-purple-700">{modeCounts.saher}</p>
+          <p className="text-xs text-purple-500 mb-1">المعروض حاليًا على المنصة</p>
+          <p className="text-2xl font-black text-purple-700">{scopedCounts.visible}</p>
         </div>
         <div className="bg-white border border-amber-100 rounded-xl p-4">
-          <p className="text-xs text-amber-600 mb-1">اختبارات موجهة</p>
-          <p className="text-2xl font-black text-amber-700">{modeCounts.central}</p>
-        </div>
-        <div className="bg-white border border-red-100 rounded-xl p-4">
-          <p className="text-xs text-red-500 mb-1">اختبارات بلا أسئلة</p>
-          <p className="text-2xl font-black text-red-600">{quizzesWithoutQuestions}</p>
+          <p className="text-xs text-amber-600 mb-1">المخفي عن الطلاب</p>
+          <p className="text-2xl font-black text-amber-700">{scopedCounts.hidden}</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-xs text-gray-500 mb-1">اختبارات بلا مهارات مقاسة</p>
-          <p className="text-2xl font-black text-gray-800">{quizzesWithoutMeasuredSkills}</p>
+          <p className="text-xs text-gray-500 mb-1">بانتظار المراجعة</p>
+          <p className="text-2xl font-black text-gray-800">{scopedCounts.pending}</p>
         </div>
+        <div className="bg-white border border-red-100 rounded-xl p-4">
+          <p className="text-xs text-red-500 mb-1">بلا أسئلة</p>
+          <p className="text-2xl font-black text-red-600">{quizzesWithoutQuestions}</p>
+        </div>
+      </div>
+
+      {!filterType && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white border border-purple-100 rounded-xl p-4">
+            <p className="text-xs text-purple-500 mb-1">اختبارات ساهر</p>
+            <p className="text-2xl font-black text-purple-700">{counts.saher}</p>
+          </div>
+          <div className="bg-white border border-amber-100 rounded-xl p-4">
+            <p className="text-xs text-amber-600 mb-1">اختبارات موجّهة</p>
+            <p className="text-2xl font-black text-amber-700">{counts.central}</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <p className="text-xs text-gray-500 mb-1">كل الاختبارات في النظام</p>
+            <p className="text-2xl font-black text-gray-800">{counts.all}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white border border-gray-200 rounded-xl p-4">
+        <div className="text-xs text-gray-500 mb-1">عناصر بلا مهارات مقاسة</div>
+        <div className="text-2xl font-black text-gray-900">{quizzesWithoutMeasuredSkills}</div>
       </div>
 
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4">
@@ -318,7 +389,9 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
             >
               <option value="">كل المسارات</option>
               {allowedPaths.map((path) => (
-                <option key={path.id} value={path.id}>{path.name}</option>
+                <option key={path.id} value={path.id}>
+                  {path.name}
+                </option>
               ))}
             </select>
 
@@ -333,9 +406,13 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
               disabled={!selectedPathId}
             >
               <option value="">كل المواد</option>
-              {allowedSubjects.filter((subject) => subject.pathId === selectedPathId).map((subject) => (
-                <option key={subject.id} value={subject.id}>{subject.name}</option>
-              ))}
+              {allowedSubjects
+                .filter((subject) => subject.pathId === selectedPathId)
+                .map((subject) => (
+                  <option key={subject.id} value={subject.id}>
+                    {subject.name}
+                  </option>
+                ))}
             </select>
           </>
         )}
@@ -349,9 +426,11 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
           className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
           disabled={!selectedSubjectId}
         >
-          <option value="">كل المهارات الرئيسة</option>
+          <option value="">كل المهارات الرئيسية</option>
           {availableSections.map((section) => (
-            <option key={section.id} value={section.id}>{section.name}</option>
+            <option key={section.id} value={section.id}>
+              {section.name}
+            </option>
           ))}
         </select>
 
@@ -363,7 +442,9 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
         >
           <option value="">كل المهارات الفرعية</option>
           {availableSubSkills.map((skill) => (
-            <option key={skill.id} value={skill.id}>{skill.name}</option>
+            <option key={skill.id} value={skill.id}>
+              {skill.name}
+            </option>
           ))}
         </select>
 
@@ -376,6 +457,16 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
           <option value="regular">اختبار عادي</option>
           <option value="saher">اختبار ساهر</option>
           <option value="central">اختبار موجّه</option>
+        </select>
+
+        <select
+          value={visibilityFilter}
+          onChange={(event) => setVisibilityFilter(event.target.value as typeof visibilityFilter)}
+          className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="all">كل حالات العرض</option>
+          <option value="shown">المعروض فقط</option>
+          <option value="hidden">المخفي فقط</option>
         </select>
 
         <div className="relative flex-1">
@@ -410,6 +501,7 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
                 const measuredSkills = measuredSkillNames(quiz);
                 const measuredSections = measuredSectionNames(quiz);
                 const statusMeta = getStatusMeta(quiz);
+                const visibilityMeta = getVisibilityMeta(quiz);
 
                 return (
                   <tr key={quiz.id} className="hover:bg-gray-50 transition-colors">
@@ -421,7 +513,11 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
                         <div>
                           <div className="font-bold text-gray-800">{quiz.title}</div>
                           <div className="text-[11px] text-gray-400 mt-1">
-                            {quiz.ownerType === 'teacher' ? 'اختبار معلم' : quiz.ownerType === 'school' ? 'اختبار مدرسة' : 'اختبار المنصة'}
+                            {quiz.ownerType === 'teacher'
+                              ? 'اختبار معلم'
+                              : quiz.ownerType === 'school'
+                                ? 'اختبار مدرسة'
+                                : 'اختبار المنصة'}
                           </div>
                         </div>
                       </div>
@@ -472,25 +568,52 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusMeta.className}`}>{statusMeta.label}</span>
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusMeta.className}`}>{statusMeta.label}</span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${visibilityMeta.className}`}>{visibilityMeta.label}</span>
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2 flex-wrap">
                         {canReview && quiz.approvalStatus !== 'approved' && (
-                          <button onClick={() => handleApprove(quiz)} className="px-3 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors">
+                          <button
+                            onClick={() => handleApprove(quiz)}
+                            className="px-3 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
+                          >
                             اعتماد
                           </button>
                         )}
                         {canReview && quiz.approvalStatus !== 'rejected' && (
-                          <button onClick={() => handleReject(quiz)} className="px-3 py-1 text-xs font-bold text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+                          <button
+                            onClick={() => handleReject(quiz)}
+                            className="px-3 py-1 text-xs font-bold text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                          >
                             رفض
                           </button>
                         )}
-                        <button onClick={() => handleDuplicate(quiz)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="نسخ">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        <button
+                          onClick={() => handleDuplicate(quiz)}
+                          className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                          title="نسخ"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                          </svg>
                         </button>
                         <button onClick={() => handleEdit(quiz.id)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل">
                           <Edit2 size={18} />
+                        </button>
+                        <button
+                          onClick={() => handleTogglePlatformVisibility(quiz)}
+                          className={`p-2 rounded-lg transition-colors ${
+                            quiz.showOnPlatform === false
+                              ? 'text-gray-500 hover:bg-gray-100'
+                              : 'text-sky-600 hover:bg-sky-50'
+                          }`}
+                          title={quiz.showOnPlatform === false ? 'فتح العرض على المنصة' : 'إخفاء العرض عن المنصة'}
+                        >
+                          {quiz.showOnPlatform === false ? <Lock size={18} /> : <LockOpen size={18} />}
                         </button>
                         <button onClick={() => handleDelete(quiz.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="حذف">
                           <Trash2 size={18} />

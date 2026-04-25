@@ -17,7 +17,7 @@ export const Qudrat: React.FC = () => {
             title: 'العروض والباقات',
             subtitle: '% خصومات حصرية',
             color: 'bg-[#10b981]',
-            link: '/category/qudrat/packages',
+            link: '/category/p_qudrat?tab=packages',
             isPillSubtitle: true
         },
         ...pathSubjects.map((subject, index) => {
@@ -27,7 +27,7 @@ export const Qudrat: React.FC = () => {
                 title: subject.name,
                 subtitle: 'تأسيس - محاكي - شروحات',
                 color: colors[index % colors.length],
-                link: `/category/p_qudrat/${subject.id}`
+      link: `/category/p_qudrat?subject=${subject.id}`
             };
         })
     ];

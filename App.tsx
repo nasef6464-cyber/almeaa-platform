@@ -8,6 +8,7 @@ import { useFirebaseSync } from './services/firebaseSync';
 import { adapter } from './services/adapter';
 import { useStore } from './store/useStore';
 import { RequireRole } from './components/auth/RequireRole';
+import { normalizePathId } from './utils/normalizePathId';
 
 import { RoleSwitcher } from './components/RoleSwitcher';
 
@@ -29,9 +30,10 @@ const Qudrat = React.lazy(() => import('./pages/Qudrat').then(module => ({ defau
 const QudratSection = React.lazy(() => import('./pages/QudratSection').then(module => ({ default: module.QudratSection })));
 const Tahsili = React.lazy(() => import('./pages/Tahsili').then(module => ({ default: module.Tahsili })));
 const TahsiliSubject = React.lazy(() => import('./pages/TahsiliSubject').then(module => ({ default: module.TahsiliSubject })));
-const Blog = React.lazy(() => import('./pages/Blog').then(module => ({ default: module.Blog })));
+const Blog = React.lazy(() => import('./pages/Blog'));
 const CourseView = React.lazy(() => import('./pages/CourseView'));
 const BookSession = React.lazy(() => import('./pages/BookSession').then(module => ({ default: module.BookSession })));
+const LiveSessions = React.lazy(() => import('./pages/LiveSessions'));
 const QuizPage = React.lazy(() => import('./pages/QuizPage').then(module => ({ default: module.QuizPage })));
 const GenericPathPage = React.lazy(() => import('./pages/GenericPathPage').then(module => ({ default: module.GenericPathPage })));
 
@@ -46,7 +48,12 @@ const LoadingFallback = () => (
 
 const LegacySubjectRouteRedirect: React.FC = () => {
   const { pathId = '', subjectId = '' } = useParams<{ pathId: string; subjectId: string }>();
-  return <Navigate replace to={`/category/${pathId}?subject=${subjectId}&tab=skills`} />;
+  return <Navigate replace to={`/category/${normalizePathId(pathId)}?subject=${subjectId}&tab=skills`} />;
+};
+
+const LegacyPackagesRouteRedirect: React.FC = () => {
+  const { pathId = '' } = useParams<{ pathId: string }>();
+  return <Navigate replace to={`/category/${normalizePathId(pathId)}?tab=packages`} />;
 };
 
 const App: React.FC = () => {
@@ -173,6 +180,7 @@ const App: React.FC = () => {
                     <Route path="/plan" element={<Plan />} />
                     <Route path="/qa" element={<QA />} />
                     <Route path="/book-session" element={<BookSession />} />
+                    <Route path="/live-sessions" element={<LiveSessions />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/admin/quiz-gen" element={<QuizGenerator />} />
                     <Route path="/achievements" element={<Achievements />} />
@@ -180,6 +188,7 @@ const App: React.FC = () => {
                     
                     {/* Old Hardcoded Routes mapped to generic or kept if needed. The new pattern replaces old Nafes */}
                     <Route path="/category/:pathId" element={<GenericPathPage />} />
+                    <Route path="/category/:pathId/packages" element={<LegacyPackagesRouteRedirect />} />
                     <Route path="/category/:pathId/:subjectId" element={<LegacySubjectRouteRedirect />} />
                     
                     {/* Placeholder for other routes */}

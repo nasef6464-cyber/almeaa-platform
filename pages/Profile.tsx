@@ -152,7 +152,7 @@ const Profile: React.FC = () => {
             </Card>
 
             {/* Main Form matching Screenshot */}
-            <Card className="p-6 md:p-8 border-t-4 border-t-secondary-500">
+            <Card className="p-5 sm:p-6 md:p-8 border-t-4 border-t-secondary-500">
                 <div className="space-y-8">
                     
                     {/* Personal Data Section */}
@@ -161,7 +161,7 @@ const Profile: React.FC = () => {
                             البيانات الشخصية
                         </h3>
                         
-                        <div className="grid md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {/* Right Column (RTL) */}
                             <InputField 
                                 label="الاسم الأول" 
@@ -215,7 +215,7 @@ const Profile: React.FC = () => {
                             البيانات الأكاديمية
                         </h3>
 
-                        <div className="grid md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-2">المرحلة الدراسية</label>
                                 <div className="relative">
@@ -273,7 +273,7 @@ const Profile: React.FC = () => {
                         </button>
                         
                         {isPasswordOpen && (
-                            <div className="mt-6 grid md:grid-cols-2 gap-4 animate-fade-in bg-gray-50 p-6 rounded-xl">
+                            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in bg-gray-50 p-5 sm:p-6 rounded-xl">
                                 <PasswordInput label="كلمة المرور الحالية" show={showPassword} onToggle={() => setShowPassword(!showPassword)} />
                                 <PasswordInput label="كلمة المرور الجديدة" show={showPassword} onToggle={() => setShowPassword(!showPassword)} />
                                 <div className="md:col-span-2 flex items-center gap-2 text-xs text-gray-500">
@@ -285,11 +285,11 @@ const Profile: React.FC = () => {
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex gap-3 pt-4 border-t border-gray-100">
+                    <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
                         <button 
                             onClick={handleSave}
                             disabled={isSaving}
-                            className="bg-[#8b9df8] text-white px-8 py-3 rounded-lg font-bold hover:bg-[#7a8ce6] transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-70 min-w-[160px]"
+                            className="bg-[#8b9df8] text-white px-8 py-3 rounded-lg font-bold hover:bg-[#7a8ce6] transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-70 min-w-[160px] w-full sm:w-auto"
                         >
                             {isSaving ? (
                                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -302,7 +302,7 @@ const Profile: React.FC = () => {
                                 'حفظ التغييرات'
                             )}
                         </button>
-                        <button className="px-8 py-3 rounded-lg border border-gray-300 font-bold text-gray-500 hover:bg-gray-50 transition-colors">
+                        <button className="px-8 py-3 rounded-lg border border-gray-300 font-bold text-gray-500 hover:bg-gray-50 transition-colors w-full sm:w-auto">
                             إلغاء
                         </button>
                     </div>

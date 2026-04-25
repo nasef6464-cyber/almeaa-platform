@@ -1,0 +1,166 @@
+import React, { useMemo } from 'react';
+import { CalendarDays, ExternalLink, PlayCircle, Video } from 'lucide-react';
+import { Card } from '../components/ui/Card';
+import { useStore } from '../store/useStore';
+
+const LIVE_TYPES = new Set(['live_youtube', 'zoom', 'google_meet', 'teams']);
+
+const providerLabelMap: Record<string, string> = {
+    live_youtube: 'YouTube Live',
+    zoom: 'Zoom',
+    google_meet: 'Google Meet',
+    teams: 'Microsoft Teams',
+};
+
+const canAccessLesson = (lesson: any, user: any) => {
+    if (user.role === 'student' && lesson.showOnPlatform === false) {
+        return false;
+    }
+
+    if (lesson.approvalStatus && lesson.approvalStatus !== 'approved' && user.role === 'student') {
+        return false;
+    }
+
+    if (lesson.accessControl === 'public' || !lesson.accessControl) {
+        return true;
+    }
+
+    if (lesson.accessControl === 'specific_groups') {
+        const userGroups = user.groupIds || [];
+        return (lesson.allowedGroupIds || []).some((groupId: string) => userGroups.includes(groupId));
+    }
+
+    return user.role !== 'student' || user.subscription?.plan === 'premium' || (user.subscription?.purchasedPackages || []).length > 0;
+};
+
+const formatMeetingDate = (meetingDate?: string) =>
+    meetingDate
+        ? new Date(meetingDate).toLocaleString('ar-SA', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        })
+        : 'غير محدد';
+
+const LiveSessions: React.FC = () => {
+    const { lessons, user, paths, subjects } = useStore();
+
+    const sessions = useMemo(
+        () =>
+            lessons
+                .filter((lesson) => LIVE_TYPES.has(lesson.type))
+                .filter((lesson) => canAccessLesson(lesson, user))
+                .sort((a, b) => {
+                    const aDate = a.meetingDate ? new Date(a.meetingDate).getTime() : Number.MAX_SAFE_INTEGER;
+                    const bDate = b.meetingDate ? new Date(b.meetingDate).getTime() : Number.MAX_SAFE_INTEGER;
+                    return aDate - bDate;
+                }),
+        [lessons, user],
+    );
+
+    const upcomingSessions = sessions.filter((lesson) => lesson.meetingDate && new Date(lesson.meetingDate).getTime() >= Date.now());
+
+    return (
+        <div className="max-w-6xl mx-auto p-4 md:p-8 space-y-8 animate-fade-in">
+            <div className="text-right">
+                <h1 className="text-2xl sm:text-3xl font-black text-gray-900">الحصص المباشرة</h1>
+                <p className="text-gray-500 mt-2">تابع مواعيد الحصص القادمة وروابط Zoom وMeet وTeams والبث المباشر في صفحة واحدة منظمة.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <SummaryCard title="كل الحصص" value={sessions.length.toString()} />
+                <SummaryCard title="الحصص القادمة" value={upcomingSessions.length.toString()} />
+                <SummaryCard title="جاهزة للدخول" value={sessions.filter((lesson) => !!lesson.meetingUrl).length.toString()} />
+            </div>
+
+            {sessions.length > 0 ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {sessions.map((lesson) => {
+                        const pathName = paths.find((path) => path.id === lesson.pathId)?.name || 'بدون مسار';
+                        const subjectName = subjects.find((subject) => subject.id === lesson.subjectId)?.name || 'بدون مادة';
+                        const isUpcoming = lesson.meetingDate ? new Date(lesson.meetingDate).getTime() >= Date.now() : false;
+                        const canWatchRecording = Boolean(lesson.recordingUrl) && lesson.showRecordingOnPlatform === true;
+
+                        return (
+                            <Card key={lesson.id} className="p-6 border border-gray-100 hover:shadow-md transition-shadow">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                                            <Video size={22} />
+                                        </div>
+                                        <div className="text-right">
+                                            <h3 className="font-bold text-gray-900 text-lg">{lesson.title}</h3>
+                                            <p className="text-sm text-gray-500 mt-1">{pathName} - {subjectName}</p>
+                                        </div>
+                                    </div>
+                                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${isUpcoming ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-600'}`}>
+                                        {isUpcoming ? 'قادمة' : 'متاحة'}
+                                    </span>
+                                </div>
+
+                                <div className="mt-5 space-y-3 text-sm text-gray-600">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span>{providerLabelMap[lesson.type] || 'جلسة مباشرة'}</span>
+                                        <span className="font-bold">المزوّد</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span>{formatMeetingDate(lesson.meetingDate)}</span>
+                                        <span className="font-bold">الموعد</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span>{lesson.duration} دقيقة</span>
+                                        <span className="font-bold">المدة</span>
+                                    </div>
+                                    {lesson.joinInstructions ? (
+                                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-700">
+                                            {lesson.joinInstructions}
+                                        </div>
+                                    ) : null}
+                                </div>
+
+                                <div className="mt-5 flex flex-col sm:flex-row gap-3">
+                                    {lesson.meetingUrl ? (
+                                        <a
+                                            href={lesson.meetingUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-colors"
+                                        >
+                                            <ExternalLink size={18} />
+                                            دخول الحصة
+                                        </a>
+                                    ) : (
+                                        <div className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gray-100 text-gray-500 font-bold">
+                                            <CalendarDays size={18} />
+                                            بانتظار رابط الدخول
+                                        </div>
+                                    )}
+                                    <div className="flex-1 inline-flex items-center justify-center px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-bold bg-gray-50">
+                                        {isUpcoming ? 'حضّر جهازك قبل الموعد' : 'راجع تفاصيل الحصة لاحقًا'}
+                                    </div>
+                                </div>
+                            </Card>
+                        );
+                    })}
+                </div>
+            ) : (
+                <Card className="p-10 text-center border border-dashed border-gray-200">
+                    <Video size={40} className="mx-auto text-gray-300 mb-3" />
+                    <h3 className="font-bold text-gray-800 mb-2">لا توجد حصص مباشرة متاحة الآن</h3>
+                    <p className="text-sm text-gray-500">عند إضافة حصص Zoom أو Meet أو Teams أو بث مباشر ستظهر هنا بشكل منظم للطالب.</p>
+                </Card>
+            )}
+        </div>
+    );
+};
+
+const SummaryCard: React.FC<{ title: string; value: string }> = ({ title, value }) => (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div className="text-sm text-gray-500">{title}</div>
+        <div className="text-3xl font-black text-gray-900 mt-2">{value}</div>
+    </div>
+);
+
+export default LiveSessions;

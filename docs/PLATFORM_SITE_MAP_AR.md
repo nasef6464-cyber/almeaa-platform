@@ -192,3 +192,13 @@
 - [Blog.tsx](C:/ALMEAA%20MAY%20-%20codax/pages/Blog.tsx) ما زالت Placeholder.
 - هناك بعض نوافذ الإدارة ما زالت تستخدم رسائل `alert` قديمة وتحتاج تحويلًا لتجربة تشغيلية أهدأ.
 - نحتاج لاحقًا توسيع اختبارات ساهر الموجهة والخطط العلاجية التنفيذية من التقارير نفسها.
+
+## 13. مرجع الفحص قبل أي تطوير جديد
+
+- خريطة التشغيل السريع اليدوي:
+  [docs/OPERATIONAL_QA_FLOW_AR.md](C:/ALMEAA%20MAY%20-%20codax/docs/OPERATIONAL_QA_FLOW_AR.md)
+- الفحص الآلي السريع:
+
+```bash
+npm run smoke:operational
+```

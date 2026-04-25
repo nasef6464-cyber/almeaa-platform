@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+﻿import React, { useMemo, useState } from 'react';
 import { Plus, Edit2, Trash2, Video, Lock, Unlock, ChevronDown, ChevronUp, GripVertical, Save, X, Target, Layers, CornerDownLeft, HelpCircle, Link2, FileText, BarChart3 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { Lesson, Skill, CategorySection } from '../../types';
@@ -39,6 +39,7 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
   const [isSubSkillModalOpen, setIsSubSkillModalOpen] = useState(false);
   const [editingSubSkill, setEditingSubSkill] = useState<Partial<Skill> | null>(null);
   const [activeMainSkillId, setActiveMainSkillId] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState('');
 
   const [editingLesson, setEditingLesson] = useState<{ mainSkillId: string; subSkillId: string; lesson: Lesson } | null>(null);
   const [isLinkLessonModalOpen, setIsLinkLessonModalOpen] = useState(false);
@@ -128,23 +129,23 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
     libraryItems.filter((item) => item.skillIds?.includes(subSkillId));
 
   const openAddMainSkillModal = () => {
+    setValidationError('');
     setEditingMainSkill({ name: '', subjectId: subjectId || selectedSubjectId });
     setIsMainSkillModalOpen(true);
   };
 
   const openEditMainSkillModal = (mainSkill: CategorySection) => {
+    setValidationError('');
     setEditingMainSkill(mainSkill);
     setIsMainSkillModalOpen(true);
   };
 
   const handleSaveMainSkill = () => {
     if (!editingMainSkill?.name?.trim()) {
-      alert('يرجى إدخال اسم المهارة الرئيسة');
       return;
     }
     const resolvedSubjectId = editingMainSkill.subjectId || subjectId || selectedSubjectId;
     if (!resolvedSubjectId) {
-      alert('يرجى اختيار المادة أولًا');
       return;
     }
 
@@ -173,6 +174,7 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
     const subjectIdValue = mainSkill?.subjectId || subjectId || selectedSubjectId;
     const subject = subjects.find((item) => item.id === subjectIdValue);
 
+    setValidationError('');
     setActiveMainSkillId(mainSkillId);
     setEditingSubSkill({
       name: '',
@@ -187,6 +189,7 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
   };
 
   const openEditSubSkillModal = (subSkill: Skill) => {
+    setValidationError('');
     setActiveMainSkillId(subSkill.sectionId);
     setEditingSubSkill(subSkill);
     setIsSubSkillModalOpen(true);
@@ -194,11 +197,9 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
 
   const handleSaveSubSkill = () => {
     if (!editingSubSkill?.name?.trim()) {
-      alert('يرجى إدخال اسم المهارة الفرعية');
       return;
     }
     if (!editingSubSkill.sectionId || !editingSubSkill.subjectId || !editingSubSkill.pathId) {
-      alert('بيانات المهارة غير مكتملة');
       return;
     }
 
@@ -227,6 +228,37 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
     setIsSubSkillModalOpen(false);
     setEditingSubSkill(null);
     setActiveMainSkillId(null);
+  };
+
+  const handleSaveMainSkillWithFeedback = () => {
+    if (!editingMainSkill?.name?.trim()) {
+      setValidationError('يرجى إدخال اسم المهارة الرئيسة.');
+      return;
+    }
+
+    const resolvedSubjectId = editingMainSkill.subjectId || subjectId || selectedSubjectId;
+    if (!resolvedSubjectId) {
+      setValidationError('يرجى اختيار المادة أولًا.');
+      return;
+    }
+
+    setValidationError('');
+    handleSaveMainSkill();
+  };
+
+  const handleSaveSubSkillWithFeedback = () => {
+    if (!editingSubSkill?.name?.trim()) {
+      setValidationError('يرجى إدخال اسم المهارة الفرعية.');
+      return;
+    }
+
+    if (!editingSubSkill.sectionId || !editingSubSkill.subjectId || !editingSubSkill.pathId) {
+      setValidationError('بيانات المهارة غير مكتملة.');
+      return;
+    }
+
+    setValidationError('');
+    handleSaveSubSkill();
   };
 
   const handleDeleteSubSkill = (subSkillId: string) => {
@@ -628,10 +660,15 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
           <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-xl font-bold text-gray-800">{editingMainSkill.id ? 'تعديل المهارة الرئيسة' : 'إضافة مهارة رئيسة'}</h3>
-              <button onClick={() => setIsMainSkillModalOpen(false)} className="p-1 rounded-lg hover:bg-gray-100">
+              <button onClick={() => { setValidationError(''); setIsMainSkillModalOpen(false); }} className="p-1 rounded-lg hover:bg-gray-100">
                 <X size={20} />
               </button>
             </div>
+            {validationError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                {validationError}
+              </div>
+            )}
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">اسم المهارة الرئيسة</label>
               <input
@@ -657,8 +694,8 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
               </div>
             )}
             <div className="flex justify-end gap-3">
-              <button onClick={() => setIsMainSkillModalOpen(false)} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded-lg">إلغاء</button>
-              <button onClick={handleSaveMainSkill} className="px-5 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 flex items-center gap-2">
+              <button onClick={() => { setValidationError(''); setIsMainSkillModalOpen(false); }} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded-lg">إلغاء</button>
+              <button onClick={handleSaveMainSkillWithFeedback} className="px-5 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 flex items-center gap-2">
                 <Save size={16} /> حفظ
               </button>
             </div>
@@ -671,10 +708,15 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
           <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-xl font-bold text-gray-800">{editingSubSkill.id ? 'تعديل المهارة الفرعية' : 'إضافة مهارة فرعية'}</h3>
-              <button onClick={() => setIsSubSkillModalOpen(false)} className="p-1 rounded-lg hover:bg-gray-100">
+              <button onClick={() => { setValidationError(''); setIsSubSkillModalOpen(false); }} className="p-1 rounded-lg hover:bg-gray-100">
                 <X size={20} />
               </button>
             </div>
+            {validationError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                {validationError}
+              </div>
+            )}
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">اسم المهارة الفرعية</label>
               <input
@@ -693,8 +735,8 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
               />
             </div>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setIsSubSkillModalOpen(false)} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded-lg">إلغاء</button>
-              <button onClick={handleSaveSubSkill} className="px-5 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 flex items-center gap-2">
+              <button onClick={() => { setValidationError(''); setIsSubSkillModalOpen(false); }} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded-lg">إلغاء</button>
+              <button onClick={handleSaveSubSkillWithFeedback} className="px-5 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 flex items-center gap-2">
                 <Save size={16} /> حفظ
               </button>
             </div>
@@ -744,3 +786,4 @@ export const SkillsTreeManager: React.FC<SkillsTreeManagerProps> = ({ subjectId 
     </div>
   );
 };
+

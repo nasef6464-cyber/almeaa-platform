@@ -169,6 +169,7 @@ export const SchoolsManager: React.FC = () => {
     const [reportError, setReportError] = useState<string | null>(null);
     const [selectedPackageIdForCode, setSelectedPackageIdForCode] = useState('');
     const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
+    const [managementError, setManagementError] = useState<string | null>(null);
 
     const schools = useMemo(() => groups.filter((group) => group.type === 'SCHOOL'), [groups]);
     const classes = useMemo(() => groups.filter((group) => group.type === 'CLASS'), [groups]);
@@ -338,7 +339,7 @@ export const SchoolsManager: React.FC = () => {
         return (
             <div className="space-y-6 animate-fade-in">
                 <div className="flex items-center gap-4">
-                    <button onClick={() => setSelectedSchool(null)} className="text-gray-500 hover:text-gray-900">
+                    <button onClick={() => { setManagementError(null); setSelectedSchool(null); }} className="text-gray-500 hover:text-gray-900">
                         &rarr; عودة لقائمة المدارس
                     </button>
                     <h1 className="text-2xl font-bold text-gray-900">{selectedSchool.name}</h1>
@@ -353,7 +354,10 @@ export const SchoolsManager: React.FC = () => {
                     ].map((tab) => (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                            onClick={() => {
+                                setManagementError(null);
+                                setActiveTab(tab.id as typeof activeTab);
+                            }}
                             className={`px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
                                 activeTab === tab.id
                                     ? 'border-amber-500 text-amber-600'
@@ -364,6 +368,12 @@ export const SchoolsManager: React.FC = () => {
                         </button>
                     ))}
                 </div>
+
+                {managementError && (
+                    <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+                        {managementError}
+                    </div>
+                )}
 
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                     {activeTab === 'overview' && (
@@ -943,14 +953,15 @@ export const SchoolsManager: React.FC = () => {
                                             ))}
                                         </select>
                                         <button
-                                            onClick={() => {
+                            onClick={() => {
+                                                setManagementError(null);
                                                 if (schoolPackages.length === 0) {
-                                                    window.alert('يجب إنشاء باقة أولًا قبل توليد كود تفعيل.');
+                                                    setManagementError('يجب إنشاء باقة أولًا قبل توليد كود تفعيل.');
                                                     return;
                                                 }
 
                                                 if (!selectedPackageIdForCode) {
-                                                    window.alert('اختر الباقة التي سيعمل عليها كود التفعيل أولًا.');
+                                                    setManagementError('اختر الباقة التي سيعمل عليها كود التفعيل أولًا.');
                                                     return;
                                                 }
 

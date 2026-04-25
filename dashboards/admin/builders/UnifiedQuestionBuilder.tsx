@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { Question } from '../../../types';
 import { RichTextEditor } from '../../../components/RichTextEditor';
 import { Save, X, Wand2, Loader2 } from 'lucide-react';
@@ -22,6 +22,8 @@ export const UnifiedQuestionBuilder: React.FC<UnifiedQuestionBuilderProps> = ({
 }) => {
   const { skills, subjects, sections, paths } = useStore();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [validationError, setValidationError] = useState('');
+  const [generationError, setGenerationError] = useState('');
   const [question, setQuestion] = useState<Partial<Question>>(initialQuestion || {
     text: '',
     options: ['', '', '', ''],
@@ -85,35 +87,49 @@ export const UnifiedQuestionBuilder: React.FC<UnifiedQuestionBuilderProps> = ({
   }, [question.subject, question.sectionId, question.pathId, question.skillIds, subjects, sections, skills]);
 
   const handleSave = () => {
-    if (!question.text) {
-      alert('يرجى إدخال نص السؤال');
-      return;
-    }
-    if (!question.pathId) {
-      alert('يرجى اختيار المسار');
-      return;
-    }
-    if (!question.subject) {
-      alert('يرجى اختيار المادة');
-      return;
-    }
-    if (!question.sectionId) {
-      alert('يرجى اختيار المهارة الرئيسة');
-      return;
-    }
-    if (!question.skillIds || question.skillIds.length === 0) {
-      alert('يرجى ربط السؤال بمهارة فرعية واحدة على الأقل');
-      return;
-    }
-    if (question.type === 'mcq' && question.options?.some(option => !option)) {
-      alert('يرجى تعبئة جميع الخيارات');
-      return;
-    }
-    onSave(question);
+    handleValidatedSave();
+    return;
   };
 
   const handleGenerate = async () => {
+    await handleGenerateWithFeedback();
+    return;
+  };
+
+  const handleValidatedSave = () => {
+    if (!question.text) {
+      setValidationError('يرجى إدخال نص السؤال.');
+      return;
+    }
+    if (!question.pathId) {
+      setValidationError('يرجى اختيار المسار.');
+      return;
+    }
+    if (!question.subject) {
+      setValidationError('يرجى اختيار المادة.');
+      return;
+    }
+    if (!question.sectionId) {
+      setValidationError('يرجى اختيار المهارة الرئيسة.');
+      return;
+    }
+    if (!question.skillIds || question.skillIds.length === 0) {
+      setValidationError('يرجى ربط السؤال بمهارة فرعية واحدة على الأقل.');
+      return;
+    }
+    if (question.type === 'mcq' && question.options?.some(option => !option)) {
+      setValidationError('يرجى تعبئة جميع الخيارات.');
+      return;
+    }
+
+    setValidationError('');
+    onSave(question);
+  };
+
+  const handleGenerateWithFeedback = async () => {
+    setGenerationError('');
     setIsGenerating(true);
+
     let topicName = 'القدرات العامة';
 
     if (question.subject) {
@@ -148,7 +164,7 @@ export const UnifiedQuestionBuilder: React.FC<UnifiedQuestionBuilderProps> = ({
       }
     } catch (error) {
       console.error(error);
-      alert('حدث خطأ أثناء التوليد');
+      setGenerationError('حدث خطأ أثناء التوليد. جرّب مرة أخرى بعد تحديد المادة والمهارة.');
     } finally {
       setIsGenerating(false);
     }
@@ -167,10 +183,21 @@ export const UnifiedQuestionBuilder: React.FC<UnifiedQuestionBuilderProps> = ({
         </div>
 
         <div className="p-6 overflow-y-auto flex-1 space-y-6">
+          {validationError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {validationError}
+            </div>
+          )}
+          {generationError && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
+              {generationError}
+            </div>
+          )}
+
           <div className="flex justify-between items-center">
             <label className="block text-sm font-bold text-gray-700">نص السؤال</label>
             <button
-              onClick={handleGenerate}
+              onClick={handleGenerateWithFeedback}
               disabled={isGenerating}
               className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 hover:bg-indigo-100 disabled:opacity-50"
             >
@@ -375,7 +402,7 @@ export const UnifiedQuestionBuilder: React.FC<UnifiedQuestionBuilderProps> = ({
             إلغاء
           </button>
           <button
-            onClick={handleSave}
+            onClick={handleValidatedSave}
             className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
           >
             <Save size={18} /> حفظ السؤال
@@ -385,3 +412,4 @@ export const UnifiedQuestionBuilder: React.FC<UnifiedQuestionBuilderProps> = ({
     </div>
   );
 };
+
