@@ -1,6 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { StatusCodes } from "http-status-codes";
+import mongoose from "mongoose";
 import { z } from "zod";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { UserModel } from "../models/User.js";
@@ -69,6 +70,8 @@ const uniqueStrings = (values: Array<string | undefined | null>) =>
   Array.from(new Set(values.filter((value): value is string => typeof value === "string" && value.trim().length > 0)));
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const buildDocumentQuery = (value: string) =>
+  mongoose.Types.ObjectId.isValid(value) ? { $or: [{ id: value }, { _id: value }] } : { id: value };
 
 export const authRouter = Router();
 
@@ -342,9 +345,7 @@ authRouter.post(
       });
     }
 
-    const linkedPackage = await B2BPackageModel.findOne({
-      $or: [{ id: accessCode.packageId }, { _id: accessCode.packageId }],
-    });
+      const linkedPackage = await B2BPackageModel.findOne(buildDocumentQuery(accessCode.packageId));
 
     if (!linkedPackage || linkedPackage.status !== "active") {
       return res.status(StatusCodes.BAD_REQUEST).json({
