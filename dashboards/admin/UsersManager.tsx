@@ -110,6 +110,7 @@ export const UsersManager: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [roleFilter, setRoleFilter] = useState<Role | 'all'>('all');
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
+    const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [createError, setCreateError] = useState('');
@@ -146,6 +147,33 @@ export const UsersManager: React.FC = () => {
 
     const handleRoleChange = (userId: string, newRole: Role) => {
         updateUser(userId, { role: newRole });
+    };
+
+    const startEditingUser = (user: User) => {
+        setEditingUserId(user.id);
+        setNameDrafts((current) => ({
+            ...current,
+            [user.id]: user.name,
+        }));
+    };
+
+    const saveUserName = (user: User) => {
+        const nextName = (nameDrafts[user.id] ?? user.name).trim();
+        if (nextName.length < 2 || nextName === user.name) {
+            return;
+        }
+
+        updateUser(user.id, { name: nextName });
+    };
+
+    const stopEditingUser = (user: User) => {
+        saveUserName(user);
+        setEditingUserId(null);
+        setNameDrafts((current) => {
+            const next = { ...current };
+            delete next[user.id];
+            return next;
+        });
     };
 
     const handleCreateUser = async () => {
@@ -582,7 +610,27 @@ export const UsersManager: React.FC = () => {
                                             <div className="flex items-center gap-3">
                                                 <img src={currentUser.avatar} alt={currentUser.name} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
                                                 <div>
-                                                    <p className="font-bold text-gray-900">{currentUser.name}</p>
+                                                    {isEditing ? (
+                                                        <input
+                                                            type="text"
+                                                            value={nameDrafts[currentUser.id] ?? currentUser.name}
+                                                            onChange={(event) =>
+                                                                setNameDrafts((current) => ({
+                                                                    ...current,
+                                                                    [currentUser.id]: event.target.value,
+                                                                }))
+                                                            }
+                                                            onBlur={() => saveUserName(currentUser)}
+                                                            onKeyDown={(event) => {
+                                                                if (event.key === 'Enter') {
+                                                                    stopEditingUser(currentUser);
+                                                                }
+                                                            }}
+                                                            className="w-full min-w-[180px] px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                        />
+                                                    ) : (
+                                                        <p className="font-bold text-gray-900">{currentUser.name}</p>
+                                                    )}
                                                     <p className="text-xs text-gray-500">{currentUser.email || 'لا يوجد بريد'}</p>
                                                 </div>
                                             </div>
@@ -684,7 +732,7 @@ export const UsersManager: React.FC = () => {
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2">
                                                 <button
-                                                    onClick={() => setEditingUserId(isEditing ? null : currentUser.id)}
+                                                    onClick={() => (isEditing ? stopEditingUser(currentUser) : startEditingUser(currentUser))}
                                                     className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
                                                     title="تعديل"
                                                 >

@@ -259,6 +259,7 @@ export interface QuizQuestionReview {
 }
 
 export interface QuizResult {
+    userId?: string;
     quizId: string;
     quizTitle: string;
     score: number; // percentage

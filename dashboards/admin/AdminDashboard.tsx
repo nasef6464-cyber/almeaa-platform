@@ -154,6 +154,36 @@ export const AdminDashboard: React.FC = () => {
         [teacherContributionStats, user.id],
     );
 
+    const supervisorScopeSummary = useMemo(() => {
+        const scopedGroupIds = new Set(user.groupIds || []);
+        const scopedStudents = users.filter((item) => {
+            if (item.role !== Role.STUDENT) {
+                return false;
+            }
+
+            const sharesGroup = (item.groupIds || []).some((groupId) => scopedGroupIds.has(groupId));
+            const sharesSchool = !!user.schoolId && item.schoolId === user.schoolId;
+            return sharesGroup || sharesSchool;
+        });
+
+        const assignedFollowUps = quizzes.filter((quiz) => {
+            const targetsScopedGroup = (quiz.targetGroupIds || []).some((groupId) => scopedGroupIds.has(groupId));
+            const targetsScopedStudent = (quiz.targetUserIds || []).some((studentId) =>
+                scopedStudents.some((student) => student.id === studentId),
+            );
+            return targetsScopedGroup || targetsScopedStudent;
+        });
+
+        return {
+            groupCount: groups.filter((group) => scopedGroupIds.has(group.id)).length,
+            studentCount: scopedStudents.length,
+            followUpCount: assignedFollowUps.length,
+            weakStudentsCount: scopedStudents.filter((student) =>
+                examResults.some((result) => result.userId === student.id && result.score < 60),
+            ).length,
+        };
+    }, [examResults, groups, quizzes, user.groupIds, user.schoolId, users]);
+
     const menuItems = useMemo(() => {
         const adminItems = [
             { id: 'overview', label: 'نظرة عامة', icon: <LayoutDashboard size={20} /> },
@@ -335,7 +365,7 @@ export const AdminDashboard: React.FC = () => {
                 </div>
             </div>
 
-            {(user.role === Role.ADMIN || user.role === Role.TEACHER) && (
+            {(user.role === Role.ADMIN || user.role === Role.TEACHER || user.role === Role.SUPERVISOR) && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {user.role === Role.ADMIN && (
                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
@@ -403,6 +433,37 @@ export const AdminDashboard: React.FC = () => {
                                 <div className="rounded-xl bg-purple-50 p-4">
                                     <div className="text-xs text-purple-600 mb-1">محتوى منشور</div>
                                     <div className="text-2xl font-black text-purple-700">{currentTeacherContribution?.publishedItems || 0}</div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {user.role === Role.SUPERVISOR && (
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                            <div className="flex items-center justify-between mb-5">
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-900">نطاق الإشراف الحالي</h3>
+                                    <p className="text-sm text-gray-500 mt-1">متابعة سريعة للمجموعات والطلاب والاختبارات الموجهة داخل نطاقك.</p>
+                                </div>
+                                <div className="text-sm text-amber-600 font-bold">مشرف مجموعة</div>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="rounded-xl bg-indigo-50 p-4">
+                                    <div className="text-xs text-indigo-600 mb-1">المجموعات التابعة</div>
+                                    <div className="text-2xl font-black text-indigo-700">{supervisorScopeSummary.groupCount}</div>
+                                </div>
+                                <div className="rounded-xl bg-emerald-50 p-4">
+                                    <div className="text-xs text-emerald-600 mb-1">الطلاب داخل النطاق</div>
+                                    <div className="text-2xl font-black text-emerald-700">{supervisorScopeSummary.studentCount}</div>
+                                </div>
+                                <div className="rounded-xl bg-rose-50 p-4">
+                                    <div className="text-xs text-rose-600 mb-1">الطلاب الضعاف</div>
+                                    <div className="text-2xl font-black text-rose-700">{supervisorScopeSummary.weakStudentsCount}</div>
+                                </div>
+                                <div className="rounded-xl bg-purple-50 p-4">
+                                    <div className="text-xs text-purple-600 mb-1">اختبارات المتابعة</div>
+                                    <div className="text-2xl font-black text-purple-700">{supervisorScopeSummary.followUpCount}</div>
                                 </div>
                             </div>
                         </div>
