@@ -18,15 +18,34 @@ function resolveAuthUser(req: Request) {
   }
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const ip = req.ip || req.socket.remoteAddress || "";
-  const isLocalRequest =
-    ip.includes("127.0.0.1") ||
-    ip.includes("::1") ||
-    req.hostname === "localhost" ||
-    req.hostname === "127.0.0.1";
+function isStrictLocalRequest(req: Request) {
+  const forwardedForHeader = req.headers["x-forwarded-for"];
+  const forwardedFor = Array.isArray(forwardedForHeader)
+    ? forwardedForHeader[0]
+    : typeof forwardedForHeader === "string"
+      ? forwardedForHeader.split(",")[0]?.trim()
+      : "";
+  const forwardedHostHeader = req.headers["x-forwarded-host"];
+  const forwardedHost = Array.isArray(forwardedHostHeader)
+    ? forwardedHostHeader[0]
+    : typeof forwardedHostHeader === "string"
+      ? forwardedHostHeader.split(",")[0]?.trim()
+      : "";
+  const hostHeader = typeof req.headers.host === "string" ? req.headers.host.split(":")[0]?.trim() : "";
+  const hostname = (req.hostname || "").trim();
+  const ipCandidates = [req.ip || "", req.socket.remoteAddress || "", forwardedFor].map((value) => value.trim());
+  const hostCandidates = [hostname, hostHeader, forwardedHost].map((value) => value.toLowerCase());
 
-  if (env.DEV_LOCAL_ADMIN_BYPASS && isLocalRequest) {
+  const hasLoopbackIp = ipCandidates.some(
+    (value) => value === "127.0.0.1" || value === "::1" || value.endsWith("127.0.0.1") || value.endsWith("::1"),
+  );
+  const hasLoopbackHost = hostCandidates.some((value) => value === "localhost" || value === "127.0.0.1" || value === "::1");
+
+  return hasLoopbackIp && hasLoopbackHost;
+}
+
+export function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (env.DEV_LOCAL_ADMIN_BYPASS && isStrictLocalRequest(req)) {
     req.authUser = {
       id: "local-dev-admin",
       email: env.ADMIN_EMAIL,
@@ -48,14 +67,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 }
 
 export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
-  const ip = req.ip || req.socket.remoteAddress || "";
-  const isLocalRequest =
-    ip.includes("127.0.0.1") ||
-    ip.includes("::1") ||
-    req.hostname === "localhost" ||
-    req.hostname === "127.0.0.1";
-
-  if (env.DEV_LOCAL_ADMIN_BYPASS && isLocalRequest) {
+  if (env.DEV_LOCAL_ADMIN_BYPASS && isStrictLocalRequest(req)) {
     req.authUser = {
       id: "local-dev-admin",
       email: env.ADMIN_EMAIL,

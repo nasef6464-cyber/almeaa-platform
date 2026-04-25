@@ -11,7 +11,9 @@
     "seed:admin": "tsx src/scripts/seedAdmin.ts",
     "seed:platform": "tsx src/scripts/seedPlatformData.ts",
     "seed:courses:api": "tsx src/scripts/seedCoursesViaApi.ts",
-    "seed:users": "tsx src/scripts/seedDemoUsers.ts"
+    "seed:users": "tsx src/scripts/seedDemoUsers.ts",
+    "seed:operational": "tsx src/scripts/seedOperationalScenario.ts",
+    "seed:operational:api": "tsx src/scripts/seedOperationalScenarioApi.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
