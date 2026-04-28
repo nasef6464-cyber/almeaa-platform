@@ -431,6 +431,36 @@ export const api = {
       body: payload,
       token,
     }),
+  aiChat: (payload: { message: string }, token?: string | null) =>
+    request<{ text: string }>("/ai/chat", {
+      method: "POST",
+      body: payload,
+      token,
+    }),
+  aiStudyPlan: (payload: { weaknesses: string[] }, token?: string | null) =>
+    request<{ steps: string[] }>("/ai/study-plan", {
+      method: "POST",
+      body: payload,
+      token,
+    }),
+  aiLearningPath: (payload: { skills: unknown[] }, token?: string | null) =>
+    request<unknown[]>("/ai/learning-path", {
+      method: "POST",
+      body: payload,
+      token,
+    }),
+  aiQuestion: (payload: { topic: string }, token?: string | null) =>
+    request<unknown>("/ai/question", {
+      method: "POST",
+      body: payload,
+      token,
+    }),
+  aiCourseSummary: (payload: { courseTitle: string }, token?: string | null) =>
+    request<{ text: string }>("/ai/course-summary", {
+      method: "POST",
+      body: payload,
+      token,
+    }),
 };
 
 export { API_BASE_URL };

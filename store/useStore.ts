@@ -5,6 +5,9 @@ import { db } from '../services/firebase';
 import { api } from '../services/api';
 import { User, Activity, QuestionAttempt, QuizResult, Question, Role, Group, Skill, CategoryPath, CategorySubject, CategorySection, B2BPackage, AccessCode, Course, NestedSkill, LibraryItem, Quiz, Lesson, Topic, PackageContentType, StudyPlan } from '../types';
 
+const USE_REAL_API =
+    (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_USE_REAL_API !== 'false';
+
 interface AppState {
     user: User;
     users: User[];
@@ -538,8 +541,8 @@ export const useStore = create<AppState>()(
                     link: `/course/${courseId}`
                 };
 
-                // Write to Firebase
-                if (state.user?.id) {
+                // Firebase writes are kept only for the legacy/demo mode.
+                if (!USE_REAL_API && state.user?.id) {
                     setDoc(doc(db, 'activities', newActivity.id), { ...newActivity, userId: state.user.id }).catch(console.error);
                     setDoc(doc(db, 'users', state.user.id), { completedLessons: [...state.completedLessons, lessonId] }, { merge: true }).catch(console.error);
                 }
@@ -570,7 +573,7 @@ export const useStore = create<AppState>()(
             recordQuestionAttempt: (attempt) => {
                 const state = get();
                 const attemptId = Date.now().toString();
-                if (state.user?.id) {
+                if (!USE_REAL_API && state.user?.id) {
                     setDoc(doc(db, 'questionAttempts', attemptId), { ...attempt, userId: state.user.id }).catch(console.error);
                 }
                 set((state) => ({
@@ -616,7 +619,7 @@ export const useStore = create<AppState>()(
                 const state = get();
                 const newActivity = { ...activity, id: Date.now().toString(), date: new Date().toISOString() };
                 
-                if (state.user?.id) {
+                if (!USE_REAL_API && state.user?.id) {
                     setDoc(doc(db, 'activities', newActivity.id), { ...newActivity, userId: state.user.id }).catch(console.error);
                 }
 

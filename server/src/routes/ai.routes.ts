@@ -1,0 +1,193 @@
+import { Router } from "express";
+import { z } from "zod";
+import { env } from "../config/env.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+
+const chatSchema = z.object({
+  message: z.string().min(1).max(2000),
+});
+
+const studyPlanSchema = z.object({
+  weaknesses: z.array(z.string()).default([]),
+});
+
+const learningPathSchema = z.object({
+  skills: z.array(z.record(z.any())).default([]),
+});
+
+const questionSchema = z.object({
+  topic: z.string().min(1).max(500),
+});
+
+const courseSummarySchema = z.object({
+  courseTitle: z.string().min(1).max(500),
+});
+
+const safeJsonParse = <T>(value: string | undefined, fallback: T): T => {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+};
+
+const callGemini = async (prompt: string, responseMimeType?: "application/json") => {
+  if (!env.GEMINI_API_KEY) {
+    return "";
+  }
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${env.GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: responseMimeType ? { responseMimeType } : undefined,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Gemini request failed with status ${response.status}`);
+  }
+
+  const payload = (await response.json()) as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
+
+  return payload.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("\n").trim() || "";
+};
+
+export const aiRouter = Router();
+
+aiRouter.post(
+  "/chat",
+  asyncHandler(async (req, res) => {
+    const { message } = chatSchema.parse(req.body);
+    const fallback =
+      "أنا معك. اسألني عن الدرس أو السؤال، وسأقترح لك خطوة بسيطة: راجع الفكرة، حل مثالًا قصيرًا، ثم جرّب سؤالًا مشابهًا.";
+
+    const prompt = `
+أنت مساعد تعليمي عربي داخل منصة المئة. أجب بلغة سهلة ومشجعة ومختصرة.
+لا تعط وعودًا طبية أو قانونية. ركّز على التعلم والخطوة القادمة.
+سؤال الطالب: ${message}
+`;
+
+    try {
+      const answer = await callGemini(prompt);
+      return res.json({ text: answer || fallback });
+    } catch {
+      return res.json({ text: fallback });
+    }
+  }),
+);
+
+aiRouter.post(
+  "/study-plan",
+  asyncHandler(async (req, res) => {
+    const { weaknesses } = studyPlanSchema.parse(req.body);
+    const fallback = { steps: ["راجع شرح المهارة الأساسية.", "حل 10 أسئلة متدرجة.", "أعد اختبارًا قصيرًا للتأكد من التحسن."] };
+
+    const prompt = `
+ضع خطة مذاكرة عربية قصيرة من 3 خطوات لطالب لديه ضعف في:
+${weaknesses.join(", ") || "مهارات عامة"}
+أعد JSON فقط بالشكل: {"steps":["...","...","..."]}
+`;
+
+    try {
+      const text = await callGemini(prompt, "application/json");
+      return res.json(safeJsonParse(text, fallback));
+    } catch {
+      return res.json(fallback);
+    }
+  }),
+);
+
+aiRouter.post(
+  "/learning-path",
+  asyncHandler(async (req, res) => {
+    const { skills } = learningPathSchema.parse(req.body);
+    const targetSkills = skills.filter((skill) => skill.status === "weak" || skill.status === "average").slice(0, 5);
+    const fallback = targetSkills.slice(0, 3).map((skill, index) => ({
+      id: `rec_${index + 1}`,
+      type: index === 1 ? "quiz" : "lesson",
+      title: `مراجعة ${skill.skill || skill.name || "مهارة مهمة"}`,
+      duration: index === 1 ? "10 دقائق" : "15 دقيقة",
+      reason: `لأن مستوى الإتقان يحتاج دعمًا في ${skill.skill || skill.name || "هذه المهارة"}.`,
+      skillTargeted: skill.skill || skill.name || "مهارة مستهدفة",
+      priority: skill.status === "weak" ? "high" : "medium",
+      actionLabel: index === 1 ? "ابدأ التدريب" : "ابدأ الدرس",
+      link: "/dashboard",
+    }));
+
+    if (targetSkills.length === 0) {
+      return res.json([]);
+    }
+
+    const prompt = `
+حلل فجوات المهارات التالية لطالب عربي:
+${JSON.stringify(targetSkills)}
+اقترح 3 خطوات تعلم عملية. أعد JSON array فقط بهذه المفاتيح:
+id,type,title,duration,reason,skillTargeted,priority,actionLabel,link
+type واحد من lesson أو quiz أو flashcard. priority واحد من high أو medium.
+`;
+
+    try {
+      const text = await callGemini(prompt, "application/json");
+      const parsed = safeJsonParse(text, fallback);
+      return res.json(Array.isArray(parsed) ? parsed : fallback);
+    } catch {
+      return res.json(fallback);
+    }
+  }),
+);
+
+aiRouter.post(
+  "/question",
+  asyncHandler(async (req, res) => {
+    const { topic } = questionSchema.parse(req.body);
+    const fallback = {
+      question: `سؤال تدريبي في ${topic}: أي اختيار يمثل الفكرة الصحيحة؟`,
+      options: ["الاختيار الأول", "الاختيار الثاني", "الاختيار الثالث", "الاختيار الرابع"],
+      correctIndex: 0,
+      explanation: "هذا سؤال مبدئي. راجع السؤال قبل نشره للطلاب.",
+    };
+
+    const prompt = `
+أنشئ سؤال اختيار من متعدد باللغة العربية عن: ${topic}
+يفضل أن يكون مناسبًا لمنصة قدرات/تحصيلي.
+أعد JSON فقط:
+{"question":"...","options":["...","...","...","..."],"correctIndex":0,"explanation":"..."}
+`;
+
+    try {
+      const text = await callGemini(prompt, "application/json");
+      return res.json(safeJsonParse(text, fallback));
+    } catch {
+      return res.json(fallback);
+    }
+  }),
+);
+
+aiRouter.post(
+  "/course-summary",
+  asyncHandler(async (req, res) => {
+    const { courseTitle } = courseSummarySchema.parse(req.body);
+    const fallback = `هذه الدورة تساعدك على فهم ${courseTitle} بخطوات منظمة وتدريبات تدريجية حتى تصل للإتقان.`;
+
+    const prompt = `
+اكتب ملخصًا عربيًا قصيرًا جدًا من جملتين لدورة تعليمية عنوانها:
+${courseTitle}
+اجعله بسيطًا ومشجعًا للطالب.
+`;
+
+    try {
+      const text = await callGemini(prompt);
+      return res.json({ text: text || fallback });
+    } catch {
+      return res.json({ text: fallback });
+    }
+  }),
+);

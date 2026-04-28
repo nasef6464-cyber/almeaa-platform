@@ -6,6 +6,7 @@ import { courseRouter } from "./course.routes.js";
 import { quizRouter } from "./quiz.routes.js";
 import { contentRouter } from "./content.routes.js";
 import { paymentRouter } from "./payment.routes.js";
+import { aiRouter } from "./ai.routes.js";
 
 export const apiRouter = Router();
 
@@ -16,3 +17,4 @@ apiRouter.use("/content", contentRouter);
 apiRouter.use("/courses", courseRouter);
 apiRouter.use("/quizzes", quizRouter);
 apiRouter.use("/payments", paymentRouter);
+apiRouter.use("/ai", aiRouter);

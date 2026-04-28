@@ -13,6 +13,8 @@ const envSchema = z.object({
   ADMIN_NAME: z.string().default("Platform Admin"),
   ADMIN_EMAIL: z.string().email().default("admin@example.com"),
   ADMIN_PASSWORD: z.string().min(6).default("change-me"),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
 });
 
 export const env = envSchema.parse(process.env);
