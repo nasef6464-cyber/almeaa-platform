@@ -17,6 +17,8 @@ dist-ssr
 server/.env
 server-dev.log
 local-mongodb/
+*.bundle
+backups/
 
 # Editor directories and files
 .vscode/*

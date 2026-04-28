@@ -9,10 +9,11 @@
 6.  **Environment Variables:**
     - `NODE_ENV`: production
     - `PORT`: 10000
-    - `MONGO_URI`: (Connection string from Atlas)
+    - `MONGODB_URI`: (Connection string from Atlas)
     - `JWT_SECRET`: (Random 64-char string)
-    - `GEMINI_API_KEY`: (Google AI Key)
     - `CLIENT_URL`: (The Vercel Frontend URL)
+    - `GEMINI_API_KEY`: (Google AI Key)
+    - `GEMINI_MODEL`: Gemini model name, defaults to `gemini-2.5-flash`
 
 ## 2. Frontend (Vercel)
 1.  Create a **New Project**.

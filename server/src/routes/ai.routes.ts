@@ -25,14 +25,22 @@ const courseSummarySchema = z.object({
 
 const safeJsonParse = <T>(value: string | undefined, fallback: T): T => {
   if (!value) return fallback;
+  const trimmed = value.trim();
+  const starts = [trimmed.indexOf("["), trimmed.indexOf("{")].filter((index) => index >= 0);
+  const jsonStart = starts.length ? Math.min(...starts) : -1;
+  const jsonEnd = Math.max(trimmed.lastIndexOf("]"), trimmed.lastIndexOf("}"));
+  const jsonCandidate = jsonStart >= 0 && jsonEnd > jsonStart ? trimmed.slice(jsonStart, jsonEnd + 1) : trimmed;
+
   try {
-    return JSON.parse(value) as T;
+    return JSON.parse(jsonCandidate) as T;
   } catch {
     return fallback;
   }
 };
 
-const callGemini = async (prompt: string, responseMimeType?: "application/json") => {
+type AiResponseMimeType = "application/json";
+
+const callGemini = async (prompt: string, responseMimeType?: AiResponseMimeType) => {
   if (!env.GEMINI_API_KEY) {
     return "";
   }

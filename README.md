@@ -15,7 +15,7 @@ View your app in AI Studio: https://ai.studio/apps/f0aa43be-3dac-4592-a5c7-5460f
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+2. Configure the backend AI variables in [server/.env](</C:/ALMEAA MAY - codax/server/.env.example>) if you want AI features
 3. Run the app:
    `npm run dev`
 
@@ -36,6 +36,15 @@ The project now includes a backend foundation under [server](</C:/ALMEAA MAY - c
    - `CLIENT_URL`
 5. Run the backend:
    `npm run server:dev`
+
+### AI Engine
+
+The platform uses the backend as the only AI gateway. The frontend never talks to Gemini directly, so keys stay private and the UI stays unchanged.
+
+```env
+GEMINI_API_KEY=your-key
+GEMINI_MODEL=gemini-2.5-flash
+```
 
 ### Local MongoDB option
 
