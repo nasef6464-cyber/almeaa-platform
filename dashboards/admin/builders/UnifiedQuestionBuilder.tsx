@@ -257,10 +257,10 @@ export const UnifiedQuestionBuilder: React.FC<UnifiedQuestionBuilderProps> = ({
                 value={question.subject || ''}
                 onChange={event => setQuestion({ ...question, subject: event.target.value, sectionId: '', skillIds: [] })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                disabled={!!question.pathId && subjects.filter(subject => subject.pathId === question.pathId).length === 0}
+                disabled={!question.pathId || subjects.filter(subject => subject.pathId === question.pathId).length === 0}
               >
-                <option value="">-- اختر المادة --</option>
-                {subjects.filter(subject => !question.pathId || subject.pathId === question.pathId).map(subject => (
+                <option value="">{!question.pathId ? '-- اختر المسار أولًا --' : '-- اختر المادة --'}</option>
+                {subjects.filter(subject => subject.pathId === question.pathId).map(subject => (
                   <option key={subject.id} value={subject.id}>{subject.name}</option>
                 ))}
               </select>
