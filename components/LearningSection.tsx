@@ -29,6 +29,15 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
     // Get Subject Settings
     const currentSubjectData = subjects.find(s => s.id === subject);
     const settings = currentSubjectData?.settings || {};
+    const enabledTabs = {
+        courses: settings.showCourses ?? true,
+        skills: settings.showSkills ?? true,
+        banks: settings.showBanks ?? true,
+        tests: settings.showTests ?? true,
+        library: settings.showLibrary ?? true,
+    };
+    const isTabEnabled = (tab: typeof activeTab) => enabledTabs[tab];
+    const firstEnabledTab = (Object.entries(enabledTabs).find(([, enabled]) => enabled)?.[0] || 'courses') as typeof activeTab;
 
     
     useEffect(() => {
@@ -37,6 +46,12 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
             setActiveTab(tab as any);
         }
     }, [searchParams]);
+
+    useEffect(() => {
+        if (!isTabEnabled(activeTab)) {
+            setActiveTab(firstEnabledTab);
+        }
+    }, [activeTab, firstEnabledTab, settings.showBanks, settings.showCourses, settings.showLibrary, settings.showSkills, settings.showTests]);
 
     const handleTabChange = (tab: string) => {
         setActiveTab(tab as any);
@@ -221,7 +236,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
 
             {/* Content */}
             <div className="animate-fade-in">
-                {activeTab === 'courses' && (
+                {activeTab === 'courses' && enabledTabs.courses && (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {sectionCourses.map((baseCourse) => {
                             const coursePurchaseItem = buildScopedPackageItem(
@@ -292,7 +307,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                     </div>
                 )}
 
-                {activeTab === 'skills' && (
+                {activeTab === 'skills' && enabledTabs.skills && (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {mappedSkills.map((skill) => (
                             <button
@@ -329,7 +344,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                     </div>
                 )}
 
-                {activeTab === 'banks' && (
+                {activeTab === 'banks' && enabledTabs.banks && (
                     <SimulatedTestExperience 
                         mode="bank"
                         tests={banks.map(bank => ({
@@ -346,7 +361,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                     />
                 )}
 
-                {activeTab === 'tests' && (
+                {activeTab === 'tests' && enabledTabs.tests && (
                     <SimulatedTestExperience 
                         tests={tests} 
                         onStartTest={(test) => navigate(`/quiz/${test.id}`)}
@@ -354,7 +369,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                     />
                 )}
 
-                {activeTab === 'library' && (
+                {activeTab === 'library' && enabledTabs.library && (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {sectionLibraryItems.map((item: any) => (
                             <Card key={item.id} className={`p-6 border-2 border-gray-100 hover:border-${safeColorTheme}-200 hover:shadow-lg transition-all flex flex-col rounded-3xl relative`}>
