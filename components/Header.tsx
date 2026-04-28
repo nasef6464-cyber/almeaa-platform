@@ -194,7 +194,7 @@ export const Header: React.FC = () => {
     );
 
     return menu;
-  }, [levels, paths, subjects]);
+  }, [levels, paths, subjects, user?.role]);
 
   const isPrivilegedUser = user?.role === 'admin' || user?.role === 'teacher' || user?.role === 'supervisor';
 
