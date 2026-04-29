@@ -173,6 +173,34 @@ const sanitizeWorkflowUpdate = (
   return nextPayload;
 };
 
+const assertTeacherManagedScope = async (
+  authUser: { id: string; role: string },
+  payload: { pathId?: unknown; subjectId?: unknown; subject?: unknown },
+) => {
+  if (authUser.role !== "teacher") {
+    return;
+  }
+
+  const teacher = await UserModel.findById(authUser.id).select("managedPathIds managedSubjectIds");
+  const managedPathIds = new Set((teacher?.managedPathIds || []).map(String));
+  const managedSubjectIds = new Set((teacher?.managedSubjectIds || []).map(String));
+
+  if (managedPathIds.size === 0 && managedSubjectIds.size === 0) {
+    return;
+  }
+
+  const pathId = String(payload.pathId || "");
+  const subjectId = String(payload.subjectId || payload.subject || "");
+  const matchesPath = !!pathId && managedPathIds.has(pathId);
+  const matchesSubject = !!subjectId && managedSubjectIds.has(subjectId);
+
+  if (!matchesPath && !matchesSubject) {
+    const error = new Error("Content is outside the teacher managed scope") as Error & { statusCode?: number };
+    error.statusCode = StatusCodes.FORBIDDEN;
+    throw error;
+  }
+};
+
 const uniqueStrings = (values: Array<string | undefined | null>) =>
   [...new Set(values.filter((value): value is string => typeof value === "string" && value.trim().length > 0))];
 
@@ -287,6 +315,7 @@ quizRouter.post(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = questionSchema.parse(req.body);
+    await assertTeacherManagedScope(req.authUser!, payload);
     const workflowDefaults = getWorkflowDefaults(req.authUser!);
     const created = await QuestionModel.create({
       ...payload,
@@ -306,17 +335,22 @@ quizRouter.patch(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = questionSchema.partial().parse(req.body);
+    const existing = await QuestionModel.findOne(buildDocumentQuery(req.params.id));
+
+    if (!existing) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Question not found" });
+    }
+
+    await assertTeacherManagedScope(req.authUser!, {
+      ...existing.toObject(),
+      ...payload,
+    });
     const sanitizedPayload = sanitizeWorkflowUpdate(payload as Record<string, unknown>, req.authUser!);
     const updated = await QuestionModel.findOneAndUpdate(
       buildDocumentQuery(req.params.id),
       sanitizedPayload,
       { new: true },
     );
-
-    if (!updated) {
-      return res.status(StatusCodes.NOT_FOUND).json({ message: "Question not found" });
-    }
-
     return res.json(updated);
   }),
 );
@@ -677,6 +711,7 @@ quizRouter.post(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = quizSchema.parse(req.body);
+    await assertTeacherManagedScope(req.authUser!, payload);
     const resolvedSkillIds = await resolveQuizSkillIds(payload.questionIds);
     const workflowDefaults = getWorkflowDefaults(req.authUser!);
     const created = await QuizModel.create({
@@ -700,6 +735,16 @@ quizRouter.patch(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = quizSchema.partial().parse(req.body);
+    const existing = await QuizModel.findOne(buildDocumentQuery(req.params.id));
+
+    if (!existing) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Quiz not found" });
+    }
+
+    await assertTeacherManagedScope(req.authUser!, {
+      ...existing.toObject(),
+      ...payload,
+    });
     const resolvedSkillIds = payload.questionIds
       ? await resolveQuizSkillIds(payload.questionIds)
       : undefined;
@@ -716,11 +761,6 @@ quizRouter.patch(
       sanitizedPayload,
       { new: true },
     );
-
-    if (!updated) {
-      return res.status(StatusCodes.NOT_FOUND).json({ message: "Quiz not found" });
-    }
-
     return res.json(updated);
   }),
 );

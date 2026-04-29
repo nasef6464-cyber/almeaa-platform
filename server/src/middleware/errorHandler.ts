@@ -7,13 +7,15 @@ export function notFoundHandler(req: Request, res: Response) {
 }
 
 export function errorHandler(
-  error: Error,
+  error: Error & { statusCode?: number; status?: number },
   _req: Request,
   res: Response,
   _next: NextFunction,
 ) {
   const message = error.message || "Internal server error";
-  res.status(500).json({
+  const statusCode = error.statusCode || error.status || 500;
+
+  res.status(statusCode).json({
     message,
   });
 }
