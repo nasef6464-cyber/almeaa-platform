@@ -34,6 +34,11 @@ const courseSchema = new Schema(
     showOnPlatform: { type: Boolean, default: true },
     isPackage: { type: Boolean, default: false },
     packageType: { type: String, enum: ["courses", "videos", "tests"], default: "courses" },
+    packageContentTypes: {
+      type: [String],
+      enum: ["courses", "foundation", "banks", "tests", "library", "all"],
+      default: ["courses"],
+    },
     originalPrice: { type: Number, default: null },
     includedCourses: { type: [String], default: [] },
     prerequisiteCourseIds: { type: [String], default: [] },

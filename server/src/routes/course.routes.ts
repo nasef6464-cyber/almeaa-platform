@@ -29,6 +29,7 @@ const courseSchema = z.object({
   showOnPlatform: z.boolean().default(true),
   isPackage: z.boolean().default(false),
   packageType: z.enum(["courses", "videos", "tests"]).optional(),
+  packageContentTypes: z.array(z.enum(["courses", "foundation", "banks", "tests", "library", "all"])).optional(),
   originalPrice: z.number().nullable().optional(),
   includedCourses: z.array(z.string()).optional(),
   prerequisiteCourseIds: z.array(z.string()).optional(),

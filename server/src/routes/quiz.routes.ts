@@ -7,6 +7,8 @@ import { QuestionModel } from "../models/Question.js";
 import { QuizResultModel } from "../models/QuizResult.js";
 import { UserModel } from "../models/User.js";
 import { GroupModel } from "../models/Group.js";
+import { B2BPackageModel } from "../models/B2BPackage.js";
+import { CourseModel } from "../models/Course.js";
 import { SkillProgressModel } from "../models/SkillProgress.js";
 import { QuestionAttemptModel } from "../models/QuestionAttempt.js";
 import { SkillModel } from "../models/Skill.js";
@@ -273,6 +275,138 @@ const buildSkillRecommendation = (mastery: number) => {
   if (mastery < 50) return "راجع شرحًا قصيرًا ثم حل تدريبًا موجّهًا على نفس المهارة";
   if (mastery < 80) return "أداؤك قريب من الإتقان. زد التدريب قليلًا ثم أعد القياس";
   return "أداء ممتاز. حافظ على المهارة بتدريب خفيف من وقت لآخر";
+};
+
+const matchesContentScope = (
+  item: { contentTypes?: string[]; pathIds?: string[]; subjectIds?: string[] },
+  contentType: string,
+  pathId?: string,
+  subjectId?: string,
+) => {
+  const contentTypes = Array.isArray(item.contentTypes) && item.contentTypes.length ? item.contentTypes : ["all"];
+  const pathIds = Array.isArray(item.pathIds) ? item.pathIds.map(String).filter(Boolean) : [];
+  const subjectIds = Array.isArray(item.subjectIds) ? item.subjectIds.map(String).filter(Boolean) : [];
+  const matchesType = contentTypes.includes("all") || contentTypes.includes(contentType);
+  const matchesPath = pathIds.length === 0 || (!!pathId && pathIds.includes(pathId));
+  const matchesSubject = subjectIds.length === 0 || (!!subjectId && subjectIds.includes(subjectId));
+  return matchesType && matchesPath && matchesSubject;
+};
+
+const hasPurchasedPackageAccess = async (
+  purchasedPackageIds: string[],
+  contentType: string,
+  pathId?: string,
+  subjectId?: string,
+) => {
+  if (purchasedPackageIds.length === 0) {
+    return false;
+  }
+
+  const packages = await CourseModel.find({
+    _id: { $in: purchasedPackageIds },
+    isPackage: true,
+    isPublished: true,
+    showOnPlatform: { $ne: false },
+  }).select("_id pathId subjectId packageContentTypes includedCourses");
+
+  return packages.some((pkg: any) => {
+    const contentTypes = Array.isArray(pkg.packageContentTypes) && pkg.packageContentTypes.length
+      ? pkg.packageContentTypes
+      : ["courses"];
+    return matchesContentScope(
+      {
+        contentTypes,
+        pathIds: pkg.pathId ? [String(pkg.pathId)] : [],
+        subjectIds: pkg.subjectId ? [String(pkg.subjectId)] : [],
+      },
+      contentType,
+      pathId,
+      subjectId,
+    );
+  });
+};
+
+const hasSchoolPackageAccess = async (
+  user: any,
+  contentType: string,
+  pathId?: string,
+  subjectId?: string,
+) => {
+  const schoolId = String(user.schoolId || "");
+  if (!schoolId) {
+    return false;
+  }
+
+  const packages = await B2BPackageModel.find({ schoolId, status: "active" });
+  return packages.some((pkg: any) =>
+    matchesContentScope(
+      {
+        contentTypes: pkg.contentTypes,
+        pathIds: pkg.pathIds,
+        subjectIds: pkg.subjectIds,
+      },
+      contentType,
+      pathId,
+      subjectId,
+    ),
+  );
+};
+
+const canSubmitQuiz = async (quiz: any, user: any) => {
+  if (isStaffRole(user.role)) {
+    return true;
+  }
+
+  const isApproved = quiz.approvalStatus === "approved" || !quiz.approvalStatus;
+  const isVisible = quiz.isPublished && quiz.showOnPlatform !== false && isApproved;
+  if (!isVisible) {
+    return false;
+  }
+
+  const targetUserIds = new Set((quiz.targetUserIds || []).map(String));
+  const targetGroupIds = new Set((quiz.targetGroupIds || []).map(String));
+  const userGroupIds = (user.groupIds || []).map(String);
+  const hasExplicitTarget = targetUserIds.size > 0 || targetGroupIds.size > 0;
+  const isTargeted =
+    !hasExplicitTarget ||
+    targetUserIds.has(String(user.id || user._id)) ||
+    userGroupIds.some((groupId: string) => targetGroupIds.has(groupId));
+
+  if (!isTargeted) {
+    return false;
+  }
+
+  const accessType = quiz.access?.type || "free";
+  if (accessType === "free") {
+    return true;
+  }
+
+  if (user.subscription?.plan === "premium") {
+    return true;
+  }
+
+  if (accessType === "private") {
+    const allowedGroupIds = new Set((quiz.access?.allowedGroupIds || []).map(String));
+    const matchesAllowedGroup =
+      allowedGroupIds.size === 0 || userGroupIds.some((groupId: string) => allowedGroupIds.has(groupId));
+    return hasExplicitTarget || matchesAllowedGroup;
+  }
+
+  const pathId = String(quiz.pathId || "");
+  const subjectId = String(quiz.subjectId || "");
+  const purchasedPackageIds = (user.subscription?.purchasedPackages || []).map(String);
+
+  if (accessType === "course_only") {
+    return (
+      (await hasPurchasedPackageAccess(purchasedPackageIds, "courses", pathId, subjectId)) ||
+      (await hasSchoolPackageAccess(user, "courses", pathId, subjectId))
+    );
+  }
+
+  return (
+    (await hasPurchasedPackageAccess(purchasedPackageIds, "tests", pathId, subjectId)) ||
+    (await hasSchoolPackageAccess(user, "tests", pathId, subjectId))
+  );
 };
 
 const updateSkillProgressFromResult = async (result: any, userId: string) => {
@@ -982,21 +1116,8 @@ quizRouter.post(
       return res.status(StatusCodes.NOT_FOUND).json({ message: "User not found" });
     }
 
-    if (!isStaffRole(authUser.role)) {
-      const isApproved = quiz.approvalStatus === "approved" || !quiz.approvalStatus;
-      const isVisible = quiz.isPublished && quiz.showOnPlatform !== false && isApproved;
-      const targetUserIds = new Set((quiz.targetUserIds || []).map(String));
-      const targetGroupIds = new Set((quiz.targetGroupIds || []).map(String));
-      const userGroupIds = (authUser.groupIds || []).map(String);
-      const hasExplicitTarget = targetUserIds.size > 0 || targetGroupIds.size > 0;
-      const isTargeted =
-        !hasExplicitTarget ||
-        targetUserIds.has(String(authUser.id || authUser._id)) ||
-        userGroupIds.some((groupId) => targetGroupIds.has(groupId));
-
-      if (!isVisible || !isTargeted) {
-        return res.status(StatusCodes.FORBIDDEN).json({ message: "You cannot submit this quiz" });
-      }
+    if (!(await canSubmitQuiz(quiz, authUser))) {
+      return res.status(StatusCodes.FORBIDDEN).json({ message: "You cannot submit this quiz" });
     }
 
     const questionIds = Array.isArray(quiz.questionIds) ? quiz.questionIds.map(String).filter(Boolean) : [];

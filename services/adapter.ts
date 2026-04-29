@@ -226,6 +226,7 @@ const normalizeCourse = (course: any): Course => ({
   isPurchased: Boolean(course?.isPurchased),
   isPackage: Boolean(course?.isPackage),
   packageType: course?.packageType,
+  packageContentTypes: Array.isArray(course?.packageContentTypes) ? course.packageContentTypes : undefined,
   originalPrice: typeof course?.originalPrice === "number" ? course.originalPrice : undefined,
   includedCourses: Array.isArray(course?.includedCourses) ? course.includedCourses : [],
   studentCount: typeof course?.studentCount === "number" ? course.studentCount : undefined,
