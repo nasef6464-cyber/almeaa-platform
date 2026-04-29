@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { Question, Quiz, QuizResult } from '../types';
 import { Clock, AlertCircle, CheckCircle2, XCircle, ArrowRight, ArrowLeft, FileQuestion, Target } from 'lucide-react';
+import { api } from '../services/api';
 
 interface QuestionThreadItem {
   id: string;
@@ -37,6 +38,8 @@ export const QuizPage: React.FC = () => {
     checkAccess,
     hasScopedPackageAccess,
     saveExamResult,
+    hydrateExamResults,
+    examResults,
     recordQuestionAttempt,
     skills,
     subjects,
@@ -240,7 +243,7 @@ export const QuizPage: React.FC = () => {
     setQaDraft('');
   };
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
     setIsFinished(true);
 
     if (!quiz) return;
@@ -303,6 +306,7 @@ export const QuizPage: React.FC = () => {
       };
     });
 
+    const timeSpentSeconds = quiz.settings.timeLimit ? quiz.settings.timeLimit * 60 - (timeLeft || 0) : 0;
     const result: QuizResult = {
       quizId: quiz.id,
       quizTitle: quiz.title,
@@ -311,13 +315,23 @@ export const QuizPage: React.FC = () => {
       correctAnswers: correctAnswersCount,
       wrongAnswers: quizQuestions.length - correctAnswersCount - (quizQuestions.length - Object.keys(selectedOptions).length),
       unanswered: quizQuestions.length - Object.keys(selectedOptions).length,
-      timeSpent: quiz.settings.timeLimit ? `${Math.floor((quiz.settings.timeLimit * 60 - (timeLeft || 0)) / 60)} دقيقة` : 'غير محدد',
+      timeSpent: quiz.settings.timeLimit ? `${Math.floor(timeSpentSeconds / 60)} دقيقة` : 'غير محدد',
       date: new Date().toISOString(),
       skillsAnalysis,
       questionReview,
     };
 
-    saveExamResult(result);
+    try {
+      const serverResult = await api.submitQuiz(quiz.id, {
+        answers: selectedOptions,
+        timeSpentSeconds: Math.max(0, timeSpentSeconds),
+      });
+      hydrateExamResults([serverResult as QuizResult, ...examResults]);
+    } catch (error) {
+      console.error('Unable to submit quiz on server, saving local result instead:', error);
+      saveExamResult(result);
+    }
+
     navigate('/results');
   };
 

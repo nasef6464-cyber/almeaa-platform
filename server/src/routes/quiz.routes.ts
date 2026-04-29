@@ -77,6 +77,11 @@ const questionAttemptSchema = z.object({
   date: z.string().optional(),
 });
 
+const quizSubmitSchema = z.object({
+  answers: z.record(z.coerce.number()).default({}),
+  timeSpentSeconds: z.number().min(0).default(0),
+});
+
 const buildDocumentQuery = (value: string) => {
   if (mongoose.Types.ObjectId.isValid(value)) {
     return { $or: [{ id: value }, { _id: value }] };
@@ -256,6 +261,18 @@ const buildSkillStatus = (mastery: number) => {
   if (mastery >= 75) return "good";
   if (mastery >= 50) return "average";
   return "weak";
+};
+
+const buildResultSkillStatus = (mastery: number) => {
+  if (mastery >= 80) return "strong";
+  if (mastery >= 50) return "average";
+  return "weak";
+};
+
+const buildSkillRecommendation = (mastery: number) => {
+  if (mastery < 50) return "راجع شرحًا قصيرًا ثم حل تدريبًا موجّهًا على نفس المهارة";
+  if (mastery < 80) return "أداؤك قريب من الإتقان. زد التدريب قليلًا ثم أعد القياس";
+  return "أداء ممتاز. حافظ على المهارة بتدريب خفيف من وقت لآخر";
 };
 
 const updateSkillProgressFromResult = async (result: any, userId: string) => {
@@ -946,6 +963,150 @@ quizRouter.post(
       skillIds: resolvedSkillIds,
     });
     res.status(StatusCodes.CREATED).json(created);
+  }),
+);
+
+quizRouter.post(
+  "/:id/submit",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const payload = quizSubmitSchema.parse(req.body);
+    const quiz = await QuizModel.findOne(buildDocumentQuery(req.params.id));
+
+    if (!quiz) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Quiz not found" });
+    }
+
+    const authUser = await UserModel.findById(req.authUser!.id);
+    if (!authUser) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "User not found" });
+    }
+
+    if (!isStaffRole(authUser.role)) {
+      const isApproved = quiz.approvalStatus === "approved" || !quiz.approvalStatus;
+      const isVisible = quiz.isPublished && quiz.showOnPlatform !== false && isApproved;
+      const targetUserIds = new Set((quiz.targetUserIds || []).map(String));
+      const targetGroupIds = new Set((quiz.targetGroupIds || []).map(String));
+      const userGroupIds = (authUser.groupIds || []).map(String);
+      const hasExplicitTarget = targetUserIds.size > 0 || targetGroupIds.size > 0;
+      const isTargeted =
+        !hasExplicitTarget ||
+        targetUserIds.has(String(authUser.id || authUser._id)) ||
+        userGroupIds.some((groupId) => targetGroupIds.has(groupId));
+
+      if (!isVisible || !isTargeted) {
+        return res.status(StatusCodes.FORBIDDEN).json({ message: "You cannot submit this quiz" });
+      }
+    }
+
+    const questionIds = Array.isArray(quiz.questionIds) ? quiz.questionIds.map(String).filter(Boolean) : [];
+    const questions = questionIds.length ? await QuestionModel.find(buildDocumentsByIdsQuery(questionIds)) : [];
+    const questionById = new Map<string, any>();
+    questions.forEach((question) => {
+      questionById.set(String(question.id || question._id), question);
+    });
+
+    const orderedQuestions = questionIds
+      .map((questionId) => questionById.get(questionId))
+      .filter(Boolean);
+
+    if (orderedQuestions.length === 0) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Quiz has no valid questions" });
+    }
+
+    const skillIds = uniqueStrings(orderedQuestions.flatMap((question) => (question.skillIds || []).map(String)));
+    const [skills, subjects, sections] = await Promise.all([
+      skillIds.length ? SkillModel.find(buildDocumentsByIdsQuery(skillIds)) : [],
+      SubjectModel.find(),
+      SectionModel.find(),
+    ]);
+    const skillById = new Map<string, any>(
+      skills.map((skill: any) => [String(skill.id || skill._id), skill] as [string, any]),
+    );
+    const subjectNameById = new Map(subjects.map((subject) => [String(subject.id || subject._id), String(subject.name || "")]));
+    const sectionNameById = new Map(sections.map((section) => [String(section.id || section._id), String(section.name || "")]));
+
+    let correctAnswers = 0;
+    let wrongAnswers = 0;
+    let unanswered = 0;
+    const skillStats = new Map<string, { total: number; correct: number }>();
+
+    const questionReview = orderedQuestions.map((question) => {
+      const questionId = String(question.id || question._id);
+      const rawSelected = payload.answers[questionId];
+      const selectedOptionIndex = typeof rawSelected === "number" && rawSelected >= 0 ? rawSelected : undefined;
+      const isCorrect = selectedOptionIndex === Number(question.correctOptionIndex ?? 0);
+
+      if (selectedOptionIndex === undefined) {
+        unanswered += 1;
+      } else if (isCorrect) {
+        correctAnswers += 1;
+      } else {
+        wrongAnswers += 1;
+      }
+
+      (question.skillIds || []).map(String).filter(Boolean).forEach((skillId: string) => {
+        const current = skillStats.get(skillId) || { total: 0, correct: 0 };
+        current.total += 1;
+        if (isCorrect) {
+          current.correct += 1;
+        }
+        skillStats.set(skillId, current);
+      });
+
+      return {
+        questionId,
+        text: String(question.text || ""),
+        options: Array.isArray(question.options) ? question.options.map(String) : [],
+        correctOptionIndex: Number(question.correctOptionIndex ?? 0),
+        selectedOptionIndex,
+        explanation: question.explanation || "",
+        videoUrl: question.videoUrl || "",
+        imageUrl: question.imageUrl || "",
+        isCorrect,
+      };
+    });
+
+    const skillsAnalysis = Array.from(skillStats.entries()).map(([skillId, stats]) => {
+      const skill = skillById.get(skillId);
+      const mastery = Math.round((stats.correct / Math.max(stats.total, 1)) * 100);
+      const status = buildResultSkillStatus(mastery);
+      const subjectId = String(skill?.subjectId || quiz.subjectId || "");
+      const sectionId = String(skill?.sectionId || quiz.sectionId || "");
+
+      return {
+        skillId,
+        pathId: String(skill?.pathId || quiz.pathId || ""),
+        subjectId,
+        sectionId,
+        skill: String(skill?.name || "مهارة غير مسماة"),
+        mastery,
+        status,
+        recommendation: buildSkillRecommendation(mastery),
+        section: sectionNameById.get(sectionId) || subjectNameById.get(subjectId) || "",
+      };
+    });
+
+    const totalQuestions = orderedQuestions.length;
+    const score = Math.round((correctAnswers / Math.max(totalQuestions, 1)) * 100);
+    const timeSpentMinutes = Math.max(0, Math.round(payload.timeSpentSeconds / 60));
+    const result = await QuizResultModel.create({
+      userId: req.authUser!.id,
+      quizId: String(quiz.id || quiz._id),
+      quizTitle: String(quiz.title || "اختبار"),
+      score,
+      totalQuestions,
+      correctAnswers,
+      wrongAnswers,
+      unanswered,
+      timeSpent: timeSpentMinutes > 0 ? `${timeSpentMinutes} دقيقة` : "أقل من دقيقة",
+      date: new Date().toISOString(),
+      skillsAnalysis,
+      questionReview,
+    });
+
+    await updateSkillProgressFromResult(result, req.authUser!.id);
+    return res.status(StatusCodes.CREATED).json(result);
   }),
 );
 

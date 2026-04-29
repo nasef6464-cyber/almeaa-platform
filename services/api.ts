@@ -423,6 +423,12 @@ export const api = {
       method: "DELETE",
       token,
     }),
+  submitQuiz: (id: string, payload: { answers: Record<string, number>; timeSpentSeconds?: number }, token?: string | null) =>
+    request<unknown>(`/quizzes/${id}/submit`, {
+      method: "POST",
+      body: payload,
+      token,
+    }),
   getQuizResults: () => request<unknown[]>("/quizzes/results"),
   getLatestQuizResult: () => request<unknown>("/quizzes/results/latest"),
   getSkillProgress: () => request<unknown[]>("/quizzes/skill-progress"),
