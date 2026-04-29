@@ -1,8 +1,8 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowDownRight, ArrowUpRight, CreditCard, DollarSign, Landmark, Save, TrendingUp, Users, Wallet } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, CreditCard, DollarSign, Eye, Landmark, LockKeyhole, Save, TrendingUp, Users, Wallet } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { api } from '../../services/api';
-import { PaymentRequest, PaymentRequestStatus, PaymentSettings } from '../../types';
+import { PackageContentType, PaymentRequest, PaymentRequestStatus, PaymentSettings } from '../../types';
 
 type TransactionRow = {
     id: string;
@@ -40,7 +40,7 @@ const defaultSettings: PaymentSettings = {
 };
 
 export const FinancialManager: React.FC = () => {
-    const { users, groups, b2bPackages, accessCodes, courses } = useStore();
+    const { users, groups, b2bPackages, accessCodes, courses, paths, subjects, lessons, quizzes, libraryItems } = useStore();
     const [activeTab, setActiveTab] = useState<'overview' | 'requests' | 'settings' | 'b2b' | 'b2c' | 'transactions'>('overview');
     const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>([]);
     const [settings, setSettings] = useState<PaymentSettings>(defaultSettings);
@@ -221,6 +221,77 @@ export const FinancialManager: React.FC = () => {
             };
         }).sort((a, b) => b.estimatedValue - a.estimatedValue);
     }, [accessCodes, b2bPackages, schools]);
+
+    const contentTypeLabel = (type: PackageContentType) => {
+        switch (type) {
+            case 'courses':
+                return 'الدورات';
+            case 'foundation':
+                return 'التأسيس';
+            case 'banks':
+                return 'التدريب';
+            case 'tests':
+                return 'الاختبارات';
+            case 'library':
+                return 'المكتبة';
+            default:
+                return 'كل المحتوى';
+        }
+    };
+
+    const packageCoverageRows = useMemo(() => {
+        return b2bPackages.map((pkg) => {
+            const packagePathIds = new Set(pkg.pathIds || []);
+            const packageSubjectIds = new Set(pkg.subjectIds || []);
+            const packageCourseIds = new Set(pkg.courseIds || []);
+            const coversAll = (pkg.contentTypes || []).includes('all');
+            const hasType = (type: PackageContentType) => coversAll || (pkg.contentTypes || []).includes(type);
+            const isInScope = (item: { pathId?: string; subjectId?: string }) => {
+                const pathMatches = packagePathIds.size === 0 || (item.pathId ? packagePathIds.has(item.pathId) : false);
+                const subjectMatches = packageSubjectIds.size === 0 || (item.subjectId ? packageSubjectIds.has(item.subjectId) : false);
+                return pathMatches && subjectMatches;
+            };
+
+            const scopedCourses = courses.filter((course) => packageCourseIds.has(course.id) || (hasType('courses') && isInScope(course)));
+            const scopedLessons = lessons.filter((lesson) => hasType('foundation') && isInScope(lesson));
+            const scopedTraining = quizzes.filter((quiz) => hasType('banks') && quiz.type === 'bank' && isInScope(quiz));
+            const scopedTests = quizzes.filter((quiz) => hasType('tests') && quiz.type !== 'bank' && isInScope(quiz));
+            const scopedLibrary = libraryItems.filter((item) => hasType('library') && isInScope(item));
+            const packageCodes = accessCodes.filter((code) => code.packageId === pkg.id);
+            const activePackageCodes = packageCodes.filter((code) => code.expiresAt > Date.now());
+            const usedSeats = packageCodes.reduce((sum, code) => sum + (code.currentUses || 0), 0);
+            const seatRate = pkg.maxStudents > 0 ? Math.min(Math.round((usedSeats / pkg.maxStudents) * 100), 100) : 0;
+            const pathNames = (pkg.pathIds || [])
+                .map((pathId) => paths.find((path) => path.id === pathId)?.name)
+                .filter(Boolean);
+            const subjectNames = (pkg.subjectIds || [])
+                .map((subjectId) => subjects.find((subject) => subject.id === subjectId)?.name)
+                .filter(Boolean);
+
+            return {
+                id: pkg.id,
+                name: pkg.name,
+                schoolName: groups.find((group) => group.id === pkg.schoolId)?.name || 'جهة تعليمية',
+                status: pkg.status,
+                type: pkg.type,
+                discountPercentage: pkg.discountPercentage,
+                maxStudents: pkg.maxStudents,
+                usedSeats,
+                seatRate,
+                activeCodes: activePackageCodes.length,
+                contentTypes: pkg.contentTypes || ['all'],
+                pathNames,
+                subjectNames,
+                counts: {
+                    courses: scopedCourses.length,
+                    foundation: scopedLessons.length,
+                    banks: scopedTraining.length,
+                    tests: scopedTests.length,
+                    library: scopedLibrary.length,
+                },
+            };
+        }).sort((a, b) => Number(b.status === 'active') - Number(a.status === 'active') || b.usedSeats - a.usedSeats);
+    }, [accessCodes, b2bPackages, courses, groups, lessons, libraryItems, paths, quizzes, subjects]);
 
     const premiumRows = useMemo(() => {
         return b2cPremiumUsers.map((user) => ({
@@ -615,31 +686,112 @@ export const FinancialManager: React.FC = () => {
             )}
 
             {activeTab === 'b2b' && (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                    <h2 className="text-lg font-bold text-gray-900 mb-6">المدارس والجهات المتعاقدة</h2>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-right">
-                            <thead className="bg-gray-50 text-gray-600 text-sm">
-                                <tr>
-                                    <th className="p-4 font-medium">الجهة</th>
-                                    <th className="p-4 font-medium">الباقات</th>
-                                    <th className="p-4 font-medium">الأكواد النشطة</th>
-                                    <th className="p-4 font-medium">استخدام المقاعد</th>
-                                    <th className="p-4 font-medium">القيمة التقديرية</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {schoolRows.map((row) => (
-                                    <tr key={row.id} className="hover:bg-gray-50 transition-colors">
-                                        <td className="p-4 font-medium text-gray-900">{row.name}</td>
-                                        <td className="p-4 text-gray-600">{row.packages}</td>
-                                        <td className="p-4 text-gray-600">{row.activeCodes}</td>
-                                        <td className="p-4 text-gray-600">{row.usedSeats}/{row.totalCapacity || 0}</td>
-                                        <td className="p-4 font-bold text-indigo-600">{settings.currency} {row.estimatedValue.toLocaleString('en-US')}</td>
+                <div className="space-y-6">
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                        <h2 className="text-lg font-bold text-gray-900 mb-6">المدارس والجهات المتعاقدة</h2>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-right">
+                                <thead className="bg-gray-50 text-gray-600 text-sm">
+                                    <tr>
+                                        <th className="p-4 font-medium">الجهة</th>
+                                        <th className="p-4 font-medium">الباقات</th>
+                                        <th className="p-4 font-medium">الأكواد النشطة</th>
+                                        <th className="p-4 font-medium">استخدام المقاعد</th>
+                                        <th className="p-4 font-medium">القيمة التقديرية</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {schoolRows.map((row) => (
+                                        <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                                            <td className="p-4 font-medium text-gray-900">{row.name}</td>
+                                            <td className="p-4 text-gray-600">{row.packages}</td>
+                                            <td className="p-4 text-gray-600">{row.activeCodes}</td>
+                                            <td className="p-4 text-gray-600">{row.usedSeats}/{row.totalCapacity || 0}</td>
+                                            <td className="p-4 font-bold text-indigo-600">{settings.currency} {row.estimatedValue.toLocaleString('en-US')}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                        <div className="flex items-center justify-between gap-4 mb-6">
+                            <div>
+                                <h2 className="text-lg font-bold text-gray-900">مراجعة تغطية الباقات والوصول</h2>
+                                <p className="text-xs text-gray-500 mt-1">هذه اللوحة تساعدك تعرف الباقة تفتح أي مسارات ومواد ومحتوى قبل تسليمها لمدرسة أو مجموعة.</p>
+                            </div>
+                            <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">{packageCoverageRows.length} باقة</span>
+                        </div>
+
+                        <div className="grid gap-4">
+                            {packageCoverageRows.map((pkg) => (
+                                <div key={pkg.id} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                        <div className="space-y-3">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <h3 className="text-base font-black text-gray-900">{pkg.name}</h3>
+                                                <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${pkg.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {pkg.status === 'active' ? 'نشطة' : 'منتهية'}
+                                                </span>
+                                                <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-gray-600">{pkg.schoolName}</span>
+                                                <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-gray-600">
+                                                    {pkg.type === 'free_access' ? 'فتح وصول' : `خصم ${pkg.discountPercentage || 0}%`}
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {pkg.contentTypes.map((type) => (
+                                                    <span key={type} className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
+                                                        <Eye size={12} />
+                                                        {contentTypeLabel(type)}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                            <div className="text-xs text-gray-500">
+                                                المسارات: {pkg.pathNames.length ? pkg.pathNames.join('، ') : 'كل المسارات حسب إعداد الباقة'}
+                                            </div>
+                                            <div className="text-xs text-gray-500">
+                                                المواد: {pkg.subjectNames.length ? pkg.subjectNames.join('، ') : 'كل المواد داخل المسار المحدد'}
+                                            </div>
+                                        </div>
+
+                                        <div className="min-w-[220px] rounded-2xl bg-white p-4 shadow-sm">
+                                            <div className="mb-2 flex items-center justify-between text-xs font-bold text-gray-600">
+                                                <span>استخدام المقاعد</span>
+                                                <span>{pkg.usedSeats}/{pkg.maxStudents || 0}</span>
+                                            </div>
+                                            <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                                                <div className="h-full rounded-full bg-indigo-600" style={{ width: `${pkg.seatRate}%` }} />
+                                            </div>
+                                            <div className="mt-3 text-xs text-gray-500">{pkg.activeCodes} كود نشط لهذه الباقة</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+                                        {[
+                                            ['دورات', pkg.counts.courses],
+                                            ['تأسيس', pkg.counts.foundation],
+                                            ['تدريب', pkg.counts.banks],
+                                            ['اختبارات', pkg.counts.tests],
+                                            ['مكتبة', pkg.counts.library],
+                                        ].map(([label, value]) => (
+                                            <div key={label} className="rounded-2xl bg-white p-3 text-center">
+                                                <div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+                                                    <LockKeyhole size={14} />
+                                                </div>
+                                                <p className="text-xs font-bold text-gray-500">{label}</p>
+                                                <p className="text-lg font-black text-gray-900">{value}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                            {packageCoverageRows.length === 0 && (
+                                <div className="rounded-2xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500">
+                                    لا توجد باقات مدارس بعد. عند إنشاء باقة ستظهر هنا تغطيتها ونطاق الوصول الخاص بها.
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
