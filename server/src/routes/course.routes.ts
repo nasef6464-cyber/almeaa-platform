@@ -134,6 +134,29 @@ const buildCourseVisibilityFilter = (authUser?: { role?: string; id?: string }) 
   };
 };
 
+const buildOwnedCourseQuery = (
+  id: string,
+  authUser: { id: string; role: string; schoolId?: string | null },
+) => {
+  const baseQuery = { _id: id };
+
+  if (authUser.role === "admin") {
+    return baseQuery;
+  }
+
+  const ownershipConditions: Array<Record<string, string>> = [
+    { ownerId: authUser.id },
+    { createdBy: authUser.id },
+    { assignedTeacherId: authUser.id },
+  ];
+
+  if (authUser.schoolId) {
+    ownershipConditions.push({ ownerId: authUser.schoolId }, { createdBy: authUser.schoolId });
+  }
+
+  return { $and: [baseQuery, { $or: ownershipConditions }] };
+};
+
 export const courseRouter = Router();
 
 courseRouter.get(
@@ -188,7 +211,11 @@ courseRouter.patch(
   asyncHandler(async (req, res) => {
     const payload = courseSchema.partial().parse(req.body);
     const sanitizedPayload = sanitizeWorkflowUpdate(payload as Record<string, unknown>, req.authUser!);
-    const updated = await CourseModel.findByIdAndUpdate(req.params.id, sanitizedPayload, { new: true });
+    const updated = await CourseModel.findOneAndUpdate(
+      buildOwnedCourseQuery(req.params.id, req.authUser!),
+      sanitizedPayload,
+      { new: true },
+    );
     if (!updated) {
       return res.status(StatusCodes.NOT_FOUND).json({ message: "Course not found" });
     }
@@ -201,7 +228,7 @@ courseRouter.delete(
   requireAuth,
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
-    const deleted = await CourseModel.findByIdAndDelete(req.params.id);
+    const deleted = await CourseModel.findOneAndDelete(buildOwnedCourseQuery(req.params.id, req.authUser!));
     if (!deleted) {
       return res.status(StatusCodes.NOT_FOUND).json({ message: "Course not found" });
     }

@@ -85,6 +85,29 @@ const buildDocumentQuery = (value: string) => {
   return { id: value };
 };
 
+const buildOwnedDocumentQuery = (
+  value: string,
+  authUser: { id: string; role: string; schoolId?: string | null },
+) => {
+  const baseQuery = buildDocumentQuery(value);
+
+  if (authUser.role === "admin") {
+    return baseQuery;
+  }
+
+  const ownershipConditions: Array<Record<string, string>> = [
+    { ownerId: authUser.id },
+    { createdBy: authUser.id },
+    { assignedTeacherId: authUser.id },
+  ];
+
+  if (authUser.schoolId) {
+    ownershipConditions.push({ ownerId: authUser.schoolId }, { createdBy: authUser.schoolId });
+  }
+
+  return { $and: [baseQuery, { $or: ownershipConditions }] };
+};
+
 const buildDocumentsByIdsQuery = (values: string[]) => {
   const ids = uniqueStrings(values.map((value) => String(value || "").trim()).filter(Boolean));
   const objectIds = ids
@@ -387,7 +410,8 @@ quizRouter.patch(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = questionSchema.partial().parse(req.body);
-    const existing = await QuestionModel.findOne(buildDocumentQuery(req.params.id));
+    const documentQuery = buildOwnedDocumentQuery(req.params.id, req.authUser!);
+    const existing = await QuestionModel.findOne(documentQuery);
 
     if (!existing) {
       return res.status(StatusCodes.NOT_FOUND).json({ message: "Question not found" });
@@ -398,11 +422,7 @@ quizRouter.patch(
       ...payload,
     });
     const sanitizedPayload = sanitizeWorkflowUpdate(payload as Record<string, unknown>, req.authUser!);
-    const updated = await QuestionModel.findOneAndUpdate(
-      buildDocumentQuery(req.params.id),
-      sanitizedPayload,
-      { new: true },
-    );
+    const updated = await QuestionModel.findOneAndUpdate(documentQuery, sanitizedPayload, { new: true });
     return res.json(updated);
   }),
 );
@@ -412,7 +432,7 @@ quizRouter.delete(
   requireAuth,
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
-    const deleted = await QuestionModel.findOneAndDelete(buildDocumentQuery(req.params.id));
+    const deleted = await QuestionModel.findOneAndDelete(buildOwnedDocumentQuery(req.params.id, req.authUser!));
 
     if (!deleted) {
       return res.status(StatusCodes.NOT_FOUND).json({ message: "Question not found" });
@@ -935,7 +955,8 @@ quizRouter.patch(
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
     const payload = quizSchema.partial().parse(req.body);
-    const existing = await QuizModel.findOne(buildDocumentQuery(req.params.id));
+    const documentQuery = buildOwnedDocumentQuery(req.params.id, req.authUser!);
+    const existing = await QuizModel.findOne(documentQuery);
 
     if (!existing) {
       return res.status(StatusCodes.NOT_FOUND).json({ message: "Quiz not found" });
@@ -956,11 +977,7 @@ quizRouter.patch(
       req.authUser!,
       { respectPublished: true },
     );
-    const updated = await QuizModel.findOneAndUpdate(
-      buildDocumentQuery(req.params.id),
-      sanitizedPayload,
-      { new: true },
-    );
+    const updated = await QuizModel.findOneAndUpdate(documentQuery, sanitizedPayload, { new: true });
     return res.json(updated);
   }),
 );
@@ -970,7 +987,7 @@ quizRouter.delete(
   requireAuth,
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
-    const deleted = await QuizModel.findOneAndDelete(buildDocumentQuery(req.params.id));
+    const deleted = await QuizModel.findOneAndDelete(buildOwnedDocumentQuery(req.params.id, req.authUser!));
 
     if (!deleted) {
       return res.status(StatusCodes.NOT_FOUND).json({ message: "Quiz not found" });

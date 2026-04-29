@@ -69,6 +69,29 @@ const buildDocumentQuery = (value: string) => {
   return { id: value };
 };
 
+const buildOwnedDocumentQuery = (
+  value: string,
+  authUser: { id: string; role: string; schoolId?: string | null },
+) => {
+  const baseQuery = buildDocumentQuery(value);
+
+  if (authUser.role === "admin") {
+    return baseQuery;
+  }
+
+  const ownershipConditions: Array<Record<string, string>> = [
+    { ownerId: authUser.id },
+    { createdBy: authUser.id },
+    { assignedTeacherId: authUser.id },
+  ];
+
+  if (authUser.schoolId) {
+    ownershipConditions.push({ ownerId: authUser.schoolId }, { createdBy: authUser.schoolId });
+  }
+
+  return { $and: [baseQuery, { $or: ownershipConditions }] };
+};
+
 const isStaffRole = (role?: string) => role === "admin" || role === "teacher" || role === "supervisor";
 
 const getWorkflowDefaults = (authUser?: { id: string; role: string; schoolId?: string | null }) => {
@@ -537,7 +560,7 @@ contentRouter.patch(
   asyncHandler(async (req, res) => {
     const payload = lessonSchema.partial().parse(req.body);
     const sanitizedPayload = sanitizeWorkflowUpdate(payload as Record<string, unknown>, req.authUser!);
-    const updated = await LessonModel.findOneAndUpdate(buildDocumentQuery(req.params.id), sanitizedPayload, {
+    const updated = await LessonModel.findOneAndUpdate(buildOwnedDocumentQuery(req.params.id, req.authUser!), sanitizedPayload, {
       new: true,
     });
 
@@ -554,7 +577,7 @@ contentRouter.delete(
   requireAuth,
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
-    const deleted = await LessonModel.findOneAndDelete(buildDocumentQuery(req.params.id));
+    const deleted = await LessonModel.findOneAndDelete(buildOwnedDocumentQuery(req.params.id, req.authUser!));
 
     if (!deleted) {
       return res.status(StatusCodes.NOT_FOUND).json({ message: "Lesson not found" });
@@ -590,9 +613,13 @@ contentRouter.patch(
   asyncHandler(async (req, res) => {
     const payload = librarySchema.partial().parse(req.body);
     const sanitizedPayload = sanitizeWorkflowUpdate(payload as Record<string, unknown>, req.authUser!);
-    const updated = await LibraryItemModel.findOneAndUpdate(buildDocumentQuery(req.params.id), sanitizedPayload, {
-      new: true,
-    });
+    const updated = await LibraryItemModel.findOneAndUpdate(
+      buildOwnedDocumentQuery(req.params.id, req.authUser!),
+      sanitizedPayload,
+      {
+        new: true,
+      },
+    );
 
     if (!updated) {
       return res.status(StatusCodes.NOT_FOUND).json({ message: "Library item not found" });
@@ -607,7 +634,7 @@ contentRouter.delete(
   requireAuth,
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
-    const deleted = await LibraryItemModel.findOneAndDelete(buildDocumentQuery(req.params.id));
+    const deleted = await LibraryItemModel.findOneAndDelete(buildOwnedDocumentQuery(req.params.id, req.authUser!));
 
     if (!deleted) {
       return res.status(StatusCodes.NOT_FOUND).json({ message: "Library item not found" });
