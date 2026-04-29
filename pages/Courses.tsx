@@ -7,6 +7,9 @@ import { Search, Filter, BookOpen, Star, ArrowRight, ChevronDown, ChevronUp, Use
 import { useStore } from '../store/useStore';
 import { adapter } from '../services/adapter';
 import { Course } from '../types';
+import { sanitizeArabicText } from '../utils/sanitizeMojibakeArabic';
+
+const displayText = (value?: string | null) => sanitizeArabicText(value);
 
 const Courses: React.FC = () => {
     const { user, paths, enrolledCourses, completedLessons, hasScopedPackageAccess } = useStore();
@@ -183,7 +186,7 @@ const Courses: React.FC = () => {
                             <div className="relative h-48 bg-gray-900 group">
                                 <img 
                                     src={course.thumbnail} 
-                                    alt={course.title} 
+                                    alt={displayText(course.title)} 
                                     className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:opacity-90 transition-opacity" 
                                     loading="lazy"
                                 />
@@ -198,10 +201,10 @@ const Courses: React.FC = () => {
                                             ))}
                                         </div>
                                     </div>
-                                    <h3 className="font-bold text-base sm:text-lg text-white mb-1 leading-snug break-words">{course.title}</h3>
+                                    <h3 className="font-bold text-base sm:text-lg text-white mb-1 leading-snug break-words">{displayText(course.title)}</h3>
                                     <div className="flex items-center gap-2 text-gray-300 text-xs">
                                         <User size={12} />
-                                        <span>{course.instructor}</span>
+                                        <span>{displayText(course.instructor)}</span>
                                     </div>
                                 </div>
 
@@ -232,7 +235,7 @@ const Courses: React.FC = () => {
                                                 عن الدورة
                                             </h4>
                                             <p className="text-xs text-gray-600 leading-relaxed">
-                                                {course.description || 'لا يوجد وصف متاح.'}
+                                                {displayText(course.description) || 'لا يوجد وصف متاح.'}
                                             </p>
                                         </div>
 
@@ -243,7 +246,7 @@ const Courses: React.FC = () => {
                                                 عن المدرب
                                             </h4>
                                             <p className="text-xs text-gray-600 leading-relaxed">
-                                                {course.instructorBio || 'لا توجد نبذة متاحة.'}
+                                                {displayText(course.instructorBio) || 'لا توجد نبذة متاحة.'}
                                             </p>
                                         </div>
 
@@ -260,7 +263,7 @@ const Courses: React.FC = () => {
                                                     <div key={item.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-2 bg-gray-50 rounded-lg text-xs">
                                                         <div className="flex items-center gap-2 min-w-0">
                                                             <div className={`w-2 h-2 rounded-full ${isCompleted ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
-                                                            <span className={`${isCompleted ? 'text-gray-800 font-medium' : 'text-gray-600'} break-words`}>{item.title}</span>
+                                                            <span className={`${isCompleted ? 'text-gray-800 font-medium' : 'text-gray-600'} break-words`}>{displayText(item.title)}</span>
                                                         </div>
                                                         <span className="text-gray-400 self-start sm:self-auto">{item.duration}</span>
                                                     </div>
