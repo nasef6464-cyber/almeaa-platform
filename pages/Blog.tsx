@@ -38,14 +38,21 @@ const formatDateLabel = (timestamp?: number) => {
 const Blog: React.FC = () => {
     const [filter, setFilter] = useState<BlogFilter>('all');
     const [searchQuery, setSearchQuery] = useState('');
-    const { lessons, courses, paths, subjects } = useStore();
+    const { lessons, courses, paths, subjects, user } = useStore();
+
+    const canSeeHiddenPaths = ['admin', 'teacher', 'supervisor'].includes(String(user.role));
+    const visiblePathIds = useMemo(
+        () => new Set(paths.filter((path) => canSeeHiddenPaths || path.isActive !== false).map((path) => path.id)),
+        [canSeeHiddenPaths, paths],
+    );
 
     const blogEntries = useMemo<BlogEntry[]>(() => {
         const publicTextLessons = lessons
             .filter((lesson) => {
                 const isPublished = lesson.approvalStatus !== 'pending_review' && lesson.approvalStatus !== 'rejected';
                 const hasArticleContent = lesson.type === 'text' || Boolean(lesson.content?.trim());
-                return isPublished && hasArticleContent;
+                const isVisiblePath = !lesson.pathId || visiblePathIds.has(lesson.pathId);
+                return isPublished && hasArticleContent && lesson.showOnPlatform !== false && isVisiblePath;
             })
             .map((lesson: Lesson) => {
                 const path = paths.find((item) => item.id === lesson.pathId);
@@ -71,7 +78,12 @@ const Blog: React.FC = () => {
         }
 
         return courses
-            .filter((course) => course.isPublished !== false && !course.isPackage)
+            .filter((course) => {
+                if (course.isPackage) return false;
+                if (course.isPublished === false || course.showOnPlatform === false) return false;
+                if (course.approvalStatus && course.approvalStatus !== 'approved' && !canSeeHiddenPaths) return false;
+                return !course.pathId || visiblePathIds.has(course.pathId);
+            })
             .map((course) => {
                 const path = paths.find((item) => item.id === course.pathId);
                 const subject = subjects.find((item) => item.id === course.subjectId);
@@ -91,7 +103,7 @@ const Blog: React.FC = () => {
                 };
             })
             .slice(0, 12);
-    }, [courses, lessons, paths, subjects]);
+    }, [canSeeHiddenPaths, courses, lessons, paths, subjects, visiblePathIds]);
 
     const availableFilters = useMemo(() => {
         const names = new Set<string>();

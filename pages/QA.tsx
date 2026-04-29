@@ -23,10 +23,21 @@ interface QAItem {
 const QA: React.FC = () => {
     const [filter, setFilter] = useState<QAFilter>('all');
     const [searchQuery, setSearchQuery] = useState('');
-    const { courses, subjects, paths } = useStore();
+    const { courses, subjects, paths, user } = useStore();
+
+    const canSeeHiddenPaths = ['admin', 'teacher', 'supervisor'].includes(String(user.role));
+    const visiblePathIds = useMemo(
+        () => new Set(paths.filter((path) => canSeeHiddenPaths || path.isActive !== false).map((path) => path.id)),
+        [canSeeHiddenPaths, paths],
+    );
 
     const qaItems = useMemo<QAItem[]>(() => {
-        const publishedCourses = courses.filter((course) => course.isPublished !== false);
+        const publishedCourses = courses.filter((course) => {
+            if (course.isPackage) return false;
+            if (course.isPublished === false || course.showOnPlatform === false) return false;
+            if (course.approvalStatus && course.approvalStatus !== 'approved' && !canSeeHiddenPaths) return false;
+            return !course.pathId || visiblePathIds.has(course.pathId);
+        });
 
         return publishedCourses
             .flatMap((course) => {
@@ -49,7 +60,7 @@ const QA: React.FC = () => {
                 }));
             })
             .reverse();
-    }, [courses, subjects, paths]);
+    }, [canSeeHiddenPaths, courses, paths, subjects, visiblePathIds]);
 
     const availableTags = useMemo(() => {
         const tags = new Set<string>();
