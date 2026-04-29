@@ -12,8 +12,13 @@
     - `MONGODB_URI`: (Connection string from Atlas)
     - `JWT_SECRET`: (Random 64-char string)
     - `CLIENT_URL`: (The Vercel Frontend URL)
+    - `AI_PROVIDER`: `gemini`, `ollama`, or `none` (optional)
     - `GEMINI_API_KEY`: (Google AI Key)
     - `GEMINI_MODEL`: Gemini model name, defaults to `gemini-2.5-flash`
+    - `OLLAMA_BASE_URL`: Ollama server URL, defaults to `http://127.0.0.1:11434`
+    - `OLLAMA_MODEL`: Ollama model name, defaults to `gemma3:4b`
+
+> Production note: Render cannot call Ollama on your personal computer. Use `AI_PROVIDER=gemini` on Render, or host Ollama/Gemma on a reachable private server and set `OLLAMA_BASE_URL` to that server.
 
 ## 2. Frontend (Vercel)
 1.  Create a **New Project**.
