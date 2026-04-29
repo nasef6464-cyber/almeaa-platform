@@ -1,4 +1,4 @@
-
+﻿
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, AlertTriangle, Play, ChevronLeft, Target, PieChart, TrendingUp, Award, BookOpen, Video, Clock, CheckCircle, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -6,6 +6,7 @@ import { Card } from '../components/ui/Card';
 import { useStore } from '../store/useStore';
 import { api } from '../services/api';
 import { Role } from '../types';
+import { sanitizeArabicText } from '../utils/sanitizeMojibakeArabic';
 
 interface ScopedAnalyticsOverview {
     scope: {
@@ -56,6 +57,8 @@ const roleScopeTitle: Record<string, string> = {
     student: 'نطاقك الشخصي',
 };
 
+const displayText = (value?: string | null) => sanitizeArabicText(value) || '';
+
 interface SkillRecommendation {
     lessonTitle?: string;
     lessonLink?: string;
@@ -102,17 +105,17 @@ const getSkillRecommendation = (
     );
 
     return {
-        lessonTitle: recommendedLesson?.title,
+        lessonTitle: displayText(recommendedLesson?.title),
         lessonLink:
           resolvedSkill.pathId && resolvedSkill.subjectId
             ? `/category/${resolvedSkill.pathId}?subject=${resolvedSkill.subjectId}&tab=skills`
             : undefined,
-        quizTitle: recommendedQuiz?.title,
+        quizTitle: displayText(recommendedQuiz?.title),
         quizLink: recommendedQuiz?.id ? `/quiz/${recommendedQuiz.id}` : undefined,
-        resourceTitle: recommendedResource?.title,
+        resourceTitle: displayText(recommendedResource?.title),
         resourceUrl: recommendedResource?.url,
-        subjectName: resolvedSkill.subjectId ? useStore.getState().subjects.find((item) => item.id === resolvedSkill.subjectId)?.name : undefined,
-        sectionName: resolvedSkill.sectionId ? useStore.getState().sections.find((item) => item.id === resolvedSkill.sectionId)?.name : undefined,
+        subjectName: resolvedSkill.subjectId ? displayText(useStore.getState().subjects.find((item) => item.id === resolvedSkill.subjectId)?.name) : undefined,
+        sectionName: resolvedSkill.sectionId ? displayText(useStore.getState().sections.find((item) => item.id === resolvedSkill.sectionId)?.name) : undefined,
         actionText:
             recommendedLesson && recommendedQuiz
                 ? 'ابدأ بالشرح أولًا ثم نفّذ اختبارًا قصيرًا لقياس التحسن.'
@@ -174,7 +177,7 @@ const Reports: React.FC = () => {
         const subjectScores: Record<string, { total: number, count: number }> = {};
         examResults.forEach(result => {
             // Try to extract a general subject name from the quiz title (e.g., "اختبار الهندسة" -> "الهندسة")
-            const subjectName = result.quizTitle.replace('اختبار ', '').replace('الوحدة الأولى', 'أساسيات');
+            const subjectName = displayText(result.quizTitle).replace('اختبار ', '').replace('الوحدة الأولى', 'أساسيات');
             
             if (!subjectScores[subjectName]) {
                 subjectScores[subjectName] = { total: 0, count: 0 };
@@ -217,7 +220,7 @@ const Reports: React.FC = () => {
         return Object.entries(skillsMap).map(([skill, data]) => {
             const mastery = Math.round(data.totalMastery / data.count);
             return {
-                skill,
+                skill: displayText(skill),
                 skillId: data.skillId,
                 mastery,
                 status: mastery < 50 ? 'weak' : mastery < 75 ? 'average' : 'strong'
@@ -315,10 +318,10 @@ const Reports: React.FC = () => {
                                         <div key={student.id} className="border border-gray-100 rounded-xl p-4 bg-gray-50/60">
                                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-2">
                                                 <div>
-                                                    <div className="font-bold text-gray-900">{student.name}</div>
+                                                    <div className="font-bold text-gray-900">{displayText(student.name)}</div>
                                                     <div className="text-xs text-gray-500">
-                                                        {student.schoolName || 'بدون مدرسة'}
-                                                        {student.groupNames?.length ? ` - ${student.groupNames.join('، ')}` : ''}
+                                                        {displayText(student.schoolName) || 'بدون مدرسة'}
+                                                        {student.groupNames?.length ? ` - ${student.groupNames.map(displayText).join('، ')}` : ''}
                                                     </div>
                                                 </div>
                                                 <div className={`text-lg font-black ${student.averageScore < 50 ? 'text-rose-600' : 'text-amber-600'}`}>
@@ -331,10 +334,10 @@ const Reports: React.FC = () => {
                                                 {student.weakestSkills?.length ? (
                                                     <div>
                                                         أبرز نقاط الضعف:
-                                                        <span className="font-bold"> {student.weakestSkills.map((skill) => `${skill.skill} (${skill.mastery}%)`).join(' - ')}</span>
+                                                        <span className="font-bold"> {student.weakestSkills.map((skill) => `${displayText(skill.skill)} (${skill.mastery}%)`).join(' - ')}</span>
                                                     </div>
                                                 ) : null}
-                                                {student.recommendedAction ? <div className="text-indigo-700">الإجراء المقترح: <span className="font-bold">{student.recommendedAction}</span></div> : null}
+                                                {student.recommendedAction ? <div className="text-indigo-700">الإجراء المقترح: <span className="font-bold">{displayText(student.recommendedAction)}</span></div> : null}
                                             </div>
                                         </div>
                                     )) : (
@@ -348,15 +351,15 @@ const Reports: React.FC = () => {
                                         <div key={`${skill.skillId || skill.skill}`} className="border border-gray-100 rounded-xl p-4 bg-white">
                                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-2">
                                                 <div>
-                                                    <div className="font-bold text-gray-900">{skill.skill}</div>
-                                                    <div className="text-xs text-gray-500">{skill.section || 'مهارة فرعية'}</div>
+                                                    <div className="font-bold text-gray-900">{displayText(skill.skill)}</div>
+                                                    <div className="text-xs text-gray-500">{displayText(skill.section) || 'مهارة فرعية'}</div>
                                                 </div>
                                                 <div className={`text-lg font-black ${skill.mastery < 50 ? 'text-rose-600' : 'text-amber-600'}`}>{skill.mastery}%</div>
                                             </div>
                                             <div className="text-xs text-gray-600 space-y-1">
                                                 <div>طلاب متأثرون: <span className="font-bold">{skill.affectedStudents}</span></div>
                                                 <div>محاولات مرتبطة: <span className="font-bold">{skill.attempts}</span></div>
-                                                {skill.recommendedAction ? <div className="text-indigo-700">التدخل المقترح: <span className="font-bold">{skill.recommendedAction}</span></div> : null}
+                                                {skill.recommendedAction ? <div className="text-indigo-700">التدخل المقترح: <span className="font-bold">{displayText(skill.recommendedAction)}</span></div> : null}
                                             </div>
                                         </div>
                                     )) : (
@@ -371,7 +374,7 @@ const Reports: React.FC = () => {
                                     {scopedAnalytics.subjectSummaries.length > 0 ? scopedAnalytics.subjectSummaries.slice(0, 6).map((subject) => (
                                         <div key={subject.subjectId || subject.subjectName} className="border border-gray-100 rounded-xl p-4 bg-gray-50/50 flex items-center justify-between gap-3">
                                             <div>
-                                                <div className="font-bold text-gray-900">{subject.subjectName}</div>
+                                                <div className="font-bold text-gray-900">{displayText(subject.subjectName)}</div>
                                                 <div className="text-xs text-gray-500">طلاب ضعفاء: {subject.weakStudents}</div>
                                             </div>
                                             <div className={`text-lg font-black ${subject.mastery < 50 ? 'text-rose-600' : 'text-amber-600'}`}>{subject.mastery}%</div>
@@ -386,7 +389,7 @@ const Reports: React.FC = () => {
                                     {scopedAnalytics.assignedFollowUps.length > 0 ? scopedAnalytics.assignedFollowUps.slice(0, 5).map((quiz) => (
                                         <div key={quiz.id} className="border border-gray-100 rounded-xl p-4 bg-white flex items-center justify-between gap-3">
                                             <div>
-                                                <div className="font-bold text-gray-900">{quiz.title}</div>
+                                                <div className="font-bold text-gray-900">{displayText(quiz.title)}</div>
                                                 <div className="text-xs text-gray-500">
                                                     {quiz.mode === 'central' ? 'اختبار مركزي موجه' : 'اختبار ساهر جاهز'}
                                                     {quiz.dueDate ? ` - حتى ${new Date(quiz.dueDate).toLocaleDateString('ar-SA')}` : ''}
@@ -426,7 +429,7 @@ const Reports: React.FC = () => {
                     <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-3">
                         <Award size={24} />
                     </div>
-                    <div className="font-black text-2xl text-gray-800 mb-1">{stats?.bestSubject.name}</div>
+                    <div className="font-black text-2xl text-gray-800 mb-1">{displayText(stats?.bestSubject.name)}</div>
                     <div className="text-sm font-medium text-emerald-600">أفضل أداء ({stats?.bestSubject.score}%)</div>
                 </Card>
 
@@ -434,7 +437,7 @@ const Reports: React.FC = () => {
                     <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mb-3">
                         <AlertTriangle size={24} />
                     </div>
-                    <div className="font-black text-2xl text-gray-800 mb-1">{stats?.worstSubject.name}</div>
+                    <div className="font-black text-2xl text-gray-800 mb-1">{displayText(stats?.worstSubject.name)}</div>
                     <div className="text-sm font-medium text-rose-600">يحتاج تحسين ({stats?.worstSubject.score}%)</div>
                 </Card>
             </div>
@@ -450,17 +453,17 @@ const Reports: React.FC = () => {
                         <div className="flex-1">
                             <h3 className="text-lg font-bold text-gray-900 mb-2">توصية ذكية لك 💡</h3>
                             <p className="text-gray-700 mb-4">
-                                لاحظنا أنك تواجه بعض الصعوبة في مهارة <span className="font-bold text-amber-700">"{weakestSkill.skill}"</span>. 
+                                لاحظنا أنك تواجه بعض الصعوبة في مهارة <span className="font-bold text-amber-700">"{displayText(weakestSkill.skill)}"</span>. 
                                 لا تقلق، هذا طبيعي! نقترح عليك القيام بالآتي لتحسين مستواك:
                             </p>
                             {(weakestSkillRecommendation.lessonTitle || weakestSkillRecommendation.quizTitle || weakestSkillRecommendation.resourceTitle) ? (
                                 <div className="bg-white/70 border border-amber-100 rounded-xl p-4 mb-4 text-sm text-gray-700 space-y-2">
-                                    {weakestSkillRecommendation.subjectName ? <div>المادة: <span className="font-bold">{weakestSkillRecommendation.subjectName}</span></div> : null}
-                                    {weakestSkillRecommendation.sectionName ? <div>المهارة الرئيسة: <span className="font-bold">{weakestSkillRecommendation.sectionName}</span></div> : null}
-                                    {weakestSkillRecommendation.lessonTitle ? <div>الدرس المقترح: <span className="font-bold">{weakestSkillRecommendation.lessonTitle}</span></div> : null}
-                                    {weakestSkillRecommendation.quizTitle ? <div>الاختبار المقترح: <span className="font-bold">{weakestSkillRecommendation.quizTitle}</span></div> : null}
-                                    {weakestSkillRecommendation.resourceTitle ? <div>الملف الداعم: <span className="font-bold">{weakestSkillRecommendation.resourceTitle}</span></div> : null}
-                                    {weakestSkillRecommendation.actionText ? <div className="text-amber-800">الإجراء المقترح الآن: <span className="font-bold">{weakestSkillRecommendation.actionText}</span></div> : null}
+                                    {weakestSkillRecommendation.subjectName ? <div>المادة: <span className="font-bold">{displayText(weakestSkillRecommendation.subjectName)}</span></div> : null}
+                                    {weakestSkillRecommendation.sectionName ? <div>المهارة الرئيسة: <span className="font-bold">{displayText(weakestSkillRecommendation.sectionName)}</span></div> : null}
+                                    {weakestSkillRecommendation.lessonTitle ? <div>الدرس المقترح: <span className="font-bold">{displayText(weakestSkillRecommendation.lessonTitle)}</span></div> : null}
+                                    {weakestSkillRecommendation.quizTitle ? <div>الاختبار المقترح: <span className="font-bold">{displayText(weakestSkillRecommendation.quizTitle)}</span></div> : null}
+                                    {weakestSkillRecommendation.resourceTitle ? <div>الملف الداعم: <span className="font-bold">{displayText(weakestSkillRecommendation.resourceTitle)}</span></div> : null}
+                                    {weakestSkillRecommendation.actionText ? <div className="text-amber-800">الإجراء المقترح الآن: <span className="font-bold">{displayText(weakestSkillRecommendation.actionText)}</span></div> : null}
                                 </div>
                             ) : null}
                             <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
@@ -513,12 +516,12 @@ const Reports: React.FC = () => {
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                                     <div className="flex-1">
                                     <div className="flex justify-between items-center mb-2">
-                                        <span className="font-bold text-gray-800 text-lg">{skill.skill}</span>
+                                        <span className="font-bold text-gray-800 text-lg">{displayText(skill.skill)}</span>
                                         <span className={`font-black text-lg ${textClass}`}>{skill.mastery}%</span>
                                     </div>
                                     <div className="text-xs text-gray-500 mb-3 flex flex-wrap gap-2">
-                                        {recommendation.subjectName ? <span>المادة: {recommendation.subjectName}</span> : null}
-                                        {recommendation.sectionName ? <span>المهارة الرئيسة: {recommendation.sectionName}</span> : null}
+                                        {recommendation.subjectName ? <span>المادة: {displayText(recommendation.subjectName)}</span> : null}
+                                        {recommendation.sectionName ? <span>المهارة الرئيسة: {displayText(recommendation.sectionName)}</span> : null}
                                     </div>
                                     <div className="w-full bg-white/60 rounded-full h-3 overflow-hidden">
                                         <div 
@@ -528,10 +531,10 @@ const Reports: React.FC = () => {
                                     </div>
                                     {(recommendation.lessonTitle || recommendation.quizTitle || recommendation.resourceTitle || recommendation.actionText) ? (
                                         <div className="mt-3 text-xs text-gray-600 space-y-1">
-                                            {recommendation.lessonTitle ? <div>شرح مقترح: <span className="font-bold">{recommendation.lessonTitle}</span></div> : null}
-                                            {recommendation.quizTitle ? <div>تدريب مقترح: <span className="font-bold">{recommendation.quizTitle}</span></div> : null}
-                                            {recommendation.resourceTitle ? <div>ملف داعم: <span className="font-bold">{recommendation.resourceTitle}</span></div> : null}
-                                            {recommendation.actionText ? <div className="text-indigo-700">الخطوة التالية: <span className="font-bold">{recommendation.actionText}</span></div> : null}
+                                            {recommendation.lessonTitle ? <div>شرح مقترح: <span className="font-bold">{displayText(recommendation.lessonTitle)}</span></div> : null}
+                                            {recommendation.quizTitle ? <div>تدريب مقترح: <span className="font-bold">{displayText(recommendation.quizTitle)}</span></div> : null}
+                                            {recommendation.resourceTitle ? <div>ملف داعم: <span className="font-bold">{displayText(recommendation.resourceTitle)}</span></div> : null}
+                                            {recommendation.actionText ? <div className="text-indigo-700">الخطوة التالية: <span className="font-bold">{displayText(recommendation.actionText)}</span></div> : null}
                                         </div>
                                     ) : null}
                                 </div>

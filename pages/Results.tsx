@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import {
   ArrowRight,
@@ -21,6 +21,7 @@ import { VideoModal } from '../components/VideoModal';
 import { DetailedAnalysisModal } from '../components/DetailedAnalysisModal';
 import { useStore } from '../store/useStore';
 import { QuizQuestionReview, QuizResult } from '../types';
+import { sanitizeArabicText } from '../utils/sanitizeMojibakeArabic';
 
 interface SkillRecommendation {
   lessonTitle?: string;
@@ -50,6 +51,8 @@ interface ResolvedAnalysisItem {
   resourceUrl?: string;
   actionText?: string;
 }
+
+const displayText = (value?: string | null) => sanitizeArabicText(value) || '';
 
 const getSkillRecommendation = (
   skill: QuizResult['skillsAnalysis'][number] | undefined,
@@ -89,18 +92,18 @@ const getSkillRecommendation = (
   );
 
   return {
-    lessonTitle: recommendedLesson?.title,
+    lessonTitle: displayText(recommendedLesson?.title),
     lessonLink:
       resolvedSkill.pathId && resolvedSkill.subjectId
         ? `/category/${resolvedSkill.pathId}?subject=${resolvedSkill.subjectId}&tab=skills`
         : undefined,
     lessonVideoUrl: recommendedLesson?.videoUrl,
-    quizTitle: recommendedQuiz?.title,
+    quizTitle: displayText(recommendedQuiz?.title),
     quizLink: recommendedQuiz?.id ? `/quiz/${recommendedQuiz.id}` : undefined,
-    resourceTitle: recommendedResource?.title,
+    resourceTitle: displayText(recommendedResource?.title),
     resourceUrl: recommendedResource?.url,
-    subjectName: resolvedSkill.subjectId ? useStore.getState().subjects.find((item) => item.id === resolvedSkill.subjectId)?.name : undefined,
-    sectionName: resolvedSkill.sectionId ? useStore.getState().sections.find((item) => item.id === resolvedSkill.sectionId)?.name : undefined,
+    subjectName: resolvedSkill.subjectId ? displayText(useStore.getState().subjects.find((item) => item.id === resolvedSkill.subjectId)?.name) : undefined,
+    sectionName: resolvedSkill.sectionId ? displayText(useStore.getState().sections.find((item) => item.id === resolvedSkill.sectionId)?.name) : undefined,
     actionText:
       recommendedLesson && recommendedQuiz
         ? 'ابدأ بمراجعة الشرح أولًا ثم نفّذ تدريبًا قصيرًا على نفس المهارة.'
@@ -222,12 +225,12 @@ const Results: React.FC = () => {
         return {
           subjectName:
             recommendation.subjectName ||
-            (item.subjectId ? subjects.find((subject) => subject.id === item.subjectId)?.name : undefined),
+            (item.subjectId ? displayText(subjects.find((subject) => subject.id === item.subjectId)?.name) : undefined),
           sectionName:
             recommendation.sectionName ||
-            item.section ||
-            (item.sectionId ? sections.find((section) => section.id === item.sectionId)?.name : undefined),
-          skillName: item.skill,
+            displayText(item.section) ||
+            (item.sectionId ? displayText(sections.find((section) => section.id === item.sectionId)?.name) : undefined),
+          skillName: displayText(item.skill),
           mastery: item.mastery,
           status: item.status,
           lessonTitle: recommendation.lessonTitle,
@@ -327,7 +330,7 @@ const Results: React.FC = () => {
           <div className="relative z-10">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight break-words">{latestResult.quizTitle}</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight break-words">{displayText(latestResult.quizTitle)}</h2>
                 <p className="mt-2 text-sm leading-7 text-gray-500">{summaryTone.message}</p>
               </div>
               <div className="rounded-2xl bg-gray-50 px-4 py-3 text-center">
@@ -721,7 +724,7 @@ const ReviewSolutions = ({
                 <span className="text-sm text-gray-400 font-bold">[لا توجد صورة مرفقة لهذا السؤال]</span>
               </div>
             )}
-            <div className="text-lg sm:text-xl font-bold text-gray-800 text-center leading-relaxed px-2 sm:px-4 break-words" dangerouslySetInnerHTML={{ __html: q.text }} />
+            <div className="text-lg sm:text-xl font-bold text-gray-800 text-center leading-relaxed px-2 sm:px-4 break-words" dangerouslySetInnerHTML={{ __html: displayText(q.text) }} />
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-8">
@@ -747,7 +750,7 @@ const ReviewSolutions = ({
                   <div className={`w-16 h-16 rounded-full border-2 flex items-center justify-center text-xl font-black transition-all ${borderClass} ${bgClass}`}>
                     {label}
                   </div>
-                  <span className="text-xs font-bold text-gray-500 text-center">{q.options[i]}</span>
+                  <span className="text-xs font-bold text-gray-500 text-center">{displayText(q.options[i])}</span>
                 </div>
               );
             })}
@@ -812,13 +815,13 @@ const ReviewSolutions = ({
               </span>
               {typeof q.selectedOptionIndex === 'number' ? (
                 <span className="px-3 py-1 rounded-full bg-indigo-100 text-indigo-700">
-                  اختيارك: {q.options[q.selectedOptionIndex]}
+                  اختيارك: {displayText(q.options[q.selectedOptionIndex])}
                 </span>
               ) : (
                 <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-700">لم تُجب عن هذا السؤال</span>
               )}
               <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700">
-                الإجابة الصحيحة: {q.options[q.correctOptionIndex]}
+                الإجابة الصحيحة: {displayText(q.options[q.correctOptionIndex])}
               </span>
             </div>
 
@@ -828,7 +831,7 @@ const ReviewSolutions = ({
                   <CheckCircle2 size={20} />
                   توضيح الحل الصحيح:
                 </h4>
-                <div className="text-gray-700 leading-relaxed font-medium" dangerouslySetInnerHTML={{ __html: q.explanation }} />
+                <div className="text-gray-700 leading-relaxed font-medium" dangerouslySetInnerHTML={{ __html: displayText(q.explanation) }} />
               </div>
             ) : (
               <p className="text-gray-600 leading-relaxed">لا يوجد شرح نصي محفوظ لهذا السؤال، ويمكنك الاعتماد على الفيديو إذا كان متاحًا.</p>
@@ -849,11 +852,11 @@ const DetailedAnalysis = ({ onBack, result }: { onBack: () => void; result: Quiz
         ...item,
         subjectName:
           recommendation.subjectName ||
-          (item.subjectId ? subjects.find((subject) => subject.id === item.subjectId)?.name : undefined),
+          (item.subjectId ? displayText(subjects.find((subject) => subject.id === item.subjectId)?.name) : undefined),
         sectionName:
           recommendation.sectionName ||
-          item.section ||
-          (item.sectionId ? sections.find((section) => section.id === item.sectionId)?.name : undefined),
+          displayText(item.section) ||
+          (item.sectionId ? displayText(sections.find((section) => section.id === item.sectionId)?.name) : undefined),
         ...recommendation,
       };
     })
@@ -877,7 +880,7 @@ const DetailedAnalysis = ({ onBack, result }: { onBack: () => void; result: Quiz
                   {s.subjectName ? <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-600">{s.subjectName}</span> : null}
                   {s.sectionName ? <span className="rounded-full bg-indigo-50 px-2 py-1 text-indigo-600">{s.sectionName}</span> : null}
                 </div>
-                <h3 className="mt-3 font-bold text-gray-800">{s.skill}</h3>
+                <h3 className="mt-3 font-bold text-gray-800">{displayText(s.skill)}</h3>
               </div>
               <span
                 className={`text-sm font-bold px-3 py-1 rounded-full ${
@@ -903,17 +906,17 @@ const DetailedAnalysis = ({ onBack, result }: { onBack: () => void; result: Quiz
             <div className="mt-4 grid gap-2 md:grid-cols-2">
               {s.lessonTitle ? (
                 <Link to={s.lessonLink || '/reports'} className="border border-indigo-100 bg-indigo-50 text-indigo-700 rounded-xl px-4 py-3 text-sm font-bold hover:bg-indigo-100 transition-colors">
-                  راجع الدرس: {s.lessonTitle}
+                  راجع الدرس: {displayText(s.lessonTitle)}
                 </Link>
               ) : null}
               {s.quizTitle ? (
                 <Link to={s.quizLink || '/quizzes'} className="border border-emerald-100 bg-emerald-50 text-emerald-700 rounded-xl px-4 py-3 text-sm font-bold hover:bg-emerald-100 transition-colors">
-                  اختبر نفسك: {s.quizTitle}
+                  اختبر نفسك: {displayText(s.quizTitle)}
                 </Link>
               ) : null}
               {s.resourceTitle && s.resourceUrl ? (
                 <a href={s.resourceUrl} target="_blank" rel="noreferrer" className="border border-amber-100 bg-amber-50 text-amber-700 rounded-xl px-4 py-3 text-sm font-bold hover:bg-amber-100 transition-colors">
-                  الملف الداعم: {s.resourceTitle}
+                  الملف الداعم: {displayText(s.resourceTitle)}
                 </a>
               ) : null}
             </div>
@@ -956,7 +959,7 @@ const PreviousAttempts = ({ onBack, attempts }: { onBack: () => void; attempts: 
                 {attempt.score}%
               </div>
               <div>
-                <h3 className="font-bold text-gray-800">{attempt.quizTitle}</h3>
+                <h3 className="font-bold text-gray-800">{displayText(attempt.quizTitle)}</h3>
                 <div className="flex gap-3 text-xs text-gray-500">
                   <span>{new Date(attempt.date).toLocaleDateString()}</span>
                   <span>•</span>
