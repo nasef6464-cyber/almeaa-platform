@@ -165,7 +165,7 @@ interface AppState {
 
 const createGuestUser = (): User => ({
     id: 'guest',
-    name: 'Ø­Ø³Ø§Ø¨ Ø¶ÙŠÙ',
+    name: 'حساب ضيف',
     avatar: 'https://i.pravatar.cc/150?u=guest',
     role: Role.STUDENT,
     points: 0,
