@@ -170,6 +170,8 @@ const Reports: React.FC = () => {
     const [selectedSkillKey, setSelectedSkillKey] = useState<string | null>(null);
     const [copiedScopedSummary, setCopiedScopedSummary] = useState(false);
     const [sharedScopedSummary, setSharedScopedSummary] = useState(false);
+    const [copiedStudentSummary, setCopiedStudentSummary] = useState(false);
+    const [sharedStudentSummary, setSharedStudentSummary] = useState(false);
 
     useEffect(() => {
         if (!user?.email || user.role === Role.STUDENT) {
@@ -292,6 +294,42 @@ const Reports: React.FC = () => {
             };
         });
     }, [focusedReportSkills, lessons, quizzes, libraryItems, questions, skills]);
+    const studentFollowUpSummary = useMemo(() => {
+        if (!isStudentView || !hasStudentAnalytics) return '';
+
+        const weakest = focusedReportSkills[0];
+        const nextTwo = focusedReportSkills.slice(0, 2).map((skill) => displayText(skill.skill)).filter(Boolean);
+        const parts = [
+            `متوسط درجاتك الحالي ${stats?.averageScore || 0}%.`,
+            weakest ? `أهم مهارة تحتاج متابعة: ${displayText(weakest.skill)} (${weakest.mastery}%).` : null,
+            nextTwo.length ? `ابدأ هذا الأسبوع بهذه المهارات: ${nextTwo.join('، ')}.` : null,
+            'الخطة المقترحة: شرح قصير، تدريب بسيط، ثم اختبار قياس سريع.',
+        ].filter(Boolean);
+
+        return parts.join(' ');
+    }, [focusedReportSkills, hasStudentAnalytics, isStudentView, stats?.averageScore]);
+    const copyStudentSummary = async () => {
+        if (!studentFollowUpSummary) return;
+
+        try {
+            await navigator.clipboard.writeText(studentFollowUpSummary);
+            setCopiedStudentSummary(true);
+            window.setTimeout(() => setCopiedStudentSummary(false), 1800);
+        } catch {
+            setCopiedStudentSummary(false);
+        }
+    };
+    const shareStudentSummary = async () => {
+        if (!studentFollowUpSummary) return;
+
+        try {
+            await shareTextSummary('ملخص تقرير الطالب', studentFollowUpSummary);
+            setSharedStudentSummary(true);
+            window.setTimeout(() => setSharedStudentSummary(false), 1800);
+        } catch {
+            setSharedStudentSummary(false);
+        }
+    };
     const scopedInterventionPlan = useMemo(() => {
         if (!scopedAnalytics) return [];
 
@@ -598,6 +636,41 @@ const Reports: React.FC = () => {
 
             {isStudentView && hasStudentAnalytics && (
             <>
+            <Card className="p-4 sm:p-6 border-0 shadow-sm bg-gradient-to-br from-slate-900 to-indigo-900 text-white overflow-hidden relative">
+                <div className="absolute -left-10 -top-10 h-32 w-32 rounded-full bg-white/10" />
+                <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
+                        <div className="mb-3 inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-black text-indigo-100">
+                            تقرير مبسط للطالب وولي الأمر
+                        </div>
+                        <h2 className="text-2xl font-black leading-tight">أين أبدأ التحسين؟</h2>
+                        <p className="mt-3 max-w-3xl text-sm leading-7 text-indigo-100">
+                            {studentFollowUpSummary}
+                        </p>
+                    </div>
+                    <div className="grid min-w-full gap-2 sm:min-w-[320px] sm:grid-cols-2 lg:min-w-[380px]">
+                        <button
+                            onClick={copyStudentSummary}
+                            className="print-hide inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/20"
+                        >
+                            {copiedStudentSummary ? <CheckCircle size={16} /> : <Copy size={16} />}
+                            {copiedStudentSummary ? 'تم النسخ' : 'نسخ الملخص'}
+                        </button>
+                        <button
+                            onClick={shareStudentSummary}
+                            className="print-hide inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-black text-indigo-800 transition hover:bg-indigo-50"
+                        >
+                            {sharedStudentSummary ? <CheckCircle size={16} /> : <Share2 size={16} />}
+                            {sharedStudentSummary ? 'تمت المشاركة' : 'مشاركة'}
+                        </button>
+                        <Link to="/plan" className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black text-white transition hover:bg-emerald-600 sm:col-span-2">
+                            <Target size={16} />
+                            افتح الخطة الذكية
+                        </Link>
+                    </div>
+                </div>
+            </Card>
+
             <Card className="p-4 sm:p-6 border-0 shadow-sm bg-white">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-5">
                     <div>
