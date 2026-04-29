@@ -58,6 +58,27 @@ function hasLessonByTitle(items: any[] | undefined, expectedTitle: string) {
   );
 }
 
+function normalizeArabic(value: unknown) {
+  return String(value || "")
+    .replace(/[إأآا]/g, "ا")
+    .replace(/[ىي]/g, "ي")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function documentId(item: any) {
+  return String(item?.id || item?._id || "");
+}
+
+function findSubject(subjects: any[] | undefined, pathId: string, names: string[]) {
+  const normalizedNames = names.map(normalizeArabic);
+  return (subjects || []).find((subject: any) => {
+    if (subject.pathId !== pathId) return false;
+    const subjectName = normalizeArabic(subject.name);
+    return normalizedNames.some((name) => subjectName.includes(name));
+  });
+}
+
 async function run() {
   const results: CheckResult[] = [];
   const pendingLessonId = "lesson_seed_teacher_pending";
@@ -86,6 +107,7 @@ async function run() {
     teacherContent,
     studentContent,
     studentRedeemedContent,
+    taxonomy,
     adminQuizzes,
     teacherQuizzes,
     studentCourses,
@@ -108,6 +130,7 @@ async function run() {
     request<any>("/content/bootstrap", "GET", undefined, teacher.token),
     request<any>("/content/bootstrap", "GET", undefined, student.token),
     request<any>("/content/bootstrap", "GET", undefined, studentRedeemed.token),
+    request<any>("/taxonomy/bootstrap", "GET", undefined, student.token),
     request<any[]>("/quizzes", "GET", undefined, admin.token),
     request<any[]>("/quizzes", "GET", undefined, teacher.token),
     request<any[]>("/courses", "GET", undefined, student.token),
@@ -216,6 +239,33 @@ async function run() {
     (studentCourses || []).length > 0 && (studentQuizzes || []).length > 0,
     `courses=${studentCourses.length}, quizzes=${studentQuizzes.length}`,
   );
+
+  const learningTargets = [
+    { pathId: "p_qudrat", names: ["الكمي", "كمي"], label: "qudrat quant" },
+    { pathId: "p_qudrat", names: ["اللفظي", "لفظي"], label: "qudrat verbal" },
+    { pathId: "p_tahsili", names: ["رياضيات", "الرياضيات"], label: "tahsili math" },
+  ];
+
+  learningTargets.forEach((target) => {
+    const subject = findSubject(taxonomy.subjects, target.pathId, target.names);
+    const subjectId = documentId(subject);
+    const topicCount = (studentContent.topics || []).filter((item: any) => item.pathId === target.pathId && item.subjectId === subjectId).length;
+    const lessonCount = (studentContent.lessons || []).filter((item: any) => item.pathId === target.pathId && item.subjectId === subjectId).length;
+    const libraryCount = (studentContent.libraryItems || []).filter((item: any) => item.pathId === target.pathId && item.subjectId === subjectId).length;
+    const bankCount = (studentQuizzes || []).filter((item: any) => item.pathId === target.pathId && item.subjectId === subjectId && item.type === "bank").length;
+    const examCount = (studentQuizzes || []).filter((item: any) => item.pathId === target.pathId && item.subjectId === subjectId && item.type !== "bank").length;
+    const courseCount = (studentCourses || []).filter(
+      (item: any) => (item.pathId || item.category) === target.pathId && (item.subjectId || item.subject) === subjectId,
+    ).length;
+
+    pushResult(
+      results,
+      "student",
+      `learning space ready: ${target.label}`,
+      Boolean(subjectId) && topicCount > 0 && lessonCount > 0 && bankCount > 0 && examCount > 0 && libraryCount > 0 && courseCount > 0,
+      `subject=${subjectId || "missing"}, topics=${topicCount}, lessons=${lessonCount}, banks=${bankCount}, exams=${examCount}, library=${libraryCount}, courses=${courseCount}`,
+    );
+  });
 
   pushResult(
     results,
