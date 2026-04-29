@@ -16,6 +16,7 @@ interface ScopedAnalyticsOverview {
         studentCount: number;
         groupCount: number;
         quizAttempts: number;
+        questionAttempts?: number;
     };
     weakestStudents: Array<{
         id: string;
@@ -522,8 +523,9 @@ const Reports: React.FC = () => {
                                     <div className="text-2xl font-black text-rose-700">{scopedAnalytics.weakestStudents.length}</div>
                                 </div>
                                 <div className="rounded-2xl bg-purple-50 p-4">
-                                    <div className="text-xs text-purple-600 mb-1">اختبارات المتابعة</div>
-                                    <div className="text-2xl font-black text-purple-700">{scopedAnalytics.assignedFollowUps.length}</div>
+                                    <div className="text-xs text-purple-600 mb-1">إجابات مرصودة</div>
+                                    <div className="text-2xl font-black text-purple-700">{scopedAnalytics.scope.questionAttempts || 0}</div>
+                                    <div className="mt-1 text-[11px] font-bold text-purple-500">من كل سؤال يحله الطالب</div>
                                 </div>
                             </div>
 

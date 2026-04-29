@@ -9,6 +9,7 @@ import { UserModel } from "../models/User.js";
 import { GroupModel } from "../models/Group.js";
 import { SkillProgressModel } from "../models/SkillProgress.js";
 import { QuestionAttemptModel } from "../models/QuestionAttempt.js";
+import { SkillModel } from "../models/Skill.js";
 import { optionalAuth, requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
@@ -450,6 +451,43 @@ quizRouter.get(
       });
     }
 
+    let questionAttempts = scopedStudentIds.length
+      ? await QuestionAttemptModel.find({ userId: { $in: scopedStudentIds } }).sort({ createdAt: -1 }).limit(5000)
+      : [];
+
+    if (authUser.role === "teacher" && (managedPathIds.size > 0 || managedSubjectIds.size > 0)) {
+      questionAttempts = questionAttempts.filter((attempt) => matchesManagedScope(attempt, managedPathIds, managedSubjectIds));
+    }
+
+    const attemptSkillIds = uniqueStrings(questionAttempts.flatMap((attempt) => (attempt.skillIds || []).map(String)));
+    const attemptSkills = attemptSkillIds.length ? await SkillModel.find(buildDocumentsByIdsQuery(attemptSkillIds)) : [];
+    const skillById = new Map(attemptSkills.map((skill) => [String(skill.id || skill._id), skill]));
+    const attemptsByStudent = new Map<string, any[]>();
+    questionAttempts.forEach((attempt) => {
+      const key = String(attempt.userId || "");
+      const bucket = attemptsByStudent.get(key) || [];
+      bucket.push(attempt);
+      attemptsByStudent.set(key, bucket);
+    });
+
+    const buildAttemptGaps = (attempt: any) =>
+      (Array.isArray(attempt.skillIds) ? attempt.skillIds : [])
+        .map((skillId: unknown) => {
+          const resolvedSkill = skillById.get(String(skillId));
+          if (!resolvedSkill) return null;
+
+          return {
+            skillId: String(resolvedSkill.id || resolvedSkill._id || skillId),
+            skill: String(resolvedSkill.name || "مهارة غير مسماة"),
+            pathId: String(resolvedSkill.pathId || attempt.pathId || ""),
+            subjectId: String(resolvedSkill.subjectId || attempt.subjectId || ""),
+            sectionId: String(resolvedSkill.sectionId || attempt.sectionId || ""),
+            section: String(resolvedSkill.sectionId || attempt.sectionId || ""),
+            mastery: attempt.isCorrect ? 100 : 0,
+          };
+        })
+        .filter(Boolean);
+
     const resultsByStudent = new Map<string, any[]>();
     quizResults.forEach((result) => {
       const key = String(result.userId || "");
@@ -462,10 +500,15 @@ quizRouter.get(
       .map((student) => {
         const studentId = String(student.id);
         const results = resultsByStudent.get(studentId) || [];
+        const granularAttempts = attemptsByStudent.get(studentId) || [];
         const attempts = results.length;
+        const granularAnswered = granularAttempts.filter((attempt) => Number(attempt.selectedOptionIndex ?? -1) >= 0);
+        const granularAverage = granularAnswered.length
+          ? Math.round((granularAnswered.filter((attempt) => Boolean(attempt.isCorrect)).length / granularAnswered.length) * 100)
+          : 0;
         const averageScore = attempts
           ? Math.round(results.reduce((sum, result) => sum + (Number(result.score) || 0), 0) / attempts)
-          : 0;
+          : granularAverage;
 
         const weakSkillMap = new Map<string, { skill: string; masterySum: number; count: number }>();
 
@@ -476,6 +519,22 @@ quizRouter.get(
               : true,
           );
           skills.forEach((gap: any) => {
+            const mastery = Number(gap?.mastery || 0);
+            if (mastery >= 75) return;
+            const key = String(gap?.skillId || gap?.skill || gap?.sectionId || "unknown");
+            const current = weakSkillMap.get(key) || {
+              skill: String(gap?.skill || "مهارة غير مسماة"),
+              masterySum: 0,
+              count: 0,
+            };
+            current.masterySum += mastery;
+            current.count += 1;
+            weakSkillMap.set(key, current);
+          });
+        });
+
+        granularAttempts.forEach((attempt) => {
+          buildAttemptGaps(attempt).forEach((gap: any) => {
             const mastery = Number(gap?.mastery || 0);
             if (mastery >= 75) return;
             const key = String(gap?.skillId || gap?.skill || gap?.sectionId || "unknown");
@@ -507,6 +566,7 @@ quizRouter.get(
           groupIds: (student.groupIds || []).map(String),
           groupNames: (student.groupIds || []).map((groupId) => groupNameById.get(String(groupId))).filter(Boolean),
           attempts,
+          questionAttempts: granularAttempts.length,
           averageScore,
           weakSkillCount: weakSkillMap.size,
           weakestSkills,
@@ -567,6 +627,30 @@ quizRouter.get(
       });
     });
 
+    questionAttempts.forEach((attempt) => {
+      buildAttemptGaps(attempt).forEach((gap: any) => {
+        const mastery = Number(gap?.mastery || 0);
+        if (mastery >= 75) return;
+
+        const key = String(gap?.skillId || gap?.skill || gap?.sectionId || "unknown");
+        const current = weakSkillMap.get(key) || {
+          skillId: gap?.skillId,
+          skill: String(gap?.skill || "مهارة غير مسماة"),
+          subjectId: gap?.subjectId,
+          sectionId: gap?.sectionId,
+          section: gap?.section,
+          masterySum: 0,
+          attempts: 0,
+          studentIds: new Set<string>(),
+        };
+
+        current.masterySum += mastery;
+        current.attempts += 1;
+        current.studentIds.add(String(attempt.userId || ""));
+        weakSkillMap.set(key, current);
+      });
+    });
+
     const weakestSkills = Array.from(weakSkillMap.values())
       .map((item) => {
         const mastery = Math.round(item.masterySum / Math.max(item.attempts, 1));
@@ -622,6 +706,27 @@ quizRouter.get(
       });
     });
 
+    questionAttempts.forEach((attempt) => {
+      buildAttemptGaps(attempt).forEach((gap: any) => {
+        if (!gap?.subjectId) return;
+        const key = String(gap.subjectId);
+        const current = subjectMap.get(key) || {
+          subjectId: gap.subjectId,
+          subjectName: String(gap.subjectId || "مادة غير مسماة"),
+          masterySum: 0,
+          count: 0,
+          weakStudents: new Set<string>(),
+        };
+
+        current.masterySum += Number(gap.mastery || 0);
+        current.count += 1;
+        if (Number(gap.mastery || 0) < 75) {
+          current.weakStudents.add(String(attempt.userId || ""));
+        }
+        subjectMap.set(key, current);
+      });
+    });
+
     const subjectSummaries = Array.from(subjectMap.values())
       .map((item) => ({
         subjectId: item.subjectId,
@@ -664,6 +769,7 @@ quizRouter.get(
         studentCount: scopedStudents.length,
         groupCount: relatedGroupIds.length,
         quizAttempts: quizResults.length,
+        questionAttempts: questionAttempts.length,
       },
       weakestStudents,
       weakestSkills,
