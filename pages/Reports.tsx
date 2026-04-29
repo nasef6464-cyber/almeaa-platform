@@ -269,6 +269,40 @@ const Reports: React.FC = () => {
     const selectedSkillRecommendation = getSkillRecommendation(selectedReportSkill || undefined, skills, lessons, quizzes, libraryItems, questions);
     const isStudentView = user.role === Role.STUDENT;
     const hasStudentAnalytics = examResults.length > 0;
+    const scopedInterventionPlan = useMemo(() => {
+        if (!scopedAnalytics) return [];
+
+        const weakestScopedSkill = scopedAnalytics.weakestSkills[0];
+        const weakestScopedStudent = scopedAnalytics.weakestStudents[0];
+        const weakestScopedSubject = scopedAnalytics.subjectSummaries[0];
+
+        return [
+            {
+                title: 'ابدأ بالمهارة الأكثر احتياجًا',
+                label: weakestScopedSkill ? `${displayText(weakestScopedSkill.skill)} - ${weakestScopedSkill.mastery}%` : 'بانتظار بيانات مهارات أكثر',
+                body: weakestScopedSkill
+                    ? `وجّه شرحًا قصيرًا وتدريبًا علاجيًا للطلاب المتأثرين (${weakestScopedSkill.affectedStudents}) ثم أعد القياس باختبار قصير.`
+                    : 'بعد أول محاولات كافية، سيظهر هنا أكثر محور يحتاج تدخلًا.',
+                className: 'border-rose-100 bg-rose-50 text-rose-800',
+            },
+            {
+                title: 'تابع الطالب الأكثر احتياجًا',
+                label: weakestScopedStudent ? `${displayText(weakestScopedStudent.name)} - ${weakestScopedStudent.averageScore}%` : 'لا يوجد طالب يحتاج تدخلًا واضحًا',
+                body: weakestScopedStudent
+                    ? `ابدأ برسالة متابعة أو حصة قصيرة، وركّز على ${weakestScopedStudent.weakestSkills?.slice(0, 2).map((skill) => displayText(skill.skill)).join('، ') || 'المهارات الأضعف لديه'}.`
+                    : 'عند ظهور طلاب يحتاجون دعمًا سيقترح النظام أول طالب تبدأ به.',
+                className: 'border-amber-100 bg-amber-50 text-amber-800',
+            },
+            {
+                title: 'حوّلها لخطة متابعة',
+                label: weakestScopedSubject ? `${displayText(weakestScopedSubject.subjectName)} - ${weakestScopedSubject.mastery}%` : 'اختر مادة للمتابعة',
+                body: weakestScopedSubject
+                    ? `أنشئ اختبار متابعة أو تدريبًا قصيرًا في هذه المادة للطلاب الضعاف (${weakestScopedSubject.weakStudents}).`
+                    : 'اربط الاختبارات بالمواد والمهارات حتى يظهر اقتراح المتابعة تلقائيًا.',
+                className: 'border-indigo-100 bg-indigo-50 text-indigo-800',
+            },
+        ];
+    }, [scopedAnalytics]);
 
     if (isStudentView && examResults.length === 0) {
         return (
@@ -352,6 +386,27 @@ const Reports: React.FC = () => {
                                 <div className="rounded-2xl bg-purple-50 p-4">
                                     <div className="text-xs text-purple-600 mb-1">اختبارات المتابعة</div>
                                     <div className="text-2xl font-black text-purple-700">{scopedAnalytics.assignedFollowUps.length}</div>
+                                </div>
+                            </div>
+
+                            <div className="rounded-3xl border border-gray-100 bg-slate-50/70 p-4 sm:p-5">
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-4">
+                                    <div>
+                                        <div className="text-lg font-black text-gray-900">خطة تدخل سريعة لهذا النطاق</div>
+                                        <p className="text-sm leading-7 text-gray-500">
+                                            ثلاث خطوات عملية تصلح للمدير أو المعلم أو المشرف أو ولي الأمر، وتظهر في ملف PDF للمتابعة.
+                                        </p>
+                                    </div>
+                                    <span className="self-start rounded-full bg-white px-3 py-1 text-xs font-black text-indigo-700">تشخيص - علاج - قياس</span>
+                                </div>
+                                <div className="grid gap-3 lg:grid-cols-3">
+                                    {scopedInterventionPlan.map((item) => (
+                                        <div key={item.title} className={`rounded-2xl border p-4 ${item.className}`}>
+                                            <div className="text-xs font-black opacity-70">{item.title}</div>
+                                            <div className="mt-2 text-base font-black leading-7">{item.label}</div>
+                                            <p className="mt-2 text-sm leading-7">{item.body}</p>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
 
