@@ -259,6 +259,32 @@ const Results: React.FC = () => {
     weakestSkill?.quizTitle ? { id: 'quiz', label: 'بعدها حل تدريبًا قصيرًا', tone: 'warning' as const } : null,
     weakestSkill?.resourceTitle ? { id: 'resource', label: 'مرّ على الملف الداعم', tone: 'success' as const } : null,
   ].filter(Boolean) as { id: string; label: string; tone: 'danger' | 'warning' | 'success' }[];
+  const recoveryPlanItems = weakestSkill
+    ? [
+        {
+          title: 'الخطوة 1',
+          label: 'افهم المهارة',
+          body: weakestSkill.lessonTitle
+            ? `راجع درس: ${weakestSkill.lessonTitle}`
+            : `راجع شرحًا قصيرًا عن ${weakestSkill.skillName}`,
+          className: 'border-indigo-100 bg-indigo-50 text-indigo-800',
+        },
+        {
+          title: 'الخطوة 2',
+          label: 'درّب نفسك',
+          body: weakestSkill.quizTitle
+            ? `حل تدريب: ${weakestSkill.quizTitle}`
+            : 'حل 5 إلى 10 أسئلة قصيرة على نفس المهارة.',
+          className: 'border-amber-100 bg-amber-50 text-amber-800',
+        },
+        {
+          title: 'الخطوة 3',
+          label: 'أعد القياس',
+          body: 'بعد المراجعة، أعد اختبارًا قصيرًا وشاهد هل ارتفعت النسبة.',
+          className: 'border-emerald-100 bg-emerald-50 text-emerald-800',
+        },
+      ]
+    : [];
 
   const donutData = [
     { name: 'Success', value: latestResult?.score || 0 },
@@ -470,6 +496,23 @@ const Results: React.FC = () => {
                   <div className="flex flex-wrap gap-2">
                     {starterChecklist.map((item) => (
                       <NextStepChip key={item.id} label={item.label} tone={item.tone} />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {recoveryPlanItems.length > 0 ? (
+                <div className="rounded-2xl border border-gray-100 bg-white p-4">
+                  <div className="mb-3 text-sm font-black text-gray-800">خطة علاجية صغيرة قبل الإعادة</div>
+                  <div className="grid gap-3">
+                    {recoveryPlanItems.map((item) => (
+                      <div key={item.title} className={`rounded-xl border px-4 py-3 ${item.className}`}>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-black">{item.title}</span>
+                          <span className="text-sm font-black">{item.label}</span>
+                        </div>
+                        <p className="mt-2 text-sm leading-7">{displayText(item.body)}</p>
+                      </div>
                     ))}
                   </div>
                 </div>
