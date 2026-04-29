@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { api } from '../services/api';
-import { User, Activity, QuestionAttempt, QuizResult, Question, Role, Group, Skill, CategoryPath, CategorySubject, CategorySection, B2BPackage, AccessCode, Course, NestedSkill, LibraryItem, Quiz, Lesson, Topic, PackageContentType, StudyPlan, SkillProgress } from '../types';
+import { User, Activity, QuestionAttempt, QuizResult, Question, Role, Group, Skill, CategoryPath, CategorySubject, CategorySection, B2BPackage, AccessCode, Course, NestedSkill, LibraryItem, Quiz, Lesson, PackageContentType, StudyPlan, SkillProgress } from '../types';
 
 const USE_REAL_API =
     (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_USE_REAL_API !== 'false';
@@ -162,51 +162,6 @@ interface AppState {
 
     // Library Actions
 }
-
-const buildLegacyTopicsFromNestedSkills = (skills: NestedSkill[]): Topic[] => {
-    const topics: Topic[] = [];
-
-    skills.forEach((mainSkill, mainIndex) => {
-        if (!mainSkill.subjectId) return;
-
-        topics.push({
-            id: mainSkill.id,
-            title: mainSkill.name,
-            subjectId: mainSkill.subjectId,
-            pathId: mainSkill.pathId,
-            sectionId: mainSkill.sectionId,
-            parentId: null,
-            order: mainIndex + 1,
-            lessonIds: [],
-            quizIds: [],
-        });
-
-        (mainSkill.subSkills || []).forEach((subSkill, subIndex) => {
-            topics.push({
-                id: subSkill.id,
-                title: subSkill.name,
-                subjectId: mainSkill.subjectId!,
-                pathId: mainSkill.pathId,
-                sectionId: mainSkill.sectionId,
-                parentId: mainSkill.id,
-                order: subIndex + 1,
-                lessonIds: [],
-                quizIds: [],
-            });
-        });
-    });
-
-    return topics;
-};
-
-const getLegacyTopicIdsFromNestedSkills = (skills: NestedSkill[]): Set<string> => {
-    const ids = new Set<string>();
-    skills.forEach(mainSkill => {
-        ids.add(mainSkill.id);
-        (mainSkill.subSkills || []).forEach(subSkill => ids.add(subSkill.id));
-    });
-    return ids;
-};
 
 const createGuestUser = (): User => ({
     id: 'guest',
