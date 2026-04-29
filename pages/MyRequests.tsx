@@ -105,6 +105,7 @@ export const MyRequests: React.FC = () => {
 
     const packageRows = purchasedPackageIds.map((packageId) => {
       const pkg = b2bPackages.find((item) => item.id === packageId);
+      const publicPackage = courses.find((course) => course.id === packageId && course.isPackage);
       const packageKinds = Array.isArray(pkg?.contentTypes) ? pkg.contentTypes : [];
       const packageLabel =
         packageKinds.length === 0 || packageKinds.includes('all')
@@ -128,7 +129,7 @@ export const MyRequests: React.FC = () => {
               })
               .join(' + ')}`;
 
-      return {
+      const baseRow = {
         id: `pkg_${packageId}`,
         itemName: pkg?.name || 'باقة اشتراك مفعلة',
         status: 'completed' as const,
@@ -137,6 +138,13 @@ export const MyRequests: React.FC = () => {
         price: 0,
         paymentMethod: pkg ? `كود تفعيل / ${packageLabel}` : 'اشتراك مفعل من داخل المنصة',
         typeLabel: 'باقة',
+      };
+
+      return {
+        ...baseRow,
+        itemName: pkg?.name || publicPackage?.title || baseRow.itemName,
+        price: publicPackage?.price || baseRow.price,
+        paymentMethod: pkg ? `كود تفعيل / ${packageLabel}` : publicPackage ? 'باقة عامة مفعلة من المسار' : baseRow.paymentMethod,
       };
     });
 

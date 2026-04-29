@@ -29,7 +29,16 @@ export const CourseLanding: React.FC<CourseLandingProps> = ({ course }) => {
         (user.subscription?.purchasedCourses || []).includes(course.id) ||
         hasPackageAccess ||
         course.isPurchased;
-    const purchaseItem = matchedPackage
+    const publicPackageItem = course.isPackage
+        ? {
+            ...course,
+            packageId: course.id,
+            purchaseType: 'package',
+            includedCourseIds: course.includedCourses || [],
+            courseIds: course.includedCourses || [],
+        }
+        : null;
+    const purchaseItem = publicPackageItem || (matchedPackage
         ? {
             id: matchedPackage.id,
             packageId: matchedPackage.id,
@@ -44,8 +53,8 @@ export const CourseLanding: React.FC<CourseLandingProps> = ({ course }) => {
             price: course.price,
             currency: course.currency,
         }
-        : course;
-    const purchaseType = matchedPackage ? 'package' : 'course';
+        : course);
+    const purchaseType = publicPackageItem || matchedPackage ? 'package' : 'course';
 
     const toggleModule = (id: string) => {
         setExpandedModules(prev => 

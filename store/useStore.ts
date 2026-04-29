@@ -659,6 +659,22 @@ export const useStore = create<AppState>()(
                     return true;
                 }
 
+                const hasPublicPathPackage = state.courses.some((course) => {
+                    if (!course.isPackage || !purchasedPackageIds.has(course.id)) {
+                        return false;
+                    }
+
+                    const packagePathId = course.pathId || course.category;
+                    const packageSubjectId = course.subjectId || course.subject;
+                    const matchesPath = !pathId || !packagePathId || packagePathId === pathId;
+                    const matchesSubject = !subjectId || !packageSubjectId || packageSubjectId === subjectId;
+
+                    return matchesPath && matchesSubject;
+                });
+                if (hasPublicPathPackage) {
+                    return true;
+                }
+
                 const schoolIds = getUserSchoolIds(state.groups, state.user.groupIds || []);
                 if (schoolIds.size === 0) {
                     return false;

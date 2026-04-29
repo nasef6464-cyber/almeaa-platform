@@ -10,7 +10,7 @@ export const GenericPathPage: React.FC = () => {
     const { pathId } = useParams<{ pathId: string }>();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const { paths, levels, subjects, user } = useStore();
+    const { paths, levels, subjects, user, courses } = useStore();
 
     const initialLevelId = searchParams.get('level') || null;
     const initialSubjectId = searchParams.get('subject') || null;
@@ -64,7 +64,6 @@ export const GenericPathPage: React.FC = () => {
 
     const pathLevels = levels?.filter(l => l.pathId === path.id) || [];
     const pathSubjects = subjects.filter(s => s.pathId === path.id);
-    const { courses } = useStore();
     const pathPackages = courses.filter(
         c => (c.pathId || c.category) === path.id && c.isPackage && (canSeeHiddenPaths || c.showOnPlatform !== false),
     );
