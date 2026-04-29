@@ -68,9 +68,44 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
         ...enrolledCourses,
         ...(user.subscription?.purchasedCourses || []),
     ]);
+    const packageContentLabels: Record<PackageContentType, string> = {
+        courses: 'الدورات',
+        foundation: 'التأسيس',
+        banks: 'التدريب',
+        tests: 'الاختبارات',
+        library: 'المكتبة',
+        all: 'الباقة الشاملة',
+    };
+    const getPublicPackageForScope = (contentType: PackageContentType) =>
+        courses
+            .filter((course) => {
+                if (!course.isPackage || course.showOnPlatform === false || course.isPublished === false) return false;
+                const contentTypes = course.packageContentTypes?.length ? course.packageContentTypes : ['all'];
+                const packagePathId = course.pathId || course.category;
+                const packageSubjectId = course.subjectId || course.subject;
+                const matchesType = contentTypes.includes('all') || contentTypes.includes(contentType);
+                const matchesPath = !packagePathId || packagePathId === category;
+                const matchesSubject = !packageSubjectId || packageSubjectId === subject;
+                return matchesType && matchesPath && matchesSubject;
+            })
+            .sort((a, b) => {
+                const scorePackage = (course: (typeof courses)[number]) => {
+                    const contentTypes = course.packageContentTypes?.length ? course.packageContentTypes : ['all'];
+                    const packagePathId = course.pathId || course.category;
+                    const packageSubjectId = course.subjectId || course.subject;
+                    return (
+                        (packageSubjectId === subject ? 8 : 0) +
+                        (packagePathId === category ? 4 : 0) +
+                        (contentTypes.includes(contentType) ? 2 : 0) +
+                        (contentTypes.includes('all') ? 1 : 0)
+                    );
+                };
+                return scorePackage(b) - scorePackage(a);
+            })[0];
     const buildScopedPackageItem = (contentType: PackageContentType, fallbackTitle: string, fallbackDescription: string) => {
         const matchedPackage = getMatchingPackage(contentType, category, subject);
-        if (!matchedPackage) {
+        const publicPackage = matchedPackage ? null : getPublicPackageForScope(contentType);
+        if (!matchedPackage && !publicPackage) {
             return null;
         }
         const contentTypeLabels: Record<PackageContentType, string> = {
@@ -83,20 +118,22 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
         };
 
         return {
-            id: matchedPackage.id,
-            packageId: matchedPackage.id,
+            id: matchedPackage?.id || publicPackage?.id,
+            packageId: matchedPackage?.id || publicPackage?.id,
             purchaseType: 'package',
-            title: matchedPackage.name || fallbackTitle,
-            price: 99,
+            title: matchedPackage?.name || publicPackage?.title || fallbackTitle,
+            price: publicPackage?.price || 99,
             currency: 'ر.س',
             description: matchedPackage
                 ? `هذه الباقة تفتح ${contentTypeLabels[contentType]} في ${currentSubjectData?.name || subject}.`
-                : fallbackDescription,
-            contentTypes: matchedPackage.contentTypes || [contentType],
-            pathIds: matchedPackage.pathIds || [category],
-            subjectIds: matchedPackage.subjectIds || [subject],
-            includedCourseIds: matchedPackage.courseIds || [],
-            courseIds: matchedPackage.courseIds || [],
+                : publicPackage?.description || fallbackDescription,
+            contentTypes: matchedPackage?.contentTypes || publicPackage?.packageContentTypes || [contentType],
+            pathIds: matchedPackage?.pathIds || [publicPackage?.pathId || publicPackage?.category || category],
+            subjectIds: matchedPackage?.subjectIds || [publicPackage?.subjectId || publicPackage?.subject || subject],
+            includedCourseIds: matchedPackage?.courseIds || publicPackage?.includedCourses || [],
+            courseIds: matchedPackage?.courseIds || publicPackage?.includedCourses || [],
+            thumbnail: publicPackage?.thumbnail,
+            features: publicPackage?.features,
         };
     };
 

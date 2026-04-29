@@ -34,27 +34,33 @@ export const SkillDetailsModal: React.FC<SkillDetailsModalProps> = ({ isOpen, on
       setSelectedSubTopic(subTopics[0] || null);
       setTopicModalTab('lessons');
     }
-  }, [isOpen, skill?.originalTopic?.id, topics]);
+  }, [isOpen, isStaffViewer, skill?.originalTopic?.id, topics]);
 
-  if (!isOpen || !skill || !skill.originalTopic) return null;
-
-  const selectedTopic = skill.originalTopic as Topic;
-  const subjectTopics = topics.filter((topic) => topic.subjectId === selectedTopic.subjectId && (isStaffViewer || topic.showOnPlatform !== false));
+  const selectedTopic = skill?.originalTopic as Topic | undefined;
+  const subjectTopics = selectedTopic
+    ? topics.filter((topic) => topic.subjectId === selectedTopic.subjectId && (isStaffViewer || topic.showOnPlatform !== false))
+    : [];
   const activeTopic = selectedSubTopic || selectedTopic;
 
   const activeTopicLessons = useMemo(
     () =>
+      activeTopic
+        ?
       lessons
-        .filter((lesson) => activeTopic.lessonIds?.includes(lesson.id) && canStudentSeeLesson(lesson))
-        .sort((a, b) => (a.order || 0) - (b.order || 0)),
+          .filter((lesson) => activeTopic.lessonIds?.includes(lesson.id) && canStudentSeeLesson(lesson))
+          .sort((a, b) => (a.order || 0) - (b.order || 0))
+        : [],
     [activeTopic, lessons],
   );
 
   const activeTopicQuizzes = useMemo(
     () =>
+      activeTopic
+        ?
       quizzes
-        .filter((quiz) => activeTopic.quizIds?.includes(quiz.id) && canStudentSeeQuiz(quiz))
-        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
+          .filter((quiz) => activeTopic.quizIds?.includes(quiz.id) && canStudentSeeQuiz(quiz))
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+        : [],
     [activeTopic, quizzes],
   );
 
@@ -62,6 +68,7 @@ export const SkillDetailsModal: React.FC<SkillDetailsModalProps> = ({ isOpen, on
     () =>
       lessons
         .filter((lesson) => {
+          if (!selectedTopic || !activeTopic) return false;
           const matchesPath = selectedTopic.pathId ? lesson.pathId === selectedTopic.pathId : true;
           const matchesSubject = lesson.subjectId === selectedTopic.subjectId;
           const matchesSection = activeTopic.sectionId ? lesson.sectionId === activeTopic.sectionId : true;
@@ -70,13 +77,14 @@ export const SkillDetailsModal: React.FC<SkillDetailsModalProps> = ({ isOpen, on
         })
         .sort((a, b) => (a.order || 0) - (b.order || 0))
         .slice(0, 3),
-    [activeTopic, lessons, selectedTopic.pathId, selectedTopic.subjectId],
+    [activeTopic, lessons, selectedTopic?.pathId, selectedTopic?.subjectId],
   );
 
   const relatedQuizSuggestions = useMemo(
     () =>
       quizzes
         .filter((quiz) => {
+          if (!selectedTopic || !activeTopic) return false;
           const matchesPath = selectedTopic.pathId ? quiz.pathId === selectedTopic.pathId : true;
           const matchesSubject = quiz.subjectId === selectedTopic.subjectId;
           const matchesSection = activeTopic.sectionId ? quiz.sectionId === activeTopic.sectionId : true;
@@ -85,21 +93,24 @@ export const SkillDetailsModal: React.FC<SkillDetailsModalProps> = ({ isOpen, on
         })
         .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
         .slice(0, 3),
-    [activeTopic, quizzes, selectedTopic.pathId, selectedTopic.subjectId],
+    [activeTopic, quizzes, selectedTopic?.pathId, selectedTopic?.subjectId],
   );
 
   const relatedLibrarySuggestions = useMemo(
     () =>
       libraryItems
         .filter((item) => {
+          if (!selectedTopic || !activeTopic) return false;
           const matchesPath = selectedTopic.pathId ? item.pathId === selectedTopic.pathId : true;
           const matchesSubject = item.subjectId === selectedTopic.subjectId;
           const matchesSection = activeTopic.sectionId ? item.sectionId === activeTopic.sectionId : true;
           return matchesPath && matchesSubject && matchesSection && Boolean(item.url) && canStudentSeeLibraryItem(item);
         })
         .slice(0, 2),
-    [activeTopic.sectionId, libraryItems, selectedTopic.pathId, selectedTopic.subjectId],
+    [activeTopic?.sectionId, libraryItems, selectedTopic?.pathId, selectedTopic?.subjectId],
   );
+
+  if (!isOpen || !selectedTopic || !activeTopic) return null;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6" dir="rtl">

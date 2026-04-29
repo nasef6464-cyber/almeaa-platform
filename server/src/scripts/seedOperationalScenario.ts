@@ -554,6 +554,28 @@ async function seedLessonsQuestionsQuizzes(context: {
         revenueSharePercentage: 35,
       },
     },
+    {
+      key: "lesson_verbal_context",
+      query: { title: "فهم السياق واستخراج الفكرة", pathId: "p_qudrat", subjectId: "sub_verbal", sectionId: "sec_verbal_reading" },
+      payload: {
+        title: "فهم السياق واستخراج الفكرة",
+        description: "درس تأسيسي قصير في قراءة النص وتحديد الفكرة الرئيسة والمعنى من السياق.",
+        pathId: "p_qudrat",
+        subjectId: "sub_verbal",
+        sectionId: "sec_verbal_reading",
+        type: "video",
+        duration: "13 دقيقة",
+        videoUrl: SAMPLE_VIDEO_URL,
+        skillIds: ["skill_verbal_context"],
+        order: 1,
+        ownerType: "platform",
+        ownerId: context.adminId,
+        createdBy: context.adminId,
+        approvalStatus: "approved",
+        approvedBy: context.adminId,
+        approvedAt: NOW,
+      },
+    },
   ];
 
   const lessonDocs = new Map<string, any>();
@@ -728,6 +750,26 @@ async function seedLessonsQuestionsQuizzes(context: {
       approvedBy: context.adminId,
       approvedAt: NOW,
     },
+    {
+      id: "q_seed_verbal_01",
+      text: "قرأ الطالب النص ثم استنتج أن الفكرة الرئيسة تدور حول:",
+      options: ["تفصيل جانبي", "عنوان النص فقط", "المعنى العام للنص", "مثال واحد في الفقرة"],
+      correctOptionIndex: 2,
+      explanation: "الفكرة الرئيسة هي المعنى العام الذي يجمع تفاصيل النص، وليست مثالًا أو عنوانًا فقط.",
+      videoUrl: SAMPLE_VIDEO_URL,
+      pathId: "p_qudrat",
+      subject: "sub_verbal",
+      sectionId: "sec_verbal_reading",
+      skillIds: ["skill_verbal_context"],
+      difficulty: "Easy",
+      type: "mcq",
+      ownerType: "platform",
+      ownerId: context.adminId,
+      createdBy: context.adminId,
+      approvalStatus: "approved",
+      approvedBy: context.adminId,
+      approvedAt: NOW,
+    },
   ];
 
   for (const question of questionPayloads) {
@@ -864,6 +906,29 @@ async function seedLessonsQuestionsQuizzes(context: {
       revenueSharePercentage: 35,
       createdAt: NOW,
     },
+    {
+      id: "quiz_seed_verbal_bank_context",
+      title: "بنك تدريب اللفظي - فهم السياق",
+      description: "تدريب قصير على استخراج الفكرة الرئيسة والمعنى من السياق.",
+      pathId: "p_qudrat",
+      subjectId: "sub_verbal",
+      sectionId: "sec_verbal_reading",
+      type: "bank",
+      mode: "regular",
+      settings: { showExplanations: true, showAnswers: true, maxAttempts: 10, passingScore: 60, timeLimit: 12 },
+      access: { type: "free", price: 0, allowedGroupIds: [] },
+      questionIds: ["q_seed_verbal_01"],
+      skillIds: ["skill_verbal_context"],
+      isPublished: true,
+      showOnPlatform: true,
+      ownerType: "platform",
+      ownerId: context.adminId,
+      createdBy: context.adminId,
+      approvalStatus: "approved",
+      approvedBy: context.adminId,
+      approvedAt: NOW,
+      createdAt: NOW,
+    },
   ];
 
   for (const quiz of quizPayloads) {
@@ -930,6 +995,24 @@ async function seedLessonsQuestionsQuizzes(context: {
       reviewerNotes: "بانتظار اعتماد المدير",
       revenueSharePercentage: 35,
     },
+    {
+      id: "lib_seed_verbal_context",
+      title: "ملخص اللفظي - فهم السياق والفكرة الرئيسة",
+      size: "750 KB",
+      downloads: 18,
+      type: "pdf",
+      pathId: "p_qudrat",
+      subjectId: "sub_verbal",
+      sectionId: "sec_verbal_reading",
+      skillIds: ["skill_verbal_context"],
+      url: SAMPLE_PDF_URL,
+      ownerType: "platform",
+      ownerId: context.adminId,
+      createdBy: context.adminId,
+      approvalStatus: "approved",
+      approvedBy: context.adminId,
+      approvedAt: NOW,
+    },
   ];
 
   for (const item of libraryPayloads) {
@@ -984,6 +1067,23 @@ async function seedLessonsQuestionsQuizzes(context: {
       order: 2,
       lessonIds: [String(lessonDocs.get("lesson_equations_intro").id), String(lessonDocs.get("lesson_prop_patterns").id)],
       quizIds: ["quiz_seed_quant_saher_followup"],
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true },
+  );
+
+  await TopicModel.findOneAndUpdate(
+    { id: "topic_seed_verbal_context" },
+    {
+      id: "topic_seed_verbal_context",
+      pathId: "p_qudrat",
+      subjectId: "sub_verbal",
+      sectionId: "sec_verbal_reading",
+      title: "فهم السياق والفكرة الرئيسة",
+      parentId: null,
+      order: 1,
+      showOnPlatform: true,
+      lessonIds: [String(lessonDocs.get("lesson_verbal_context").id)],
+      quizIds: ["quiz_seed_verbal_bank_context"],
     },
     { upsert: true, new: true, setDefaultsOnInsert: true },
   );
@@ -1207,6 +1307,64 @@ async function seedLessonsQuestionsQuizzes(context: {
     { upsert: true, new: true, setDefaultsOnInsert: true },
   );
 
+  await CourseModel.findByIdAndUpdate(
+    "course_seed_verbal_context",
+    {
+      _id: "course_seed_verbal_context",
+      title: "التأسيس اللفظي - فهم السياق",
+      thumbnail: "https://picsum.photos/seed/verbal-course/800/500",
+      instructor: "فريق منصة المئة",
+      price: 99,
+      currency: "SAR",
+      duration: 4,
+      level: "Beginner",
+      rating: 4.7,
+      progress: 0,
+      category: "p_qudrat",
+      subject: "sub_verbal",
+      pathId: "p_qudrat",
+      subjectId: "sub_verbal",
+      sectionId: "sec_verbal_reading",
+      features: ["فيديو تأسيسي", "تدريب قصير", "ملف مراجعة", "ربط بالمهارة"],
+      description: "دورة قصيرة لتأسيس الطالب في فهم السياق واستخراج الفكرة الرئيسة داخل النصوص.",
+      modules: [
+        {
+          title: "الوحدة الأولى: فهم النص",
+          order: 1,
+          lessons: [
+            {
+              id: String(lessonDocs.get("lesson_verbal_context").id),
+              title: "فهم السياق واستخراج الفكرة",
+              type: "video",
+              duration: "13 دقيقة",
+              videoUrl: SAMPLE_VIDEO_URL,
+              pathId: "p_qudrat",
+              subjectId: "sub_verbal",
+              sectionId: "sec_verbal_reading",
+              skillIds: ["skill_verbal_context"],
+              quizId: "quiz_seed_verbal_bank_context",
+              order: 1,
+            },
+          ],
+        },
+      ],
+      isPublished: true,
+      isPackage: false,
+      skills: ["skill_verbal_context"],
+      ownerType: "platform",
+      ownerId: context.adminId,
+      createdBy: context.adminId,
+      approvalStatus: "approved",
+      approvedBy: context.adminId,
+      approvedAt: NOW,
+      certificateEnabled: true,
+      studentCount: 22,
+      weeksCount: 2,
+      previewVideoUrl: SAMPLE_VIDEO_URL,
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true },
+  );
+
   await SkillModel.findByIdAndUpdate("skill_quant_add_sub", {
     lessonIds: [String(lessonDocs.get("lesson_ops_intro").id)],
     questionIds: ["q_seed_quant_01"],
@@ -1226,6 +1384,10 @@ async function seedLessonsQuestionsQuizzes(context: {
   await SkillModel.findByIdAndUpdate("skill_math_functions", {
     lessonIds: [String(lessonDocs.get("lesson_math_functions").id)],
     questionIds: ["q_seed_math_01"],
+  });
+  await SkillModel.findByIdAndUpdate("skill_verbal_context", {
+    lessonIds: [String(lessonDocs.get("lesson_verbal_context").id)],
+    questionIds: ["q_seed_verbal_01"],
   });
 
   return {
