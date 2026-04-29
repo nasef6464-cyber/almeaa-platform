@@ -162,6 +162,7 @@ const Quizzes: React.FC = () => {
       {
         key: string;
         skillId?: string;
+        pathId?: string;
         subjectId?: string;
         sectionId?: string;
         section?: string;
@@ -187,6 +188,7 @@ const Quizzes: React.FC = () => {
         weakSkillsMap.set(key, {
           key,
           skillId: skill.skillId,
+          pathId: skill.pathId,
           subjectId: skill.subjectId,
           sectionId: skill.sectionId,
           section: skill.section,
@@ -340,8 +342,8 @@ const Quizzes: React.FC = () => {
                         {item.recommendedLesson ? (
                           <Link
                             to={
-                              item.subjectId
-                                ? `/category/${item.recommendedLesson.pathId}?subject=${item.subjectId}&tab=skills`
+                              item.subjectId && (item.recommendedLesson.pathId || item.pathId)
+                                ? `/category/${item.recommendedLesson.pathId || item.pathId}?subject=${item.subjectId}&tab=skills`
                                 : '/courses'
                             }
                             className="bg-white border border-gray-200 text-gray-800 px-4 py-2 rounded-lg font-bold text-sm hover:bg-gray-50 transition-colors text-center block w-full"

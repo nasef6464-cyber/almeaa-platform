@@ -861,6 +861,7 @@ const SaherTab = () => {
                 map.set(key, {
                     key,
                     skillId: skill.skillId,
+                    pathId: skill.pathId,
                     subjectId: skill.subjectId,
                     sectionId: skill.sectionId,
                     section: skill.section,
@@ -874,6 +875,7 @@ const SaherTab = () => {
         }, new globalThis.Map<string, {
             key: string;
             skillId?: string;
+            pathId?: string;
             subjectId?: string;
             sectionId?: string;
             section?: string;
@@ -971,8 +973,8 @@ const SaherTab = () => {
                                         {item.recommendedLesson ? (
                                             <Link
                                                 to={
-                                                    item.subjectId
-                                                        ? `/category/${item.recommendedLesson.pathId}?subject=${item.subjectId}&tab=skills`
+                                                    item.subjectId && (item.recommendedLesson.pathId || item.pathId)
+                                                        ? `/category/${item.recommendedLesson.pathId || item.pathId}?subject=${item.subjectId}&tab=skills`
                                                         : '/courses'
                                                 }
                                                 className="inline-block w-full text-center bg-white border border-gray-200 text-gray-800 px-4 py-2 rounded-lg font-bold text-sm hover:bg-gray-50 transition-colors"
