@@ -47,6 +47,7 @@ interface ResolvedAnalysisItem {
   skillName: string;
   mastery: number;
   status: 'weak' | 'average' | 'strong';
+  attempts?: number;
   lessonTitle?: string;
   lessonLink?: string;
   lessonVideoUrl?: string;
@@ -146,6 +147,12 @@ const getSkillPriorityLabel = (mastery: number) => {
   return { label: 'ابدأ هنا', className: 'bg-rose-50 text-rose-700' };
 };
 
+const getStatusFromMastery = (mastery: number): ResolvedAnalysisItem['status'] => {
+  if (mastery >= 80) return 'strong';
+  if (mastery >= 60) return 'average';
+  return 'weak';
+};
+
 const getFriendlyResultMessage = (score: number) => {
   if (score >= 85) {
     return {
@@ -225,31 +232,66 @@ const Results: React.FC = () => {
   const analysisItems: ResolvedAnalysisItem[] = React.useMemo(() => {
     if (!latestResult) return [];
 
-    return (latestResult.skillsAnalysis || [])
-      .map((item) => {
-        const recommendation = getSkillRecommendation(item, skills, lessons, quizzes, libraryItems, questions);
+    const aggregated = new Map<
+      string,
+      ResolvedAnalysisItem & { totalMastery: number; lowestMastery: number }
+    >();
 
-        return {
-          subjectName:
-            recommendation.subjectName ||
-            (item.subjectId ? displayText(subjects.find((subject) => subject.id === item.subjectId)?.name) : undefined),
-          sectionName:
-            recommendation.sectionName ||
-            displayText(item.section) ||
-            (item.sectionId ? displayText(sections.find((section) => section.id === item.sectionId)?.name) : undefined),
-          skillName: displayText(item.skill),
-          mastery: item.mastery,
-          status: item.status,
-          lessonTitle: recommendation.lessonTitle,
-          lessonLink: recommendation.lessonLink,
-          lessonVideoUrl: recommendation.lessonVideoUrl,
-          quizTitle: recommendation.quizTitle,
-          quizLink: recommendation.quizLink,
-          resourceTitle: recommendation.resourceTitle,
-          resourceUrl: recommendation.resourceUrl,
-          actionText: recommendation.actionText,
-        };
-      })
+    (latestResult.skillsAnalysis || []).forEach((item) => {
+        const recommendation = getSkillRecommendation(item, skills, lessons, quizzes, libraryItems, questions);
+        const subjectName =
+          recommendation.subjectName ||
+          (item.subjectId ? displayText(subjects.find((subject) => subject.id === item.subjectId)?.name) : undefined);
+        const sectionName =
+          recommendation.sectionName ||
+          displayText(item.section) ||
+          (item.sectionId ? displayText(sections.find((section) => section.id === item.sectionId)?.name) : undefined);
+        const skillName = displayText(item.skill) || 'مهارة غير مسماة';
+        const skillKey = item.skillId || `${item.subjectId || subjectName || 'subject'}-${item.sectionId || sectionName || 'section'}-${skillName}`;
+        const current = aggregated.get(skillKey);
+
+        if (!current) {
+          aggregated.set(skillKey, {
+            subjectName,
+            sectionName,
+            skillName,
+            mastery: item.mastery,
+            status: item.status || getStatusFromMastery(item.mastery),
+            attempts: 1,
+            lessonTitle: recommendation.lessonTitle,
+            lessonLink: recommendation.lessonLink,
+            lessonVideoUrl: recommendation.lessonVideoUrl,
+            quizTitle: recommendation.quizTitle,
+            quizLink: recommendation.quizLink,
+            resourceTitle: recommendation.resourceTitle,
+            resourceUrl: recommendation.resourceUrl,
+            actionText: recommendation.actionText,
+            totalMastery: item.mastery,
+            lowestMastery: item.mastery,
+          });
+          return;
+        }
+
+        current.attempts = (current.attempts || 0) + 1;
+        current.totalMastery += item.mastery;
+        current.lowestMastery = Math.min(current.lowestMastery, item.mastery);
+        current.mastery = Math.round(current.totalMastery / current.attempts);
+        current.status = getStatusFromMastery(current.mastery);
+
+        if (item.mastery <= current.lowestMastery) {
+          current.actionText = recommendation.actionText || current.actionText;
+          current.lessonTitle = recommendation.lessonTitle || current.lessonTitle;
+          current.lessonLink = recommendation.lessonLink || current.lessonLink;
+          current.lessonVideoUrl = recommendation.lessonVideoUrl || current.lessonVideoUrl;
+          current.quizTitle = recommendation.quizTitle || current.quizTitle;
+          current.quizLink = recommendation.quizLink || current.quizLink;
+          current.resourceTitle = recommendation.resourceTitle || current.resourceTitle;
+          current.resourceUrl = recommendation.resourceUrl || current.resourceUrl;
+        }
+      });
+
+    return Array.from(aggregated.values())
+      .map(({ totalMastery, lowestMastery, ...item }) => item)
       .sort((a, b) => a.mastery - b.mastery);
   }, [latestResult, skills, lessons, quizzes, libraryItems, questions, subjects, sections]);
 
@@ -567,6 +609,11 @@ const Results: React.FC = () => {
                     {weakestSkill.skillName}
                   </div>
                 </div>
+                {weakestSkill.attempts && weakestSkill.attempts > 1 ? (
+                  <div className="mt-3 inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-black text-rose-700">
+                    ظهرت في {weakestSkill.attempts} أسئلة داخل الاختبار
+                  </div>
+                ) : null}
                 <p className="mt-2 text-sm leading-7 text-gray-600">{weakestSkill.actionText}</p>
                 <div className="mt-4 h-2 rounded-full bg-white">
                   <div className="h-full rounded-full bg-rose-500" style={{ width: `${weakestSkill.mastery}%` }} />
@@ -669,6 +716,11 @@ const Results: React.FC = () => {
                         <span className={`rounded-full px-3 py-1 text-xs font-bold ${masteryMeta.badge}`}>
                           {masteryMeta.label} - {item.mastery}%
                         </span>
+                        {item.attempts && item.attempts > 1 ? (
+                          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+                            {item.attempts} أسئلة
+                          </span>
+                        ) : null}
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs font-bold">
                         {item.subjectName ? (
