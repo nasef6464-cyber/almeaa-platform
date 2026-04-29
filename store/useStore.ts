@@ -203,6 +203,27 @@ const packageMatchesScope = (
     return matchesPath && matchesSubject;
 };
 
+const getUserSchoolIds = (groups: Group[], userGroupIds: string[] = []) => {
+    const ids = new Set<string>();
+
+    userGroupIds.forEach((groupId) => {
+        const group = groups.find((item) => item.id === groupId);
+        if (!group) {
+            return;
+        }
+
+        if (group.type === 'SCHOOL') {
+            ids.add(group.id);
+        }
+
+        if (group.parentId) {
+            ids.add(group.parentId);
+        }
+    });
+
+    return ids;
+};
+
 export const useStore = create<AppState>()(
     persist(
         (set, get) => ({
@@ -633,12 +654,27 @@ export const useStore = create<AppState>()(
                 if (state.user.subscription.plan === 'premium') return true;
 
                 const purchasedPackageIds = new Set(state.user.subscription?.purchasedPackages || []);
-                return state.b2bPackages.some((pkg) => purchasedPackageIds.has(pkg.id) && packageMatchesScope(pkg, contentType, pathId, subjectId));
+                const hasDirectPackage = state.b2bPackages.some((pkg) => purchasedPackageIds.has(pkg.id) && packageMatchesScope(pkg, contentType, pathId, subjectId));
+                if (hasDirectPackage) {
+                    return true;
+                }
+
+                const schoolIds = getUserSchoolIds(state.groups, state.user.groupIds || []);
+                if (schoolIds.size === 0) {
+                    return false;
+                }
+
+                return state.b2bPackages.some((pkg) => schoolIds.has(pkg.schoolId) && packageMatchesScope(pkg, contentType, pathId, subjectId));
             },
             getMatchingPackage: (contentType, pathId, subjectId) => {
                 const state = get();
+                const schoolIds = getUserSchoolIds(state.groups, state.user.groupIds || []);
+                if (schoolIds.size === 0) {
+                    return null;
+                }
+
                 const prioritizedPackages = [...state.b2bPackages]
-                    .filter((pkg) => packageMatchesScope(pkg, contentType, pathId, subjectId))
+                    .filter((pkg) => schoolIds.has(pkg.schoolId) && packageMatchesScope(pkg, contentType, pathId, subjectId))
                     .sort((a, b) => {
                         const aSpecificity = (a.subjectIds?.length || 0) * 4 + (a.pathIds?.length || 0) * 2 + (a.contentTypes?.includes('all') ? 0 : 1);
                         const bSpecificity = (b.subjectIds?.length || 0) * 4 + (b.pathIds?.length || 0) * 2 + (b.contentTypes?.includes('all') ? 0 : 1);
