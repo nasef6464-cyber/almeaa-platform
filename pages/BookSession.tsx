@@ -12,6 +12,8 @@ export const BookSession: React.FC = () => {
   const [time, setTime] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [formError, setFormError] = useState('');
+  const today = new Date().toISOString().slice(0, 10);
 
   const sessionTargets = useMemo(() => {
     const primarySkillTargets = skills.map((skill) => {
@@ -19,26 +21,33 @@ export const BookSession: React.FC = () => {
       const pathItem = subjectItem ? paths.find((item) => item.id === subjectItem.pathId) : undefined;
       const sectionItem = sections.find((item) => item.id === skill.sectionId);
 
+      if (pathItem?.isActive === false) {
+        return null;
+      }
+
       const labelParts = [pathItem?.name, subjectItem?.name, sectionItem?.name, skill.name].filter(Boolean);
 
       return {
         value: `skill:${skill.id}`,
         label: labelParts.join(' - '),
       };
-    });
+    }).filter((target): target is { value: string; label: string } => Boolean(target));
 
     const secondaryTargets = sections
       .filter((section) => !primarySkillTargets.some((item) => item.label.includes(section.name)))
       .map((section) => {
         const subjectItem = subjects.find((item) => item.id === section.subjectId);
         const pathItem = subjectItem ? paths.find((item) => item.id === subjectItem.pathId) : undefined;
+        if (pathItem?.isActive === false) {
+          return null;
+        }
         const labelParts = [pathItem?.name, subjectItem?.name, section.name].filter(Boolean);
 
         return {
           value: `section:${section.id}`,
           label: labelParts.join(' - '),
         };
-      });
+      }).filter((target): target is { value: string; label: string } => Boolean(target));
 
     const fallbackTarget = {
       value: 'other',
@@ -55,6 +64,12 @@ export const BookSession: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
+
+    if (date < today) {
+      setFormError('اختر تاريخًا قادمًا أو تاريخ اليوم للحجز.');
+      return;
+    }
 
     addActivity({
       type: 'session_booked',
@@ -127,6 +142,12 @@ export const BookSession: React.FC = () => {
             </div>
           </div>
 
+          {formError ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
+              {formError}
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="block text-sm font-bold text-gray-700">التاريخ المفضل</label>
@@ -138,6 +159,7 @@ export const BookSession: React.FC = () => {
                   type="date"
                   required
                   value={date}
+                  min={today}
                   onChange={(e) => setDate(e.target.value)}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-4 pr-10 text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />

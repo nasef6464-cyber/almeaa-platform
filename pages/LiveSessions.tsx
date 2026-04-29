@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { CalendarDays, ExternalLink, PlayCircle, Video } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { useStore } from '../store/useStore';
+import { sanitizeArabicText } from '../utils/sanitizeMojibakeArabic';
 
 const LIVE_TYPES = new Set(['live_youtube', 'zoom', 'google_meet', 'teams']);
 
@@ -11,6 +12,8 @@ const providerLabelMap: Record<string, string> = {
     google_meet: 'Google Meet',
     teams: 'Microsoft Teams',
 };
+
+const displayText = (value?: string | null) => sanitizeArabicText(value) || '';
 
 const canAccessLesson = (lesson: any, user: any) => {
     if (user.role === 'student' && lesson.showOnPlatform === false) {
@@ -47,17 +50,24 @@ const formatMeetingDate = (meetingDate?: string) =>
 const LiveSessions: React.FC = () => {
     const { lessons, user, paths, subjects } = useStore();
 
+    const canSeeHiddenPaths = ['admin', 'teacher', 'supervisor'].includes(String(user.role));
+    const visiblePathIds = useMemo(
+        () => new Set(paths.filter((path) => canSeeHiddenPaths || path.isActive !== false).map((path) => path.id)),
+        [canSeeHiddenPaths, paths],
+    );
+
     const sessions = useMemo(
         () =>
             lessons
                 .filter((lesson) => LIVE_TYPES.has(lesson.type))
+                .filter((lesson) => canSeeHiddenPaths || !lesson.pathId || visiblePathIds.has(lesson.pathId))
                 .filter((lesson) => canAccessLesson(lesson, user))
                 .sort((a, b) => {
                     const aDate = a.meetingDate ? new Date(a.meetingDate).getTime() : Number.MAX_SAFE_INTEGER;
                     const bDate = b.meetingDate ? new Date(b.meetingDate).getTime() : Number.MAX_SAFE_INTEGER;
                     return aDate - bDate;
                 }),
-        [lessons, user],
+        [canSeeHiddenPaths, lessons, user, visiblePathIds],
     );
 
     const upcomingSessions = sessions.filter((lesson) => lesson.meetingDate && new Date(lesson.meetingDate).getTime() >= Date.now());
@@ -78,8 +88,8 @@ const LiveSessions: React.FC = () => {
             {sessions.length > 0 ? (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {sessions.map((lesson) => {
-                        const pathName = paths.find((path) => path.id === lesson.pathId)?.name || 'بدون مسار';
-                        const subjectName = subjects.find((subject) => subject.id === lesson.subjectId)?.name || 'بدون مادة';
+                        const pathName = displayText(paths.find((path) => path.id === lesson.pathId)?.name) || 'بدون مسار';
+                        const subjectName = displayText(subjects.find((subject) => subject.id === lesson.subjectId)?.name) || 'بدون مادة';
                         const isUpcoming = lesson.meetingDate ? new Date(lesson.meetingDate).getTime() >= Date.now() : false;
                         const canWatchRecording = Boolean(lesson.recordingUrl) && lesson.showRecordingOnPlatform === true;
 
@@ -91,7 +101,7 @@ const LiveSessions: React.FC = () => {
                                             <Video size={22} />
                                         </div>
                                         <div className="text-right">
-                                            <h3 className="font-bold text-gray-900 text-lg">{lesson.title}</h3>
+                                            <h3 className="font-bold text-gray-900 text-lg">{displayText(lesson.title)}</h3>
                                             <p className="text-sm text-gray-500 mt-1">{pathName} - {subjectName}</p>
                                         </div>
                                     </div>
@@ -115,7 +125,7 @@ const LiveSessions: React.FC = () => {
                                     </div>
                                     {lesson.joinInstructions ? (
                                         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-700">
-                                            {lesson.joinInstructions}
+                                            {displayText(lesson.joinInstructions)}
                                         </div>
                                     ) : null}
                                 </div>
@@ -140,6 +150,17 @@ const LiveSessions: React.FC = () => {
                                     <div className="flex-1 inline-flex items-center justify-center px-4 py-3 rounded-xl border border-gray-200 text-gray-700 font-bold bg-gray-50">
                                         {isUpcoming ? 'حضّر جهازك قبل الموعد' : 'راجع تفاصيل الحصة لاحقًا'}
                                     </div>
+                                    {canWatchRecording ? (
+                                        <a
+                                            href={lesson.recordingUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 font-bold hover:bg-emerald-100 transition-colors"
+                                        >
+                                            <PlayCircle size={18} />
+                                            مشاهدة التسجيل
+                                        </a>
+                                    ) : null}
                                 </div>
                             </Card>
                         );

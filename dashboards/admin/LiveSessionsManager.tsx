@@ -72,6 +72,14 @@ export const LiveSessionsManager: React.FC = () => {
         setCurrentLesson(null);
     };
 
+    const togglePlatformVisibility = (lesson: Lesson) => {
+        const shouldShow = !lesson.showOnPlatform;
+        updateLesson(lesson.id, {
+            showOnPlatform: shouldShow,
+            ...(shouldShow && lesson.approvalStatus !== 'approved' ? { approvalStatus: 'approved' } : {}),
+        });
+    };
+
     if (isEditing && currentLesson) {
         return (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-120px)] animate-fade-in relative z-50">
@@ -180,7 +188,7 @@ export const LiveSessionsManager: React.FC = () => {
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <button
-                                                    onClick={() => updateLesson(lesson.id, { showOnPlatform: !lesson.showOnPlatform })}
+                                                    onClick={() => togglePlatformVisibility(lesson)}
                                                     className={`px-3 py-2 rounded-lg text-xs font-bold inline-flex items-center gap-1 ${
                                                         lesson.showOnPlatform ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                                                     }`}
