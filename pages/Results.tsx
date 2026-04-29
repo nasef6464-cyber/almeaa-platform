@@ -285,6 +285,9 @@ const Results: React.FC = () => {
         },
       ]
     : [];
+  const guardianFollowUpSummary = weakestSkill
+    ? `نتيجة الاختبار ${latestResult?.score || 0}%. أضعف مهارة ظهرت هي "${weakestSkill.skillName}" بنسبة ${weakestSkill.mastery}%. الخطوة المناسبة الآن: ${weakestSkill.actionText}`
+    : `نتيجة الاختبار ${latestResult?.score || 0}%. لا توجد مهارات تفصيلية كافية في هذه المحاولة، والأفضل مراجعة الحلول ثم إعادة اختبار قصير.`;
 
   const donutData = [
     { name: 'Success', value: latestResult?.score || 0 },
@@ -449,6 +452,18 @@ const Results: React.FC = () => {
                 <PlusCircle size={18} />
                 اختبار إضافي
               </Link>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="text-sm font-black text-slate-800">ملخص سريع لولي الأمر أو المعلم</div>
+                  <p className="mt-2 text-sm leading-7 text-slate-600">{guardianFollowUpSummary}</p>
+                </div>
+                <span className="self-start rounded-full bg-white px-3 py-1 text-[11px] font-black text-indigo-700">
+                  مناسب للمتابعة
+                </span>
+              </div>
             </div>
           </div>
         </Card>
