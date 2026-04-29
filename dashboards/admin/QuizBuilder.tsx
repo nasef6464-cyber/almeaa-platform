@@ -506,11 +506,13 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
                         }))
                       }
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-gray-50"
-                      disabled={!!currentQuiz.pathId && subjects.filter(subject => subject.pathId === currentQuiz.pathId).length === 0}
+                      disabled={!currentQuiz.pathId || subjects.filter(subject => subject.pathId === currentQuiz.pathId).length === 0}
                     >
-                      <option value="">{'-- \u0627\u062e\u062a\u0631 \u0627\u0644\u0645\u0627\u062f\u0629 --'}</option>
+                      <option value="">
+                        {!currentQuiz.pathId ? '-- اختر المسار أولًا --' : '-- اختر المادة --'}
+                      </option>
                       {subjects
-                        .filter(subject => !currentQuiz.pathId || subject.pathId === currentQuiz.pathId)
+                        .filter(subject => subject.pathId === currentQuiz.pathId)
                         .map(subject => (
                           <option key={subject.id} value={subject.id}>{subject.name}</option>
                       ))}
