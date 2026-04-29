@@ -73,6 +73,20 @@ const buildDocumentQuery = (value: string) => {
   return { id: value };
 };
 
+const buildDocumentsByIdsQuery = (values: string[]) => {
+  const ids = uniqueStrings(values.map((value) => String(value || "").trim()).filter(Boolean));
+  const objectIds = ids
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+
+  return {
+    $or: [
+      { id: { $in: ids } },
+      ...(objectIds.length ? [{ _id: { $in: objectIds } }] : []),
+    ],
+  };
+};
+
 const resolveQuizSkillIds = async (questionIds: string[]) => {
   if (questionIds.length === 0) {
     return [];
@@ -377,7 +391,7 @@ quizRouter.get(
     ]);
 
     const groups = relatedGroupIds.length
-      ? await GroupModel.find({ id: { $in: relatedGroupIds } })
+      ? await GroupModel.find(buildDocumentsByIdsQuery(relatedGroupIds))
       : [];
 
     const groupNameById = new Map(groups.map((group) => [String(group.id), String(group.name || "")]));
