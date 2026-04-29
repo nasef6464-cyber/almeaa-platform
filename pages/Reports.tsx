@@ -182,6 +182,8 @@ const Reports: React.FC = () => {
     const [sharedStudentSummary, setSharedStudentSummary] = useState(false);
     const [smartRemediation, setSmartRemediation] = useState<SmartRemediationPlan | null>(null);
     const [smartRemediationLoading, setSmartRemediationLoading] = useState(false);
+    const [scopedSmartRemediation, setScopedSmartRemediation] = useState<SmartRemediationPlan | null>(null);
+    const [scopedSmartRemediationLoading, setScopedSmartRemediationLoading] = useState(false);
 
     useEffect(() => {
         if (!user?.email || user.role === Role.STUDENT) {
@@ -477,6 +479,41 @@ const Reports: React.FC = () => {
             setSharedScopedSummary(false);
         }
     };
+    const buildScopedSmartRemediation = async () => {
+        if (!scopedAnalytics?.weakestSkills.length) return;
+
+        setScopedSmartRemediationLoading(true);
+        const skillPayload = scopedAnalytics.weakestSkills.slice(0, 5).map((skill) => ({
+            skill: skill.skill,
+            skillId: skill.skillId,
+            mastery: skill.mastery,
+            status: skill.mastery < 50 ? 'weak' : skill.mastery < 75 ? 'average' : 'strong',
+            affectedStudents: skill.affectedStudents,
+            attempts: skill.attempts,
+        }));
+
+        try {
+            const response = await api.aiRemediationPlan({
+                skills: skillPayload,
+                ageBand: 'general',
+            });
+            setScopedSmartRemediation(response);
+        } catch {
+            setScopedSmartRemediation({
+                title: 'خطة تدخل للنطاق الحالي',
+                summary: 'ابدأ بالمهارة الأكثر ضعفًا، وجه شرحًا قصيرًا، ثم اختبار متابعة لقياس التحسن.',
+                steps: skillPayload.slice(0, 3).map((skill, index) => ({
+                    day: `خطوة ${index + 1}`,
+                    skill: displayText(skill.skill),
+                    action: index === 0 ? 'أنشئ شرحًا أو حصة قصيرة لهذه المهارة.' : 'وجّه تدريبًا علاجيًا للطلاب المتأثرين.',
+                    check: 'أعد القياس باختبار قصير موجه لنفس المهارة.',
+                })),
+                parentNote: 'تابع الطلاب الضعاف بهدوء، واجعل التغذية الراجعة قصيرة وواضحة بعد كل محاولة.',
+            });
+        } finally {
+            setScopedSmartRemediationLoading(false);
+        }
+    };
 
     if (isStudentView && !hasStudentAnalytics) {
         return (
@@ -587,6 +624,14 @@ const Reports: React.FC = () => {
                                             {sharedScopedSummary ? <CheckCircle size={13} /> : <Share2 size={13} />}
                                             {sharedScopedSummary ? 'تمت المشاركة' : 'مشاركة'}
                                         </button>
+                                        <button
+                                            onClick={buildScopedSmartRemediation}
+                                            disabled={scopedSmartRemediationLoading || !scopedAnalytics.weakestSkills.length}
+                                            className="print-hide inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800 hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {scopedSmartRemediationLoading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                                            {scopedSmartRemediationLoading ? 'جارٍ التجهيز' : 'تدخل ذكي'}
+                                        </button>
                                         <span className="self-start rounded-full bg-white px-3 py-1 text-xs font-black text-indigo-700">تشخيص - علاج - قياس</span>
                                     </div>
                                 </div>
@@ -604,6 +649,44 @@ const Reports: React.FC = () => {
                                         </div>
                                     ))}
                                 </div>
+                                {scopedSmartRemediation ? (
+                                    <div className="mt-4 rounded-3xl border border-amber-100 bg-white/80 p-4">
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                            <div>
+                                                <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">
+                                                    <Sparkles size={14} />
+                                                    خطة ذكية قابلة للتنفيذ
+                                                </div>
+                                                <div className="text-lg font-black text-gray-900">{displayText(scopedSmartRemediation.title) || 'خطة تدخل للنطاق الحالي'}</div>
+                                                <p className="mt-2 text-sm leading-7 text-gray-600">
+                                                    {displayText(scopedSmartRemediation.summary) || 'ابدأ بالمهارة الأكثر ضعفًا، ثم أنشئ متابعة قصيرة وقابلة للقياس.'}
+                                                </p>
+                                            </div>
+                                            <Link to="/quiz" className="self-start rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800">
+                                                إنشاء اختبار متابعة
+                                            </Link>
+                                        </div>
+                                        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                                            {(scopedSmartRemediation.steps || []).slice(0, 3).map((step, index) => (
+                                                <div key={`${step.day || index}-${step.skill || index}`} className="rounded-2xl border border-gray-100 bg-slate-50 p-4">
+                                                    <div className="rounded-full bg-white px-3 py-1 text-xs font-black text-indigo-700 inline-flex">
+                                                        {displayText(step.day) || `خطوة ${index + 1}`}
+                                                    </div>
+                                                    <div className="mt-3 font-black leading-7 text-gray-900">{displayText(step.skill) || 'مهارة تحتاج متابعة'}</div>
+                                                    <p className="mt-2 text-sm leading-7 text-gray-600">{displayText(step.action) || 'وجّه نشاطًا علاجيًا قصيرًا.'}</p>
+                                                    <div className="mt-3 text-xs font-bold leading-6 text-gray-500">
+                                                        قياس التحسن: {displayText(step.check) || 'اختبار قصير بعد التدخل.'}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        {scopedSmartRemediation.parentNote ? (
+                                            <div className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-bold leading-7 text-emerald-800">
+                                                توجيه متابعة: {displayText(scopedSmartRemediation.parentNote)}
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                ) : null}
                             </div>
 
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
