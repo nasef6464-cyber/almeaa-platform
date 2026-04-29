@@ -31,6 +31,8 @@ const courseSummarySchema = z.object({
 type AiResponseMimeType = "application/json";
 type AiProvider = "gemini" | "ollama" | "none";
 
+const isOllamaExplicitlyConfigured = () => Boolean(process.env.OLLAMA_BASE_URL || process.env.OLLAMA_MODEL);
+
 const ARABIC_TUTOR_RULES = `
 أنت مساعد تعليمي عربي داخل منصة تعليمية للقدرات والتحصيلي.
 اكتب بلغة عربية بسيطة ومشجعة ومناسبة للطلاب من المرحلة الابتدائية حتى الثانوية.
@@ -56,14 +58,25 @@ const safeJsonParse = <T>(value: string | undefined, fallback: T): T => {
 const resolveProvider = (): AiProvider => {
   if (env.AI_PROVIDER) return env.AI_PROVIDER;
   if (env.GEMINI_API_KEY) return "gemini";
-  if (env.OLLAMA_BASE_URL && env.OLLAMA_MODEL) return "ollama";
+  if (isOllamaExplicitlyConfigured() && env.OLLAMA_BASE_URL && env.OLLAMA_MODEL) return "ollama";
   return "none";
+};
+
+const fetchWithTimeout = async (url: string, init: RequestInit) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), env.AI_REQUEST_TIMEOUT_MS);
+
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 };
 
 const callGemini = async (prompt: string, responseMimeType?: AiResponseMimeType) => {
   if (!env.GEMINI_API_KEY) return "";
 
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${env.GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
     {
       method: "POST",
@@ -87,7 +100,7 @@ const callGemini = async (prompt: string, responseMimeType?: AiResponseMimeType)
 };
 
 const callOllama = async (prompt: string, responseMimeType?: AiResponseMimeType) => {
-  const response = await fetch(`${env.OLLAMA_BASE_URL.replace(/\/$/, "")}/api/generate`, {
+  const response = await fetchWithTimeout(`${env.OLLAMA_BASE_URL.replace(/\/$/, "")}/api/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -134,9 +147,10 @@ aiRouter.get(
   asyncHandler(async (_req, res) => {
     res.json({
       provider: resolveProvider(),
-      ollamaConfigured: Boolean(env.OLLAMA_BASE_URL && env.OLLAMA_MODEL),
+      ollamaConfigured: isOllamaExplicitlyConfigured() && Boolean(env.OLLAMA_BASE_URL && env.OLLAMA_MODEL),
       geminiConfigured: Boolean(env.GEMINI_API_KEY),
       model: resolveProvider() === "ollama" ? env.OLLAMA_MODEL : env.GEMINI_MODEL,
+      timeoutMs: env.AI_REQUEST_TIMEOUT_MS,
     });
   }),
 );

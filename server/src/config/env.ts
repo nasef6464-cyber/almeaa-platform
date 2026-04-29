@@ -14,6 +14,7 @@ const envSchema = z.object({
   ADMIN_EMAIL: z.string().email().default("admin@example.com"),
   ADMIN_PASSWORD: z.string().min(6).default("change-me"),
   AI_PROVIDER: z.enum(["gemini", "ollama", "none"]).optional(),
+  AI_REQUEST_TIMEOUT_MS: z.coerce.number().default(15000),
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
   OLLAMA_BASE_URL: z.string().default("http://127.0.0.1:11434"),
