@@ -548,6 +548,9 @@ export const useStore = create<AppState>()(
                 if (!USE_REAL_API && state.user?.id) {
                     setDoc(doc(db, 'questionAttempts', attemptId), { ...attempt, userId: state.user.id }).catch(console.error);
                 }
+                if (USE_REAL_API && state.user?.email) {
+                    api.createQuestionAttempt(attempt).catch(console.error);
+                }
                 set((state) => ({
                     questionAttempts: [...state.questionAttempts, attempt]
                 }));

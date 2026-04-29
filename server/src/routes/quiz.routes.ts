@@ -8,6 +8,7 @@ import { QuizResultModel } from "../models/QuizResult.js";
 import { UserModel } from "../models/User.js";
 import { GroupModel } from "../models/Group.js";
 import { SkillProgressModel } from "../models/SkillProgress.js";
+import { QuestionAttemptModel } from "../models/QuestionAttempt.js";
 import { optionalAuth, requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
@@ -63,6 +64,14 @@ const quizSchema = z.object({
   approvedAt: z.number().nullable().optional(),
   reviewerNotes: z.string().optional(),
   revenueSharePercentage: z.number().nullable().optional(),
+});
+
+const questionAttemptSchema = z.object({
+  questionId: z.string().min(1),
+  selectedOptionIndex: z.number().default(-1),
+  isCorrect: z.boolean().default(false),
+  timeSpentSeconds: z.number().default(0),
+  date: z.string().optional(),
 });
 
 const buildDocumentQuery = (value: string) => {
@@ -688,6 +697,35 @@ quizRouter.get(
   asyncHandler(async (req, res) => {
     const items = await SkillProgressModel.find({ userId: req.authUser!.id }).sort({ mastery: 1, lastAttemptAt: -1 });
     res.json(items);
+  }),
+);
+
+quizRouter.get(
+  "/question-attempts",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const items = await QuestionAttemptModel.find({ userId: req.authUser!.id }).sort({ createdAt: -1 }).limit(500);
+    res.json(items);
+  }),
+);
+
+quizRouter.post(
+  "/question-attempts",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const payload = questionAttemptSchema.parse(req.body);
+    const question = await QuestionModel.findOne(buildDocumentQuery(payload.questionId)).select("id pathId subject sectionId skillIds");
+    const created = await QuestionAttemptModel.create({
+      ...payload,
+      userId: req.authUser!.id,
+      date: payload.date || new Date().toISOString(),
+      pathId: String(question?.pathId || ""),
+      subjectId: String(question?.subject || ""),
+      sectionId: String(question?.sectionId || ""),
+      skillIds: Array.isArray(question?.skillIds) ? question.skillIds.map(String) : [],
+    });
+
+    res.status(StatusCodes.CREATED).json(created);
   }),
 );
 
