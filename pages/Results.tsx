@@ -427,15 +427,41 @@ const Results: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <SimpleResultStat label="عدد الأسئلة" value={latestResult.totalQuestions.toString()} />
-                <SimpleResultStat label="الصحيح" value={latestResult.correctAnswers.toString()} tone="success" />
-                <SimpleResultStat label="الخطأ" value={latestResult.wrongAnswers.toString()} tone="danger" />
-                <SimpleResultStat label="بدون إجابة" value={latestResult.unanswered.toString()} tone="warning" />
-                <SimpleResultStat label="مهارات قوية" value={strongSkillsCount.toString()} tone="success" />
-                <SimpleResultStat label="مهارات متوسطة" value={averageSkillsCount.toString()} tone="warning" />
-                <SimpleResultStat label="مهارات ضعيفة" value={weakSkillsCount.toString()} tone="danger" />
-                <SimpleResultStat label="وقت الحل" value={latestResult.timeSpent} />
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <SimpleResultStat label="عدد الأسئلة" value={latestResult.totalQuestions.toString()} />
+                  <SimpleResultStat label="الصحيح" value={latestResult.correctAnswers.toString()} tone="success" />
+                  <SimpleResultStat label="الخطأ" value={latestResult.wrongAnswers.toString()} tone="danger" />
+                  <SimpleResultStat label="وقت الحل" value={latestResult.timeSpent} />
+                </div>
+
+                <div className="rounded-2xl border border-gray-100 bg-white p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-black text-gray-800">خريطة المهارات في هذا الاختبار</div>
+                      <div className="mt-1 text-xs text-gray-500">نقرأها من الأسئلة التي حللتها، وليست من الدرجة فقط.</div>
+                    </div>
+                    {latestResult.unanswered > 0 ? (
+                      <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">
+                        {latestResult.unanswered} بدون إجابة
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="rounded-xl bg-emerald-50 px-3 py-3 text-emerald-700">
+                      <div className="text-xl font-black">{strongSkillsCount}</div>
+                      <div className="text-[11px] font-bold">قوية</div>
+                    </div>
+                    <div className="rounded-xl bg-amber-50 px-3 py-3 text-amber-700">
+                      <div className="text-xl font-black">{averageSkillsCount}</div>
+                      <div className="text-[11px] font-bold">متوسطة</div>
+                    </div>
+                    <div className="rounded-xl bg-rose-50 px-3 py-3 text-rose-700">
+                      <div className="text-xl font-black">{weakSkillsCount}</div>
+                      <div className="text-[11px] font-bold">تحتاج دعم</div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -474,6 +500,13 @@ const Results: React.FC = () => {
               >
                 <PlusCircle size={18} />
                 اختبار إضافي
+              </Link>
+              <Link
+                to="/plan"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 border border-purple-200 text-purple-700 px-6 py-3 rounded-xl font-bold text-sm hover:bg-purple-50 transition-colors"
+              >
+                <CheckCircle2 size={18} />
+                حوّلها لخطة مذاكرة
               </Link>
             </div>
 
