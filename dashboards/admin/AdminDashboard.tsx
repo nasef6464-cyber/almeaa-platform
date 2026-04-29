@@ -31,6 +31,8 @@ import { LiveSessionsManager } from './LiveSessionsManager';
 
 type ReviewQueueItem = {
     id: string;
+    itemId: string;
+    contentType: 'course' | 'lesson' | 'question' | 'quiz' | 'library';
     type: string;
     title: string;
     ownerType: string;
@@ -58,6 +60,11 @@ export const AdminDashboard: React.FC = () => {
         lessons,
         libraryItems,
         examResults,
+        updateCourse,
+        updateLesson,
+        updateQuestion,
+        updateQuiz,
+        updateLibraryItem,
     } = useStore();
     const [activeTab, setActiveTab] = useState(user.role === Role.ADMIN ? 'paths' : 'overview');
 
@@ -90,22 +97,73 @@ export const AdminDashboard: React.FC = () => {
     const reviewQueue = useMemo<ReviewQueueItem[]>(() => {
         const normalizeItem = (
             type: string,
-            item: { id: string; title?: string; question?: string; name?: string; ownerType?: string; approvalStatus?: string },
+            contentType: ReviewQueueItem['contentType'],
+            item: { id: string; title?: string; question?: string; text?: string; name?: string; ownerType?: string; approvalStatus?: string },
         ): ReviewQueueItem => ({
             id: `${type}-${item.id}`,
+            itemId: item.id,
+            contentType,
             type,
-            title: item.title || item.name || item.question || 'عنصر بدون عنوان',
+            title: item.title || item.name || item.question || item.text || 'عنصر بدون عنوان',
             ownerType: item.ownerType || 'platform',
         });
 
         return [
-            ...courses.filter((item) => item.approvalStatus === 'pending_review').map((item) => normalizeItem('دورة', item)),
-            ...lessons.filter((item) => item.approvalStatus === 'pending_review').map((item) => normalizeItem('درس', item)),
-            ...questions.filter((item) => item.approvalStatus === 'pending_review').map((item) => normalizeItem('سؤال', item)),
-            ...quizzes.filter((item) => item.approvalStatus === 'pending_review').map((item) => normalizeItem('اختبار', item)),
-            ...libraryItems.filter((item) => item.approvalStatus === 'pending_review').map((item) => normalizeItem('ملف', item)),
+            ...courses.filter((item) => item.approvalStatus === 'pending_review').map((item) => normalizeItem('دورة', 'course', item)),
+            ...lessons.filter((item) => item.approvalStatus === 'pending_review').map((item) => normalizeItem('درس', 'lesson', item)),
+            ...questions.filter((item) => item.approvalStatus === 'pending_review').map((item) => normalizeItem('سؤال', 'question', item)),
+            ...quizzes.filter((item) => item.approvalStatus === 'pending_review').map((item) => normalizeItem('اختبار', 'quiz', item)),
+            ...libraryItems.filter((item) => item.approvalStatus === 'pending_review').map((item) => normalizeItem('ملف', 'library', item)),
         ].slice(0, 8);
     }, [courses, lessons, libraryItems, questions, quizzes]);
+
+    const reviewContentItem = (item: ReviewQueueItem, decision: 'approved' | 'rejected') => {
+        if (user.role !== Role.ADMIN) return;
+
+        const isApproved = decision === 'approved';
+        const basePayload = {
+            approvalStatus: decision,
+            approvedBy: isApproved ? user.id : undefined,
+            approvedAt: isApproved ? Date.now() : undefined,
+            reviewerNotes: isApproved ? 'تم الاعتماد السريع من لوحة الإدارة.' : 'تم الرفض السريع من لوحة الإدارة.',
+        };
+
+        if (item.contentType === 'course') {
+            updateCourse(item.itemId, {
+                ...basePayload,
+                isPublished: isApproved,
+                showOnPlatform: isApproved,
+            });
+            return;
+        }
+
+        if (item.contentType === 'lesson') {
+            updateLesson(item.itemId, {
+                ...basePayload,
+                showOnPlatform: isApproved,
+            });
+            return;
+        }
+
+        if (item.contentType === 'question') {
+            updateQuestion(item.itemId, basePayload);
+            return;
+        }
+
+        if (item.contentType === 'quiz') {
+            updateQuiz(item.itemId, {
+                ...basePayload,
+                isPublished: isApproved,
+                showOnPlatform: isApproved,
+            });
+            return;
+        }
+
+        updateLibraryItem(item.itemId, {
+            ...basePayload,
+            showOnPlatform: isApproved,
+        });
+    };
 
     const teacherContributionStats = useMemo<TeacherContributionItem[]>(() => {
         const teachers = users.filter((item) => item.role === Role.TEACHER);
@@ -381,11 +439,27 @@ export const AdminDashboard: React.FC = () => {
                                     <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
                                         <User size={14} className="text-amber-600" />
                                     </div>
-                                    <div className="min-w-0">
+                                    <div className="min-w-0 flex-1">
                                         <p className="text-sm text-gray-800 font-bold truncate">{item.title}</p>
                                         <p className="text-xs text-gray-500 mt-1">
                                             {item.type} • المصدر: {item.ownerType === 'teacher' ? 'معلم' : item.ownerType === 'school' ? 'مدرسة' : 'المنصة'}
                                         </p>
+                                        {user.role === Role.ADMIN && (
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                <button
+                                                    onClick={() => reviewContentItem(item, 'approved')}
+                                                    className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700 hover:bg-emerald-100"
+                                                >
+                                                    اعتماد ونشر
+                                                </button>
+                                                <button
+                                                    onClick={() => reviewContentItem(item, 'rejected')}
+                                                    className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-black text-rose-700 hover:bg-rose-100"
+                                                >
+                                                    رفض
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ))
