@@ -69,6 +69,23 @@ const buildDocumentQuery = (value: string) => {
   return { id: value };
 };
 
+const uniqueStrings = (values: Array<string | undefined | null>) =>
+  [...new Set(values.filter((value): value is string => typeof value === "string" && value.trim().length > 0))];
+
+const buildDocumentsByIdsQuery = (values: string[]) => {
+  const ids = uniqueStrings(values.map((value) => String(value || "").trim()));
+  const objectIds = ids
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+
+  return {
+    $or: [
+      { id: { $in: ids } },
+      ...(objectIds.length ? [{ _id: { $in: objectIds } }] : []),
+    ],
+  };
+};
+
 const buildOwnedDocumentQuery = (
   value: string,
   authUser: { id: string; role: string; schoolId?: string | null },
@@ -93,6 +110,59 @@ const buildOwnedDocumentQuery = (
 };
 
 const isStaffRole = (role?: string) => role === "admin" || role === "teacher" || role === "supervisor";
+
+const getScopedOperationalData = async (authUser?: { id: string; role: string; schoolId?: string | null }) => {
+  if (isStaffRole(authUser?.role)) {
+    const [groups, b2bPackages, accessCodes] = await Promise.all([
+      GroupModel.find().sort({ createdAt: -1 }),
+      B2BPackageModel.find().sort({ createdAt: -1 }),
+      AccessCodeModel.find().sort({ createdAt: -1 }),
+    ]);
+
+    return { groups, b2bPackages, accessCodes };
+  }
+
+  if (!authUser) {
+    return { groups: [], b2bPackages: [], accessCodes: [] };
+  }
+
+  const user = await UserModel.findById(authUser.id).select("schoolId groupIds linkedStudentIds role");
+  if (!user) {
+    return { groups: [], b2bPackages: [], accessCodes: [] };
+  }
+
+  const linkedStudents =
+    user.role === "parent" && Array.isArray(user.linkedStudentIds) && user.linkedStudentIds.length
+      ? await UserModel.find(buildDocumentsByIdsQuery(user.linkedStudentIds.map(String))).select("schoolId groupIds")
+      : [];
+
+  const seedGroupIds = uniqueStrings([
+    String(user.schoolId || ""),
+    ...(user.groupIds || []).map(String),
+    ...linkedStudents.flatMap((student) => [String(student.schoolId || ""), ...(student.groupIds || []).map(String)]),
+  ]);
+
+  if (seedGroupIds.length === 0) {
+    return { groups: [], b2bPackages: [], accessCodes: [] };
+  }
+
+  const seedGroups = await GroupModel.find(buildDocumentsByIdsQuery(seedGroupIds)).sort({ createdAt: -1 });
+  const schoolIds = uniqueStrings([
+    String(user.schoolId || ""),
+    ...linkedStudents.map((student) => String(student.schoolId || "")),
+    ...seedGroups
+      .filter((group) => group.type === "SCHOOL")
+      .map((group) => String(group.id || group._id)),
+    ...seedGroups.map((group) => String(group.parentId || "")),
+  ]);
+  const visibleGroupIds = uniqueStrings([...seedGroupIds, ...schoolIds]);
+  const groups = visibleGroupIds.length
+    ? await GroupModel.find(buildDocumentsByIdsQuery(visibleGroupIds)).sort({ createdAt: -1 })
+    : [];
+  const b2bPackages = schoolIds.length ? await B2BPackageModel.find({ schoolId: { $in: schoolIds } }).sort({ createdAt: -1 }) : [];
+
+  return { groups, b2bPackages, accessCodes: [] };
+};
 
 const getWorkflowDefaults = (authUser?: { id: string; role: string; schoolId?: string | null }) => {
   if (!authUser) {
@@ -418,16 +488,15 @@ contentRouter.get(
           showOnPlatform: { $ne: false },
           $or: [{ approvalStatus: "approved" }, { approvalStatus: { $exists: false } }, { approvalStatus: null }],
         };
-    const [topics, lessons, libraryItems, groups, b2bPackages, accessCodes, studyPlans] = await Promise.all([
+    const [topics, lessons, libraryItems, operationalData, studyPlans] = await Promise.all([
       TopicModel.find(topicFilter).sort({ subjectId: 1, order: 1 }),
       LessonModel.find(lessonFilter).sort({ createdAt: -1 }),
       LibraryItemModel.find(libraryFilter).sort({ createdAt: -1 }),
-      GroupModel.find().sort({ createdAt: -1 }),
-      B2BPackageModel.find().sort({ createdAt: -1 }),
-      AccessCodeModel.find().sort({ createdAt: -1 }),
+      getScopedOperationalData(req.authUser),
       req.authUser ? StudyPlanModel.find({ userId: req.authUser.id }).sort({ updatedAt: -1 }) : Promise.resolve([]),
     ]);
 
+    const { groups, b2bPackages, accessCodes } = operationalData;
     res.json({ topics, lessons, libraryItems, groups, b2bPackages, accessCodes, studyPlans });
   }),
 );
