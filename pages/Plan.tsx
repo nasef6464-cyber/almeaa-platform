@@ -13,12 +13,16 @@ import {
   BookOpen,
   Sparkles,
   Archive,
+  Copy,
+  Share2,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { ProgressBar } from '../components/ui/ProgressBar';
 import { useStore } from '../store/useStore';
 import { StudyPlan, StudyPlanDay } from '../types';
+import { sanitizeArabicText } from '../utils/sanitizeMojibakeArabic';
+import { shareTextSummary } from '../utils/shareText';
 
 type GeneratedTask = {
   id: string;
@@ -63,6 +67,20 @@ type DailySessionSlice = {
   colorClass: string;
 };
 
+type SmartSkillPlanItem = {
+  skillId?: string;
+  skillName: string;
+  pathId?: string;
+  subjectId?: string;
+  mastery: number;
+  attempts: number;
+  lesson?: { title: string; link: string };
+  quiz?: { title: string; link: string };
+  resource?: { title: string; link?: string };
+};
+
+const displayText = (value?: string | null, fallback = '') => sanitizeArabicText(value || fallback) || fallback;
+
 const DAYS: { id: StudyPlanDay; label: string; short: string; weekday: number }[] = [
   { id: 'saturday', label: 'السبت', short: 'Sat', weekday: 6 },
   { id: 'sunday', label: 'الأحد', short: 'Sun', weekday: 0 },
@@ -101,6 +119,12 @@ const formatDateForPlan = (value: string) => {
     day: 'numeric',
     month: 'long',
   });
+};
+
+const addDaysToToday = (days: number) => {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString().split('T')[0];
 };
 
 const parseDurationToMinutes = (value?: string) => {
@@ -202,6 +226,7 @@ const Plan: React.FC = () => {
     user,
     paths,
     subjects,
+    skills,
     courses,
     lessons,
     quizzes,
@@ -256,6 +281,8 @@ const Plan: React.FC = () => {
   const [draft, setDraft] = useState(createDefaultDraft());
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
+  const [copiedSmartPlan, setCopiedSmartPlan] = useState(false);
+  const [sharedSmartPlan, setSharedSmartPlan] = useState(false);
 
   useEffect(() => {
     if (!activePathId && availablePaths.length > 0) {
@@ -324,6 +351,105 @@ const Plan: React.FC = () => {
       ),
     [accessibleCourseIds, activePathId, courses, draft.subjectIds],
   );
+
+  const smartSkillPlan = useMemo<SmartSkillPlanItem[]>(() => {
+    const stats = new Map<
+      string,
+      {
+        skillId?: string;
+        skillName: string;
+        pathId?: string;
+        subjectId?: string;
+        total: number;
+        attempts: number;
+      }
+    >();
+
+    examResults.forEach((result) => {
+      (result.skillsAnalysis || []).forEach((gap) => {
+        const resolvedSkill = gap.skillId ? skills.find((skill) => skill.id === gap.skillId) : undefined;
+        const pathId = resolvedSkill?.pathId || gap.pathId;
+        if (activePathId && pathId && pathId !== activePathId) return;
+
+        const subjectId = resolvedSkill?.subjectId || gap.subjectId;
+        const skillName = displayText(resolvedSkill?.name || gap.skill, 'مهارة غير مسماة');
+        const key = gap.skillId || `${pathId || 'path'}-${subjectId || 'subject'}-${skillName}`;
+        const current = stats.get(key) || {
+          skillId: gap.skillId,
+          skillName,
+          pathId,
+          subjectId,
+          total: 0,
+          attempts: 0,
+        };
+
+        current.total += Number.isFinite(gap.mastery) ? gap.mastery : 0;
+        current.attempts += 1;
+        stats.set(key, current);
+      });
+    });
+
+    return Array.from(stats.values())
+      .map((item) => {
+        const mastery = item.attempts ? Math.round(item.total / item.attempts) : 100;
+        const relatedLesson = lessons.find((lesson) => {
+          const matchesSkill = item.skillId ? lesson.skillIds?.includes(item.skillId) : false;
+          const matchesSubject = !item.skillId && item.subjectId ? lesson.subjectId === item.subjectId : false;
+          return (matchesSkill || matchesSubject) && canUseLessonInStudentPlan(lesson);
+        });
+        const relatedQuiz = quizzes.find((quiz) => {
+          const matchesSkill = item.skillId ? quiz.skillIds?.includes(item.skillId) : false;
+          const matchesSubject = !item.skillId && item.subjectId ? quiz.subjectId === item.subjectId : false;
+          return (matchesSkill || matchesSubject) && canUseQuizInStudentPlan(quiz);
+        });
+        const relatedResource = libraryItems.find((resource) => {
+          const matchesSkill = item.skillId ? resource.skillIds?.includes(item.skillId) : false;
+          const matchesSubject = !item.skillId && item.subjectId ? resource.subjectId === item.subjectId : false;
+          return (matchesSkill || matchesSubject) && canUseLibraryItemInStudentPlan(resource);
+        });
+
+        return {
+          skillId: item.skillId,
+          skillName: item.skillName,
+          pathId: item.pathId,
+          subjectId: item.subjectId,
+          mastery,
+          attempts: item.attempts,
+          lesson: relatedLesson
+            ? { title: displayText(relatedLesson.title, 'درس مقترح'), link: `/lesson/${relatedLesson.id}` }
+            : undefined,
+          quiz: relatedQuiz
+            ? { title: displayText(relatedQuiz.title, 'اختبار مقترح'), link: `/quiz/${relatedQuiz.id}` }
+            : undefined,
+          resource: relatedResource
+            ? { title: displayText(relatedResource.title, 'ملف مراجعة'), link: relatedResource.url }
+            : undefined,
+        };
+      })
+      .filter((item) => item.mastery < 85)
+      .sort((a, b) => a.mastery - b.mastery)
+      .slice(0, 4);
+  }, [activePathId, examResults, libraryItems, lessons, quizzes, skills]);
+
+  const smartPlanSummary = useMemo(() => {
+    if (!smartSkillPlan.length) {
+      return 'لا توجد فجوات مهارية واضحة في آخر الاختبارات لهذا المسار. ابدأ بخطة مراجعة خفيفة أو جرّب اختبارًا تشخيصيًا جديدًا.';
+    }
+
+    return [
+      'خطة مذاكرة ذكية مقترحة:',
+      ...smartSkillPlan.map((item, index) => {
+        const actions = [
+          item.lesson ? `درس: ${item.lesson.title}` : '',
+          item.quiz ? `اختبار: ${item.quiz.title}` : '',
+          item.resource ? `ملف: ${item.resource.title}` : '',
+        ]
+          .filter(Boolean)
+          .join(' - ');
+        return `${index + 1}. ${item.skillName} (${item.mastery}%): ${actions || 'مراجعة مركزة ثم اختبار قصير'}`;
+      }),
+    ].join('\n');
+  }, [smartSkillPlan]);
 
   const currentPlan = activePlan;
 
@@ -735,6 +861,42 @@ const Plan: React.FC = () => {
     setFormSuccess('');
   };
 
+  const applySmartPlanDraft = () => {
+    const focus = smartSkillPlan[0];
+    const suggestedSubjectId =
+      focus?.subjectId && pathSubjects.some((subject) => subject.id === focus.subjectId)
+        ? focus.subjectId
+        : pathSubjects[0]?.id;
+
+    setDraft((current) => ({
+      ...current,
+      name: focus ? `خطة علاج مهارة ${focus.skillName}` : current.name || 'خطة مذاكرة ذكية',
+      pathId: activePathId || current.pathId,
+      subjectIds: suggestedSubjectId ? [suggestedSubjectId] : current.subjectIds,
+      courseIds: [],
+      startDate: todayKey,
+      endDate: addDaysToToday(13),
+      skipCompletedQuizzes: true,
+      dailyMinutes: Math.max(current.dailyMinutes, 90),
+    }));
+    setFormError('');
+    setFormSuccess('تم تجهيز النموذج بخطة ذكية مبنية على أضعف المهارات. راجعها ثم اضغط إنشاء/تحديث الخطة.');
+  };
+
+  const copySmartPlanSummary = async () => {
+    if (!smartPlanSummary) return;
+    await navigator.clipboard.writeText(smartPlanSummary);
+    setCopiedSmartPlan(true);
+    setTimeout(() => setCopiedSmartPlan(false), 1800);
+  };
+
+  const shareSmartPlanSummary = async () => {
+    if (!smartPlanSummary) return;
+    await shareTextSummary('خطة مذاكرة ذكية', smartPlanSummary);
+    setSharedSmartPlan(true);
+    setTimeout(() => setSharedSmartPlan(false), 1800);
+  };
+
   const handleSubjectToggle = (subjectId: string) => {
     setDraft((current) => {
       const subjectIds = current.subjectIds.includes(subjectId)
@@ -857,6 +1019,98 @@ const Plan: React.FC = () => {
             </p>
           </div>
         </div>
+      </Card>
+
+      <Card className="border border-emerald-100 bg-white p-4 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+              <Sparkles size={14} />
+              مساعد الخطة الذكية
+            </div>
+            <h2 className="text-xl font-black text-gray-900">ابدأ من المهارات التي تحتاج علاجًا أولًا</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-7 text-gray-500">
+              يقرأ النظام آخر محاولات الاختبارات لهذا المسار، ثم يقترح بداية مذاكرة بسيطة: مهارة ضعيفة، درس مناسب، اختبار قصير، وملف مراجعة إن وجد.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={applySmartPlanDraft}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-600"
+            >
+              <Target size={16} />
+              طبّقها على النموذج
+            </button>
+            <button
+              type="button"
+              onClick={copySmartPlanSummary}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-100 px-4 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-200"
+            >
+              <Copy size={16} />
+              {copiedSmartPlan ? 'تم النسخ' : 'نسخ الخطة'}
+            </button>
+            <button
+              type="button"
+              onClick={shareSmartPlanSummary}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 transition hover:bg-blue-100"
+            >
+              <Share2 size={16} />
+              {sharedSmartPlan ? 'تمت المشاركة' : 'مشاركة'}
+            </button>
+          </div>
+        </div>
+
+        {smartSkillPlan.length > 0 ? (
+          <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {smartSkillPlan.map((item) => (
+              <div key={`${item.skillId || item.skillName}-${item.subjectId || 'general'}`} className="rounded-2xl border border-gray-100 bg-gray-50/70 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-black text-gray-900">{item.skillName}</h3>
+                    <p className="mt-1 text-xs text-gray-500">ظهرت في {item.attempts} محاولة اختبار</p>
+                  </div>
+                  <span className={`rounded-full px-3 py-1 text-xs font-black ${item.mastery < 50 ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
+                    {item.mastery}% إتقان
+                  </span>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <Link
+                    to={item.lesson?.link || '/reports'}
+                    className="rounded-xl bg-white px-3 py-3 text-sm font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-50"
+                  >
+                    {item.lesson ? `درس: ${item.lesson.title}` : 'درس مقترح لاحقًا'}
+                  </Link>
+                  <Link
+                    to={item.quiz?.link || '/quizzes'}
+                    className="rounded-xl bg-white px-3 py-3 text-sm font-bold text-indigo-700 shadow-sm transition hover:bg-indigo-50"
+                  >
+                    {item.quiz ? `اختبار: ${item.quiz.title}` : 'اختبار قصير'}
+                  </Link>
+                  {item.resource?.link ? (
+                    <a
+                      href={item.resource.link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-xl bg-white px-3 py-3 text-sm font-bold text-amber-700 shadow-sm transition hover:bg-amber-50"
+                    >
+                      ملف: {item.resource.title}
+                    </a>
+                  ) : (
+                    <span className="rounded-xl bg-white px-3 py-3 text-sm font-bold text-gray-500 shadow-sm">
+                      ملف مراجعة لاحقًا
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-5 rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/50 p-5 text-sm leading-7 text-emerald-800">
+            لا توجد مهارة ضعيفة واضحة لهذا المسار حتى الآن. بعد حل اختبار تشخيصي أو محاكي، ستظهر هنا خطة ذكية تلقائيًا مبنية على الأسئلة والمهارات.
+          </div>
+        )}
       </Card>
 
       <div className="grid grid-cols-1 sm:flex gap-2 rounded-2xl bg-gray-100 p-1">
