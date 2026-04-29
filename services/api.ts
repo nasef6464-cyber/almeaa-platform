@@ -457,6 +457,17 @@ export const api = {
       body: payload,
       token,
     }),
+  aiRemediationPlan: (payload: { skills: unknown[]; ageBand?: "primary" | "middle" | "secondary" | "general" }, token?: string | null) =>
+    request<{
+      title?: string;
+      summary?: string;
+      steps?: Array<{ day?: string; skill?: string; action?: string; check?: string }>;
+      parentNote?: string;
+    }>("/ai/remediation-plan", {
+      method: "POST",
+      body: payload,
+      token,
+    }),
   aiQuestion: (payload: { topic: string }, token?: string | null) =>
     request<unknown>("/ai/question", {
       method: "POST",

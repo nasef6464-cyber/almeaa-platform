@@ -15,6 +15,11 @@ const learningPathSchema = z.object({
   skills: z.array(z.record(z.any())).default([]),
 });
 
+const remediationPlanSchema = z.object({
+  skills: z.array(z.record(z.any())).default([]),
+  ageBand: z.enum(["primary", "middle", "secondary", "general"]).default("general"),
+});
+
 const questionSchema = z.object({
   topic: z.string().min(1).max(500),
 });
@@ -221,6 +226,53 @@ type واحد من lesson أو quiz أو flashcard. priority واحد من high 
       const text = await callAi(prompt, "application/json");
       const parsed = safeJsonParse(text, fallback);
       return res.json(Array.isArray(parsed) ? parsed : fallback);
+    } catch {
+      return res.json(fallback);
+    }
+  }),
+);
+
+aiRouter.post(
+  "/remediation-plan",
+  asyncHandler(async (req, res) => {
+    const { skills, ageBand } = remediationPlanSchema.parse(req.body);
+    const targetSkills = skills
+      .filter((skill) => skill.status === "weak" || skill.status === "average" || Number(skill.mastery || 0) < 75)
+      .slice(0, 3);
+    const fallback = {
+      title: "خطة علاجية قصيرة",
+      summary: "ابدأ بأضعف مهارة، راجع شرحًا بسيطًا، ثم حل تدريبًا قصيرًا وأعد القياس.",
+      steps: targetSkills.length
+        ? targetSkills.map((skill, index) => ({
+            day: `اليوم ${index + 1}`,
+            skill: String(skill.skill || skill.name || "مهارة تحتاج متابعة"),
+            action: index === 0 ? "راجع شرحًا قصيرًا ثم حل 5 أسئلة سهلة." : "حل تدريبًا متدرجًا ثم راجع الأخطاء.",
+            check: "أعد اختبارًا مصغرًا من 5 أسئلة على نفس المهارة.",
+          }))
+        : [
+            {
+              day: "اليوم 1",
+              skill: "مراجعة عامة",
+              action: "حل اختبار تشخيصي قصير لتحديد أول مهارة تحتاج علاجًا.",
+              check: "راجع نتيجة الاختبار وحدد أضعف مهارة.",
+            },
+          ],
+      parentNote: "تابع التقدم بهدوء. المطلوب الآن خطوة صغيرة يوميًا وليس ضغطًا زائدًا.",
+    };
+
+    const prompt = `
+${ARABIC_TUTOR_RULES}
+ابن خطة علاجية تعليمية قصيرة للطالب حسب الفئة العمرية: ${ageBand}.
+المهارات الضعيفة أو المتوسطة:
+${JSON.stringify(targetSkills)}
+أعد JSON فقط بالشكل التالي:
+{"title":"...","summary":"...","steps":[{"day":"...","skill":"...","action":"...","check":"..."}],"parentNote":"..."}
+`;
+
+    try {
+      const text = await callAi(prompt, "application/json");
+      const parsed = safeJsonParse(text, fallback);
+      return res.json(parsed);
     } catch {
       return res.json(fallback);
     }
