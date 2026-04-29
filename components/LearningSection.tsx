@@ -22,7 +22,7 @@ interface LearningSectionProps {
 export const LearningSection: React.FC<LearningSectionProps> = ({ category, subject, grade, title, colorTheme = 'indigo' }) => {
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
-    const { user, enrolledCourses, subjects, courses, libraryItems, quizzes, hasScopedPackageAccess, getMatchingPackage } = useStore();
+    const { user, enrolledCourses, subjects, courses, lessons, libraryItems, quizzes, hasScopedPackageAccess, getMatchingPackage } = useStore();
     const [activeTab, setActiveTab] = useState<'courses' | 'skills' | 'banks' | 'tests' | 'library'>('courses');
     const safeColorTheme = colorTheme.startsWith('#') ? 'indigo' : colorTheme;
     
@@ -109,6 +109,8 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
     const isPremiumLocked = (shouldLock?: boolean, accessGranted = false) => Boolean(!isStaffViewer && shouldLock && !accessGranted);
     const canStudentSeeCourse = (course: (typeof courses)[number]) =>
         isStaffViewer || (course.showOnPlatform !== false && course.isPublished !== false && (!course.approvalStatus || course.approvalStatus === 'approved'));
+    const canStudentSeeLesson = (lesson: (typeof lessons)[number]) =>
+        isStaffViewer || (lesson.showOnPlatform !== false && (!lesson.approvalStatus || lesson.approvalStatus === 'approved'));
     const canStudentSeeQuiz = (quiz: (typeof quizzes)[number]) =>
         isStaffViewer || (quiz.showOnPlatform !== false && quiz.isPublished !== false && (!quiz.approvalStatus || quiz.approvalStatus === 'approved'));
     const canStudentSeeLibraryItem = (item: (typeof libraryItems)[number]) =>
@@ -132,16 +134,28 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
     const topicList = useStore(state => state.topics);
     const quizList = useStore(state => state.quizzes);
 
+    const canStudentSeeTopic = (topic: (typeof topicList)[number]) => isStaffViewer || topic.showOnPlatform !== false;
+
     let mappedSkills = topicList
         .filter(t => !t.parentId && (isStaffViewer || t.showOnPlatform !== false) && matchesScopedContent(t.pathId, t.subjectId))
         .sort((a, b) => a.order - b.order)
         .map(topic => {
-            const subTopics = topicList.filter(t => t.parentId === topic.id && matchesScopedContent(t.pathId, t.subjectId));
-            let totalLessons = topic.lessonIds?.length || 0;
-            let totalQuizzes = topic.quizIds?.length || 0;
+            const subTopics = topicList.filter(t => t.parentId === topic.id && canStudentSeeTopic(t) && matchesScopedContent(t.pathId, t.subjectId));
+            const visibleLessonCount = (lessonIds?: string[]) =>
+                (lessonIds || []).filter(lessonId => {
+                    const lesson = lessons.find(item => item.id === lessonId);
+                    return lesson ? canStudentSeeLesson(lesson) : false;
+                }).length;
+            const visibleQuizCount = (quizIds?: string[]) =>
+                (quizIds || []).filter(quizId => {
+                    const quiz = quizList.find(item => item.id === quizId);
+                    return quiz ? canStudentSeeQuiz(quiz) : false;
+                }).length;
+            let totalLessons = visibleLessonCount(topic.lessonIds);
+            let totalQuizzes = visibleQuizCount(topic.quizIds);
             subTopics.forEach(sub => {
-                totalLessons += (sub.lessonIds?.length || 0);
-                totalQuizzes += (sub.quizIds?.length || 0);
+                totalLessons += visibleLessonCount(sub.lessonIds);
+                totalQuizzes += visibleQuizCount(sub.quizIds);
             });
             
             // Dummy progress for demo purposes until user progress is tracked properly
