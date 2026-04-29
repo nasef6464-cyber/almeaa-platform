@@ -16,9 +16,9 @@ const sanitizeRecommendation = (item: LearningRecommendation): LearningRecommend
 export const getChatResponse = async (message: string): Promise<string> => {
   try {
     const response = await api.aiChat({ message });
-    return displayText(response.text) || "عذرًا، لم أستطع فهم السؤال. جرّب صياغته بطريقة أبسط.";
+    return displayText(response.text) || "لم أفهم السؤال جيدًا. جرّب كتابته بطريقة أبسط وسأساعدك خطوة بخطوة.";
   } catch {
-    return "عذرًا، أواجه ضغطًا حاليًا. اكتب سؤالك مرة أخرى بعد قليل.";
+    return "أواجه ضغطًا بسيطًا الآن. اكتب سؤالك مرة أخرى بعد قليل، أو حدّد المهارة التي تريد شرحها.";
   }
 };
 
@@ -70,7 +70,7 @@ export const generateQuizQuestion = async (topic: string): Promise<any> => {
     question: `سؤال تدريبي في ${topic}: ما الاختيار الصحيح؟`,
     options: ["الاختيار الأول", "الاختيار الثاني", "الاختيار الثالث", "الاختيار الرابع"],
     correctIndex: 0,
-    explanation: "هذا سؤال مبدئي. راجع السؤال قبل نشره للطلاب.",
+    explanation: "هذا سؤال مبدئي آمن. راجع السؤال قبل نشره للطلاب.",
   };
 };
 
