@@ -193,6 +193,30 @@ const getFriendlyResultMessage = (score: number) => {
   };
 };
 
+const getScoreVisualTone = (score: number) => {
+  if (score >= 85) {
+    return {
+      text: 'text-emerald-600',
+      ring: '#10b981',
+      soft: 'from-emerald-50 to-white',
+    };
+  }
+
+  if (score >= 60) {
+    return {
+      text: 'text-amber-600',
+      ring: '#f59e0b',
+      soft: 'from-amber-50 to-white',
+    };
+  }
+
+  return {
+    text: 'text-rose-600',
+    ring: '#f43f5e',
+    soft: 'from-rose-50 to-white',
+  };
+};
+
 const SimpleResultStat = ({
   label,
   value,
@@ -313,6 +337,7 @@ const Results: React.FC = () => {
 
   const weakestSkill = analysisItems[0];
   const summaryTone = getFriendlyResultMessage(latestResult?.score || 0);
+  const scoreTone = getScoreVisualTone(latestResult?.score || 0);
   const strongSkillsCount = analysisItems.filter((item) => item.status === 'strong').length;
   const averageSkillsCount = analysisItems.filter((item) => item.status === 'average').length;
   const weakSkillsCount = analysisItems.filter((item) => item.status === 'weak').length;
@@ -446,8 +471,8 @@ const Results: React.FC = () => {
       </header>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <Card className="p-4 sm:p-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-full -translate-y-1/2 translate-x-1/2 opacity-50" />
+        <Card className={`p-4 sm:p-6 relative overflow-hidden bg-gradient-to-br ${scoreTone.soft}`}>
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white rounded-full -translate-y-1/2 translate-x-1/2 opacity-60" />
           <div className="relative z-10">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
@@ -474,13 +499,13 @@ const Results: React.FC = () => {
                       endAngle={-270}
                     >
                       {donutData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={donutColors[index % donutColors.length]} />
+                        <Cell key={`cell-${index}`} fill={index === 0 ? scoreTone.ring : donutColors[index % donutColors.length]} />
                       ))}
                     </Pie>
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-4xl font-bold text-emerald-600">{latestResult.score}%</span>
+                  <span className={`text-4xl font-bold ${scoreTone.text}`}>{latestResult.score}%</span>
                   <span className="text-sm text-gray-500">النتيجة</span>
                 </div>
               </div>
