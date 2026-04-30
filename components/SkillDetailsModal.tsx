@@ -5,39 +5,13 @@ import { useStore } from '../store/useStore';
 import { Topic } from '../types';
 import { VideoModal } from './VideoModal';
 import { openExternalUrl } from '../utils/openExternalUrl';
+import { getYouTubeVideoId } from '../utils/videoLinks';
 
 interface SkillDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   skill: any;
 }
-
-const getYouTubeVideoId = (rawUrl?: string | null) => {
-  if (!rawUrl) return '';
-
-  const safeUrl = /^https?:\/\//i.test(rawUrl.trim()) ? rawUrl.trim() : `https://${rawUrl.trim()}`;
-
-  try {
-    const parsedUrl = new URL(safeUrl);
-    const host = parsedUrl.hostname.replace(/^www\./, '').toLowerCase();
-
-    if (host === 'youtu.be') {
-      return parsedUrl.pathname.split('/').filter(Boolean)[0] || '';
-    }
-
-    if (host.includes('youtube.com')) {
-      return (
-        parsedUrl.searchParams.get('v') ||
-        parsedUrl.pathname.match(/\/(?:embed|shorts|live)\/([^/?#]+)/)?.[1] ||
-        ''
-      );
-    }
-  } catch {
-    return '';
-  }
-
-  return '';
-};
 
 export const SkillDetailsModal: React.FC<SkillDetailsModalProps> = ({ isOpen, onClose, skill }) => {
   const { user, topics, lessons, quizzes, libraryItems } = useStore();

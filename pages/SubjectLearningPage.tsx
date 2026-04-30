@@ -21,6 +21,7 @@ import { Card } from '../components/ui/Card';
 import { VideoModal } from '../components/VideoModal';
 import { Topic } from '../types';
 import { openExternalUrl } from '../utils/openExternalUrl';
+import { getYouTubeVideoId } from '../utils/videoLinks';
 
 export const SubjectLearningPage: React.FC = () => {
   const { pathId, subjectId } = useParams();
@@ -663,9 +664,9 @@ export const SubjectLearningPage: React.FC = () => {
                               className="relative w-28 h-16 sm:w-32 sm:h-20 bg-gray-100 rounded-lg overflow-hidden shrink-0 cursor-pointer"
                                onClick={() => openLessonContent(lesson)}
                             >
-                              {lesson.videoUrl?.includes('youtube') || lesson.videoUrl?.includes('youtu.be') ? (
+                              {getYouTubeVideoId(lesson.videoUrl) ? (
                                 <img
-                                  src={`https://img.youtube.com/vi/${lesson.videoUrl.split('youtu.be/')[1] || lesson.videoUrl.split('v=')[1]?.split('&')[0]}/mqdefault.jpg`}
+                                  src={`https://img.youtube.com/vi/${getYouTubeVideoId(lesson.videoUrl)}/mqdefault.jpg`}
                                   alt={lesson.title}
                                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                 />
