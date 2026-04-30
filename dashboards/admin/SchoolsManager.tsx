@@ -4,6 +4,7 @@ import {
     BookOpen,
     Building2,
     CheckCircle,
+    Clock3,
     Download,
     Edit2,
     FileSpreadsheet,
@@ -11,6 +12,7 @@ import {
     MoreVertical,
     Plus,
     Search,
+    ShieldCheck,
     Trash2,
     Upload,
     Users,
@@ -221,6 +223,7 @@ export const SchoolsManager: React.FC = () => {
         removeSupervisorFromGroup,
         assignCourseToGroup,
         removeCourseFromGroup,
+        assignStudentToGroup,
         createB2BPackage,
         updateB2BPackage,
         deleteB2BPackage,
@@ -243,6 +246,10 @@ export const SchoolsManager: React.FC = () => {
     const [selectedPackageIdForCode, setSelectedPackageIdForCode] = useState('');
     const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
     const [managementError, setManagementError] = useState<string | null>(null);
+    const [studentSearch, setStudentSearch] = useState('');
+    const [selectedClassFilter, setSelectedClassFilter] = useState<'all' | 'unassigned' | string>('all');
+    const [newCodeMaxUses, setNewCodeMaxUses] = useState('50');
+    const [newCodeDurationDays, setNewCodeDurationDays] = useState('30');
 
     const schools = useMemo(() => groups.filter((group) => group.type === 'SCHOOL'), [groups]);
     const classes = useMemo(() => groups.filter((group) => group.type === 'CLASS'), [groups]);
@@ -406,10 +413,23 @@ export const SchoolsManager: React.FC = () => {
         const schoolPackages = b2bPackages.filter((pkg) => pkg.schoolId === selectedSchool.id);
         const schoolCodes = accessCodes.filter((code) => code.schoolId === selectedSchool.id);
         const schoolClasses = classes.filter((group) => group.parentId === selectedSchool.id);
+        const schoolStudents = students.filter((currentUser) => currentUser.schoolId === selectedSchool.id);
         const schoolSupervisors = supervisors.filter((currentUser) => currentUser.groupIds?.includes(selectedSchool.id));
         const schoolCourses = publishedCourses.filter((course) => selectedSchool.courseIds.includes(course.id));
         const activeSchoolPackages = schoolPackages.filter((pkg) => pkg.status === 'active');
         const activeSchoolCodes = schoolCodes.filter((code) => code.expiresAt > Date.now());
+        const totalSeats = schoolPackages.reduce((sum, pkg) => sum + (pkg.maxStudents || 0), 0);
+        const usedSeats = schoolCodes.reduce((sum, code) => sum + (code.currentUses || 0), 0);
+        const visibleSchoolStudents = schoolStudents.filter((student) => {
+            const query = studentSearch.trim().toLowerCase();
+            const matchesSearch = !query || student.name.toLowerCase().includes(query) || (student.email || '').toLowerCase().includes(query);
+            if (!matchesSearch) return false;
+            if (selectedClassFilter === 'all') return true;
+            if (selectedClassFilter === 'unassigned') {
+                return !(student.groupIds || []).some((groupId) => schoolClasses.some((item) => item.id === groupId));
+            }
+            return (student.groupIds || []).includes(selectedClassFilter);
+        });
         const readinessChecks = [
             {
                 label: 'فصول دراسية',
@@ -551,9 +571,44 @@ export const SchoolsManager: React.FC = () => {
                                 </div>
                             </div>
 
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+                                    <div className="flex items-center gap-2 text-amber-700 mb-2">
+                                        <ShieldCheck size={18} />
+                                        <span className="text-xs font-black">المقاعد المتاحة</span>
+                                    </div>
+                                    <div className="text-2xl font-black text-amber-800">{totalSeats}</div>
+                                    <p className="text-xs text-amber-700 mt-1">إجمالي سعة الباقات المدرسية</p>
+                                </div>
+                                <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+                                    <div className="flex items-center gap-2 text-indigo-700 mb-2">
+                                        <Users size={18} />
+                                        <span className="text-xs font-black">مقاعد مستخدمة</span>
+                                    </div>
+                                    <div className="text-2xl font-black text-indigo-800">{usedSeats}</div>
+                                    <p className="text-xs text-indigo-700 mt-1">استخدام الأكواد حتى الآن</p>
+                                </div>
+                                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+                                    <div className="flex items-center gap-2 text-emerald-700 mb-2">
+                                        <Key size={18} />
+                                        <span className="text-xs font-black">أكواد فعالة</span>
+                                    </div>
+                                    <div className="text-2xl font-black text-emerald-800">{activeSchoolCodes.length}</div>
+                                    <p className="text-xs text-emerald-700 mt-1">صالحة الآن للتوزيع</p>
+                                </div>
+                                <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4">
+                                    <div className="flex items-center gap-2 text-rose-700 mb-2">
+                                        <Clock3 size={18} />
+                                        <span className="text-xs font-black">طلاب المدرسة</span>
+                                    </div>
+                                    <div className="text-2xl font-black text-rose-800">{schoolStudents.length}</div>
+                                    <p className="text-xs text-rose-700 mt-1">مرتبطون فعليًا بهذه المدرسة</p>
+                                </div>
+                            </div>
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="border border-gray-100 rounded-xl p-5 space-y-4">
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                                         <h3 className="text-lg font-bold text-gray-900">مشرفو المدرسة</h3>
                                         <span className="text-sm text-gray-500">{schoolSupervisors.length} مرتبطون</span>
                                     </div>
@@ -590,7 +645,7 @@ export const SchoolsManager: React.FC = () => {
                                 </div>
 
                                 <div className="border border-gray-100 rounded-xl p-5 space-y-4">
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                                         <h3 className="text-lg font-bold text-gray-900">دورات المدرسة</h3>
                                         <span className="text-sm text-gray-500">{schoolCourses.length} دورة مرتبطة</span>
                                     </div>
@@ -773,11 +828,114 @@ export const SchoolsManager: React.FC = () => {
                                     </div>
                                 )}
                             </div>
+
+                            <div className="border border-gray-100 rounded-2xl p-5 space-y-4">
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900">طلاب المدرسة</h3>
+                                        <p className="text-sm text-gray-500 mt-1">استعراض سريع للطلاب مع نقلهم بين الفصول بدون مغادرة الصفحة.</p>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:min-w-[540px]">
+                                        <div className="relative">
+                                            <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                            <input
+                                                value={studentSearch}
+                                                onChange={(event) => setStudentSearch(event.target.value)}
+                                                placeholder="ابحث بالاسم أو البريد..."
+                                                className="w-full rounded-xl border border-gray-200 px-10 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                            />
+                                        </div>
+                                        <select
+                                            value={selectedClassFilter}
+                                            onChange={(event) => setSelectedClassFilter(event.target.value)}
+                                            className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                        >
+                                            <option value="all">كل الفصول</option>
+                                            <option value="unassigned">طلاب بدون فصل</option>
+                                            {schoolClasses.map((classroom) => (
+                                                <option key={classroom.id} value={classroom.id}>{classroom.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {visibleSchoolStudents.length === 0 ? (
+                                    <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
+                                        لا يوجد طلاب مطابقون للبحث الحالي داخل هذه المدرسة.
+                                    </div>
+                                ) : (
+                                    <div className="overflow-hidden rounded-2xl border border-gray-200">
+                                        <table className="w-full text-right">
+                                            <thead className="bg-gray-50 text-xs font-bold text-gray-600">
+                                                <tr>
+                                                    <th className="p-4">الطالب</th>
+                                                    <th className="p-4">البريد</th>
+                                                    <th className="p-4">الفصل الحالي</th>
+                                                    <th className="p-4">النقل إلى فصل</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100 bg-white text-sm">
+                                                {visibleSchoolStudents.slice(0, 80).map((student) => {
+                                                    const currentClass = schoolClasses.find((classroom) => (student.groupIds || []).includes(classroom.id));
+                                                    return (
+                                                        <tr key={student.id}>
+                                                            <td className="p-4">
+                                                                <div className="font-bold text-gray-900">{student.name}</div>
+                                                                <div className="text-xs text-gray-400 mt-1">{student.isActive === false ? 'الحساب موقوف' : 'الحساب نشط'}</div>
+                                                            </td>
+                                                            <td className="p-4 text-gray-600">{student.email || '-'}</td>
+                                                            <td className="p-4">
+                                                                <span className={`rounded-full px-3 py-1 text-xs font-bold ${currentClass ? 'bg-indigo-50 text-indigo-700' : 'bg-amber-50 text-amber-700'}`}>
+                                                                    {currentClass?.name || 'بدون فصل'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <select
+                                                                    value={currentClass?.id || ''}
+                                                                    onChange={(event) => {
+                                                                        const value = event.target.value;
+                                                                        if (!value || value === currentClass?.id) return;
+                                                                        assignStudentToGroup(student.id, value);
+                                                                    }}
+                                                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                                >
+                                                                    <option value="">اختر فصلاً</option>
+                                                                    {schoolClasses.map((classroom) => (
+                                                                        <option key={classroom.id} value={classroom.id}>{classroom.name}</option>
+                                                                    ))}
+                                                                </select>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
 
                     {activeTab === 'packages' && (
                         <div className="space-y-8">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+                                    <div className="text-xs font-black text-emerald-700 mb-2">باقات نشطة</div>
+                                    <div className="text-2xl font-black text-emerald-800">{activeSchoolPackages.length}</div>
+                                </div>
+                                <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4">
+                                    <div className="text-xs font-black text-rose-700 mb-2">باقات موقوفة/منتهية</div>
+                                    <div className="text-2xl font-black text-rose-800">{schoolPackages.filter((pkg) => pkg.status !== 'active').length}</div>
+                                </div>
+                                <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+                                    <div className="text-xs font-black text-indigo-700 mb-2">إجمالي الأكواد</div>
+                                    <div className="text-2xl font-black text-indigo-800">{schoolCodes.length}</div>
+                                </div>
+                                <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+                                    <div className="text-xs font-black text-amber-700 mb-2">معدل الاستخدام</div>
+                                    <div className="text-2xl font-black text-amber-800">{totalSeats > 0 ? `${Math.min(100, Math.round((usedSeats / totalSeats) * 100))}%` : '0%'}</div>
+                                </div>
+                            </div>
                             <div>
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-lg font-bold text-gray-900">الباقات المخصصة</h3>
@@ -1114,6 +1272,11 @@ export const SchoolsManager: React.FC = () => {
                                                 <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
                                             ))}
                                         </select>
+                                        <div className="flex flex-wrap gap-2 text-xs font-bold">
+                                            <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">{schoolCodes.length} كود</span>
+                                            <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">{activeSchoolCodes.length} كود صالح</span>
+                                            <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">{usedSeats} استخدام</span>
+                                        </div>
                                         <button
                             onClick={() => {
                                                 setManagementError(null);
@@ -1132,9 +1295,9 @@ export const SchoolsManager: React.FC = () => {
                                                     code: `${selectedSchool.name.substring(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
                                                     schoolId: selectedSchool.id,
                                                     packageId: selectedPackageIdForCode,
-                                                    maxUses: 50,
+                                                    maxUses: Math.max(1, Number(newCodeMaxUses) || 50),
                                                     currentUses: 0,
-                                                    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+                                                    expiresAt: Date.now() + Math.max(1, Number(newCodeDurationDays) || 30) * 24 * 60 * 60 * 1000,
                                                     createdAt: Date.now(),
                                                 });
                                             }}
@@ -1142,6 +1305,28 @@ export const SchoolsManager: React.FC = () => {
                                         >
                                             <Key size={16} /> توليد كود جديد
                                         </button>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                                        <label className="block text-xs font-bold text-gray-600 mb-2">عدد المقاعد لكل كود</label>
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            value={newCodeMaxUses}
+                                            onChange={(event) => setNewCodeMaxUses(event.target.value)}
+                                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                        />
+                                    </div>
+                                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                                        <label className="block text-xs font-bold text-gray-600 mb-2">مدة صلاحية الكود بالأيام</label>
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            value={newCodeDurationDays}
+                                            onChange={(event) => setNewCodeDurationDays(event.target.value)}
+                                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                        />
                                     </div>
                                 </div>
                                 <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
