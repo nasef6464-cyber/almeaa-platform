@@ -54,8 +54,9 @@ type TeacherContributionItem = {
 };
 
 type AiStatus = {
-    provider: 'gemini' | 'ollama' | 'none';
+    provider: 'gemini' | 'ollama' | 'lmstudio' | 'none';
     ollamaConfigured: boolean;
+    lmStudioConfigured?: boolean;
     geminiConfigured: boolean;
     model: string;
     timeoutMs: number;
@@ -341,6 +342,15 @@ export const AdminDashboard: React.FC = () => {
                 badge: 'مزود خارجي',
                 color: 'blue',
                 description: 'المنصة تستخدم مفتاح Gemini الخارجي لتوليد التحليلات والمقترحات الذكية عبر الخادم وليس من المتصفح.',
+            };
+        }
+
+        if (provider === 'lmstudio') {
+            return {
+                label: 'LM Studio محلي',
+                badge: 'نموذج محلي OpenAI-compatible',
+                color: 'emerald',
+                description: 'المنصة تستخدم خادم LM Studio المحلي عبر بوابة الخادم، وهذا يسمح بتشغيل نماذج مفتوحة المصدر بدون كشف مفاتيح في المتصفح.',
             };
         }
 
@@ -866,7 +876,7 @@ export const AdminDashboard: React.FC = () => {
                         </div>
                     )}
 
-                    <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="mt-6 grid grid-cols-1 md:grid-cols-5 gap-4">
                         <div className="rounded-2xl bg-gray-50 border border-gray-100 p-4">
                             <div className="text-xs text-gray-500 mb-2">النموذج</div>
                             <div className="font-black text-gray-900 break-words">{aiStatus?.model || 'غير محدد'}</div>
@@ -884,6 +894,12 @@ export const AdminDashboard: React.FC = () => {
                             </div>
                         </div>
                         <div className="rounded-2xl bg-gray-50 border border-gray-100 p-4">
+                            <div className="text-xs text-gray-500 mb-2">LM Studio</div>
+                            <div className={`font-black ${aiStatus?.lmStudioConfigured ? 'text-emerald-700' : 'text-gray-500'}`}>
+                                {aiStatus?.lmStudioConfigured ? 'مفعل' : 'غير مفعل'}
+                            </div>
+                        </div>
+                        <div className="rounded-2xl bg-gray-50 border border-gray-100 p-4">
                             <div className="text-xs text-gray-500 mb-2">Gemini</div>
                             <div className={`font-black ${aiStatus?.geminiConfigured ? 'text-emerald-700' : 'text-gray-500'}`}>
                                 {aiStatus?.geminiConfigured ? 'مفعل' : 'غير مفعل'}
@@ -896,7 +912,7 @@ export const AdminDashboard: React.FC = () => {
                     <h3 className="text-lg font-black text-gray-900 mb-4">قرار التشغيل الاحترافي</h3>
                     <div className="space-y-3 text-sm leading-7 text-gray-600">
                         <p className="rounded-2xl bg-emerald-50 border border-emerald-100 p-4 text-emerald-800">
-                            الأولوية المستقبلية: تشغيل Ollama/Gemma على سيرفر مستقل أو جهاز دائم لتقليل تكلفة الذكاء الاصطناعي.
+                            الأولوية المستقبلية: تشغيل Ollama/Gemma أو LM Studio على سيرفر مستقل أو جهاز دائم لتقليل تكلفة الذكاء الاصطناعي.
                         </p>
                         <p className="rounded-2xl bg-blue-50 border border-blue-100 p-4 text-blue-800">
                             في الإنتاج: كل طلبات الذكاء تمر من الخادم، لذلك مفاتيح API لا تظهر للطالب ولا للمتصفح.

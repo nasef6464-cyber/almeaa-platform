@@ -58,6 +58,15 @@ OLLAMA_MODEL=gemma3:4b
 AI_REQUEST_TIMEOUT_MS=15000
 ```
 
+Local OpenAI-compatible provider such as LM Studio:
+
+```env
+AI_PROVIDER=lmstudio
+LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1
+LM_STUDIO_MODEL=local-model
+AI_REQUEST_TIMEOUT_MS=15000
+```
+
 Disable AI safely while keeping the platform running:
 
 ```env

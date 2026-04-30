@@ -29,9 +29,12 @@ const courseSummarySchema = z.object({
 });
 
 type AiResponseMimeType = "application/json";
-type AiProvider = "gemini" | "ollama" | "none";
+type AiProvider = "gemini" | "ollama" | "lmstudio" | "none";
 
-const isOllamaExplicitlyConfigured = () => Boolean(process.env.OLLAMA_BASE_URL || process.env.OLLAMA_MODEL);
+const isOllamaExplicitlyConfigured = () =>
+  Boolean(process.env.AI_PROVIDER === "ollama" || process.env.OLLAMA_BASE_URL || process.env.OLLAMA_MODEL);
+const isLmStudioExplicitlyConfigured = () =>
+  Boolean(process.env.AI_PROVIDER === "lmstudio" || process.env.LM_STUDIO_BASE_URL || process.env.LM_STUDIO_MODEL);
 
 const ARABIC_TUTOR_RULES = `
 أنت مساعد تعليمي عربي داخل منصة تعليمية للقدرات والتحصيلي.
@@ -66,6 +69,7 @@ const resolveProvider = (): AiProvider => {
   if (env.AI_PROVIDER) return env.AI_PROVIDER;
   if (env.GEMINI_API_KEY) return "gemini";
   if (isOllamaExplicitlyConfigured() && env.OLLAMA_BASE_URL && env.OLLAMA_MODEL) return "ollama";
+  if (isLmStudioExplicitlyConfigured() && env.LM_STUDIO_BASE_URL && env.LM_STUDIO_MODEL) return "lmstudio";
   return "none";
 };
 
@@ -126,12 +130,46 @@ const callOllama = async (prompt: string, responseMimeType?: AiResponseMimeType)
   return payload.response?.trim() || "";
 };
 
+const callLmStudio = async (prompt: string, responseMimeType?: AiResponseMimeType) => {
+  const response = await fetchWithTimeout(`${env.LM_STUDIO_BASE_URL.replace(/\/$/, "")}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: env.LM_STUDIO_MODEL,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
+      response_format: responseMimeType === "application/json" ? { type: "json_object" } : undefined,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`LM Studio request failed with status ${response.status}`);
+  }
+
+  const payload = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+
+  return payload.choices?.[0]?.message?.content?.trim() || "";
+};
+
 const callAi = async (prompt: string, responseMimeType?: AiResponseMimeType) => {
   const provider = resolveProvider();
 
   if (provider === "ollama") {
     try {
       return await callOllama(prompt, responseMimeType);
+    } catch (error) {
+      if (env.GEMINI_API_KEY) {
+        return callGemini(prompt, responseMimeType);
+      }
+      throw error;
+    }
+  }
+
+  if (provider === "lmstudio") {
+    try {
+      return await callLmStudio(prompt, responseMimeType);
     } catch (error) {
       if (env.GEMINI_API_KEY) {
         return callGemini(prompt, responseMimeType);
@@ -155,8 +193,9 @@ aiRouter.get(
     res.json({
       provider: resolveProvider(),
       ollamaConfigured: isOllamaExplicitlyConfigured() && Boolean(env.OLLAMA_BASE_URL && env.OLLAMA_MODEL),
+      lmStudioConfigured: isLmStudioExplicitlyConfigured() && Boolean(env.LM_STUDIO_BASE_URL && env.LM_STUDIO_MODEL),
       geminiConfigured: Boolean(env.GEMINI_API_KEY),
-      model: resolveProvider() === "ollama" ? env.OLLAMA_MODEL : env.GEMINI_MODEL,
+      model: resolveProvider() === "ollama" ? env.OLLAMA_MODEL : resolveProvider() === "lmstudio" ? env.LM_STUDIO_MODEL : env.GEMINI_MODEL,
       timeoutMs: env.AI_REQUEST_TIMEOUT_MS,
     });
   }),
