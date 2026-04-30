@@ -599,26 +599,38 @@ export const QuizPage: React.FC = () => {
                                 />
                               </div>
                             )}
-                            <div className="space-y-2">
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                               {question.options.map((option, optionIndex) => {
                                 let bgClass = 'bg-gray-50 border-gray-200';
+                                let helperLabel = '';
                                 if (quiz.settings.showAnswers) {
                                   if (optionIndex === question.correctOptionIndex) {
                                     bgClass = 'bg-emerald-50 border-emerald-200 text-emerald-700';
+                                    helperLabel = 'الإجابة الصحيحة';
                                   } else if (optionIndex === userAnswer && !isCorrect) {
                                     bgClass = 'bg-red-50 border-red-200 text-red-700';
+                                    helperLabel = 'اختيارك';
                                   }
+                                } else if (optionIndex === userAnswer) {
+                                  bgClass = 'bg-indigo-50 border-indigo-200 text-indigo-700';
+                                  helperLabel = 'اختيارك';
                                 }
 
                                 return (
-                                  <div key={optionIndex} className={`p-3 rounded-lg border flex items-center gap-3 ${bgClass}`}>
-                                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                  <div key={optionIndex} className={`p-3 rounded-xl border flex items-center gap-3 ${bgClass}`}>
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 bg-white text-lg font-black">
+                                      {OPTION_LABELS[optionIndex] || optionIndex + 1}
+                                    </div>
+                                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
                                       optionIndex === question.correctOptionIndex ? 'border-emerald-500 bg-emerald-500' :
                                       optionIndex === userAnswer ? 'border-red-500 bg-red-500' : 'border-gray-300'
                                     }`}>
                                       {(optionIndex === question.correctOptionIndex || optionIndex === userAnswer) && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                                     </div>
-                                    <span>{option}</span>
+                                    <div className="min-w-0 flex-1">
+                                      <span className="block break-words text-sm font-bold leading-7">{option}</span>
+                                      {helperLabel ? <span className="mt-1 inline-flex rounded-full bg-white px-2 py-0.5 text-[11px] font-black">{helperLabel}</span> : null}
+                                    </div>
                                   </div>
                                 );
                               })}
