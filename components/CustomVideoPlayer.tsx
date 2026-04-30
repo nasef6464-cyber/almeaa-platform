@@ -1,326 +1,323 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ReactPlayer from 'react-player';
-import { 
-    Play, Pause, Volume2, VolumeX, Maximize, 
-    Settings, RotateCcw, SkipForward, SkipBack,
-    Volume1, Volume
+import {
+  Maximize,
+  Pause,
+  Play,
+  Settings,
+  SkipBack,
+  SkipForward,
+  Volume1,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 
 interface CustomVideoPlayerProps {
-    url: string;
-    title?: string;
+  url: string;
+  title?: string;
 }
 
 const normalizeVideoUrl = (rawUrl: string) => {
-    const url = rawUrl.trim();
-    if (!url) return '';
+  const url = rawUrl.trim();
+  if (!url) return '';
 
-    const googleDriveMatch = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
-    if (googleDriveMatch?.[1]) {
-        return `https://drive.google.com/file/d/${googleDriveMatch[1]}/preview`;
-    }
+  const googleDriveMatch = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
+  if (googleDriveMatch?.[1]) {
+    return `https://drive.google.com/file/d/${googleDriveMatch[1]}/preview`;
+  }
 
-    return url;
+  return url;
 };
 
 export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ url, title }) => {
-    const Player = ReactPlayer as any;
-    const playerRef = useRef<any>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const normalizedUrl = normalizeVideoUrl(url);
-    
-    const [playing, setPlaying] = useState(false);
-    const [volume, setVolume] = useState(0.8);
-    const [muted, setMuted] = useState(false);
-    const [played, setPlayed] = useState(0);
-    const [duration, setDuration] = useState(0);
-    const [seeking, setSeeking] = useState(false);
-    const [showControls, setShowControls] = useState(true);
-    const [isFullscreen, setIsFullscreen] = useState(false);
-    const [hasPlaybackError, setHasPlaybackError] = useState(false);
+  const Player = ReactPlayer as any;
+  const playerRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const normalizedUrl = normalizeVideoUrl(url);
 
-    useEffect(() => {
-        setPlaying(false);
-        setPlayed(0);
-        setDuration(0);
-        setHasPlaybackError(false);
-    }, [normalizedUrl]);
+  const [playing, setPlaying] = useState(false);
+  const [volume, setVolume] = useState(0.8);
+  const [muted, setMuted] = useState(false);
+  const [played, setPlayed] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [seeking, setSeeking] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hasPlaybackError, setHasPlaybackError] = useState(false);
 
-    // Cleanup on unmount to prevent "play() request was interrupted" error
-    useEffect(() => {
-        return () => {
-            if (playerRef.current) {
-                try {
-                    const internalPlayer = playerRef.current.getInternalPlayer();
-                    if (internalPlayer && typeof internalPlayer.pauseVideo === 'function') {
-                        internalPlayer.pauseVideo();
-                    } else if (internalPlayer && typeof internalPlayer.pause === 'function') {
-                        internalPlayer.pause();
-                    }
-                } catch (e) {
-                    // Ignore errors during cleanup
-                }
-            }
-            setPlaying(false);
-        };
-    }, []);
+  useEffect(() => {
+    setPlaying(false);
+    setPlayed(0);
+    setDuration(0);
+    setHasPlaybackError(false);
+  }, [normalizedUrl]);
 
-    // Hide controls after 3 seconds of inactivity
-    useEffect(() => {
-        let timeout: any;
-        if (playing && !seeking) {
-            timeout = setTimeout(() => setShowControls(false), 3000);
-        } else {
-            setShowControls(true);
+  useEffect(() => {
+    return () => {
+      try {
+        const internalPlayer = playerRef.current?.getInternalPlayer?.();
+        if (internalPlayer && typeof internalPlayer.pauseVideo === 'function') {
+          internalPlayer.pauseVideo();
+        } else if (internalPlayer && typeof internalPlayer.pause === 'function') {
+          internalPlayer.pause();
         }
-        return () => clearTimeout(timeout);
-    }, [playing, seeking, showControls]);
-
-    const handlePlayPause = () => setPlaying(!playing);
-    
-    const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = parseFloat(e.target.value);
-        setVolume(val);
-        setMuted(val === 0);
+      } catch {
+        // Ignore player cleanup errors when closing modals or switching routes.
+      }
+      setPlaying(false);
     };
+  }, []);
 
-    const handleToggleMuted = () => setMuted(!muted);
+  useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    if (playing && !seeking) {
+      timeout = setTimeout(() => setShowControls(false), 3000);
+    } else {
+      setShowControls(true);
+    }
 
-    const handleProgress = (state: { played: number; playedSeconds: number; loaded: number; loadedSeconds: number }) => {
-        if (!seeking) {
-            setPlayed(state.played);
-        }
+    return () => {
+      if (timeout) clearTimeout(timeout);
     };
+  }, [playing, seeking, showControls]);
 
-    const handleSeekMouseDown = () => setSeeking(true);
-    
-    const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setPlayed(parseFloat(e.target.value));
-    };
+  const handlePlayPause = () => setPlaying((value) => !value);
 
-    const handleSeekMouseUp = (e: React.MouseEvent<HTMLInputElement> | React.TouchEvent<HTMLInputElement>) => {
-        setSeeking(false);
-        playerRef.current?.seekTo(parseFloat((e.target as HTMLInputElement).value));
-    };
+  const handleVolumeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextVolume = parseFloat(event.target.value);
+    setVolume(nextVolume);
+    setMuted(nextVolume === 0);
+  };
 
-    const handleDuration = (dur: number) => {
-        if (dur > 0) setDuration(dur);
-    };
+  const handleProgress = (state: { played: number }) => {
+    if (!seeking) {
+      setPlayed(state.played);
+    }
+  };
 
-    const handleReady = () => {
-        setHasPlaybackError(false);
-        if (playerRef.current) {
-            const dur = playerRef.current.getDuration();
-            if (dur > 0) setDuration(dur);
-        }
-    };
+  const handleSeekMouseUp = (event: React.MouseEvent<HTMLInputElement> | React.TouchEvent<HTMLInputElement>) => {
+    const nextValue = parseFloat((event.target as HTMLInputElement).value);
+    setSeeking(false);
+    playerRef.current?.seekTo(nextValue);
+  };
 
-    const toggleFullscreen = () => {
-        if (!document.fullscreenElement) {
-            containerRef.current?.requestFullscreen();
-            setIsFullscreen(true);
-        } else {
-            document.exitFullscreen();
-            setIsFullscreen(false);
-        }
-    };
+  const handleReady = () => {
+    setHasPlaybackError(false);
+    const playerDuration = playerRef.current?.getDuration?.();
+    if (playerDuration > 0) setDuration(playerDuration);
+  };
 
-    const formatTime = (seconds: number) => {
-        const date = new Date(seconds * 1000);
-        const hh = date.getUTCHours();
-        const mm = date.getUTCMinutes();
-        const ss = date.getUTCSeconds().toString().padStart(2, '0');
-        if (hh) {
-            return `${hh}:${mm.toString().padStart(2, '0')}:${ss}`;
-        }
-        return `${mm}:${ss}`;
-    };
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen();
+      setIsFullscreen(true);
+      return;
+    }
 
-    const handleRewind = () => {
-        const currentTime = playerRef.current?.getCurrentTime() || 0;
-        playerRef.current?.seekTo(currentTime - 10);
-    };
+    document.exitFullscreen();
+    setIsFullscreen(false);
+  };
 
-    const handleFastForward = () => {
-        const currentTime = playerRef.current?.getCurrentTime() || 0;
-        playerRef.current?.seekTo(currentTime + 10);
-    };
+  const formatTime = (seconds: number) => {
+    const safeSeconds = Number.isFinite(seconds) ? seconds : 0;
+    const date = new Date(safeSeconds * 1000);
+    const hours = date.getUTCHours();
+    const minutes = date.getUTCMinutes();
+    const displaySeconds = date.getUTCSeconds().toString().padStart(2, '0');
+    if (hours) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${displaySeconds}`;
+    }
+    return `${minutes}:${displaySeconds}`;
+  };
 
-    return (
-        <div 
-            ref={containerRef}
-            className="relative w-full h-full bg-black group overflow-hidden rounded-3xl"
-            onMouseMove={() => setShowControls(true)}
-            onMouseLeave={() => playing && setShowControls(false)}
-        >
-            <Player
-                ref={playerRef}
-                url={normalizedUrl}
-                width="100%"
-                height="100%"
-                playing={playing}
-                playsInline
-                volume={volume}
-                muted={muted}
-                onProgress={handleProgress as any}
-                onReady={handleReady}
-                onError={() => {
-                    setPlaying(false);
-                    setHasPlaybackError(true);
-                }}
-                config={{
-                    file: {
-                        attributes: {
-                            controlsList: 'nodownload',
-                            preload: 'metadata',
-                        },
-                    },
-                    youtube: {
-                        playerVars: { 
-                            controls: 0,
-                            modestbranding: 1,
-                            rel: 0,
-                            showinfo: 0,
-                            iv_load_policy: 3
-                        }
-                    }
-                } as any}
-                style={{ pointerEvents: 'none' }}
-            />
+  const seekBySeconds = (seconds: number) => {
+    const currentTime = playerRef.current?.getCurrentTime?.() || 0;
+    playerRef.current?.seekTo(Math.max(0, currentTime + seconds));
+  };
 
-            {hasPlaybackError && (
-                <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-black/80 px-6 text-center text-white">
-                    <p className="text-lg font-bold">تعذر تشغيل هذا الفيديو داخل المنصة.</p>
-                    <a
-                        href={normalizedUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 transition-colors font-bold"
-                    >
-                        فتح الفيديو في نافذة جديدة
-                    </a>
-                </div>
-            )}
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full h-full bg-black group overflow-hidden rounded-3xl"
+      onMouseMove={() => setShowControls(true)}
+      onMouseLeave={() => playing && setShowControls(false)}
+      dir="ltr"
+    >
+      <Player
+        ref={playerRef}
+        url={normalizedUrl}
+        width="100%"
+        height="100%"
+        playing={playing}
+        playsInline
+        volume={volume}
+        muted={muted}
+        onProgress={handleProgress as any}
+        onDuration={(nextDuration: number) => {
+          if (nextDuration > 0) setDuration(nextDuration);
+        }}
+        onReady={handleReady}
+        onError={() => {
+          setPlaying(false);
+          setHasPlaybackError(true);
+        }}
+        config={{
+          file: {
+            attributes: {
+              controlsList: 'nodownload',
+              preload: 'metadata',
+            },
+          },
+          youtube: {
+            playerVars: {
+              controls: 0,
+              modestbranding: 1,
+              rel: 0,
+              showinfo: 0,
+              iv_load_policy: 3,
+            },
+          },
+        } as any}
+        style={{ pointerEvents: 'none' }}
+      />
 
-            {/* Overlay to catch clicks and show play/pause animation */}
-            <div 
-                className="absolute inset-0 z-10 cursor-pointer"
-                onClick={handlePlayPause}
+      {hasPlaybackError && (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-black/80 px-6 text-center text-white" dir="rtl">
+          <p className="text-lg font-bold">تعذر تشغيل هذا الفيديو داخل المنصة.</p>
+          <p className="max-w-md text-sm leading-7 text-white/70">
+            قد يكون الرابط يمنع التشغيل المدمج. يمكنك فتحه في نافذة جديدة الآن، وسنظل محتفظين بالدرس داخل المنصة.
+          </p>
+          <a
+            href={normalizedUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 transition-colors font-bold"
+          >
+            فتح الفيديو في نافذة جديدة
+          </a>
+        </div>
+      )}
+
+      <div className="absolute inset-0 z-10 cursor-pointer" onClick={handlePlayPause}>
+        <AnimatePresence>
+          {!playing && !hasPlaybackError && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.5 }}
+              className="absolute inset-0 flex items-center justify-center"
             >
-                <AnimatePresence>
-                    {!playing && (
-                        <motion.div 
-                            initial={{ opacity: 0, scale: 0.5 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 1.5 }}
-                            className="absolute inset-0 flex items-center justify-center"
-                        >
-                            <div className="w-20 h-20 bg-indigo-600/80 rounded-full flex items-center justify-center text-white shadow-2xl">
-                                <Play size={40} fill="currentColor" />
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+              <div className="w-20 h-20 bg-indigo-600/80 rounded-full flex items-center justify-center text-white shadow-2xl">
+                <Play size={40} fill="currentColor" />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {title ? (
+        <div className="pointer-events-none absolute left-4 right-4 top-4 z-20 rounded-2xl bg-black/35 px-4 py-2 text-right text-sm font-bold text-white backdrop-blur" dir="rtl">
+          {title}
+        </div>
+      ) : null}
+
+      <motion.div
+        initial={false}
+        animate={{ opacity: showControls ? 1 : 0, y: showControls ? 0 : 20 }}
+        className="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-3 sm:p-4 md:p-6 pt-16 sm:pt-20"
+      >
+        <div className="relative group/progress mb-4">
+          <input
+            type="range"
+            min={0}
+            max={0.999999}
+            step="any"
+            value={played}
+            onMouseDown={() => setSeeking(true)}
+            onTouchStart={() => setSeeking(true)}
+            onChange={(event) => setPlayed(parseFloat(event.target.value))}
+            onMouseUp={handleSeekMouseUp}
+            onTouchEnd={handleSeekMouseUp}
+            className="w-full h-1.5 bg-white/20 rounded-full appearance-none cursor-pointer accent-indigo-500 hover:h-2 transition-all"
+            style={{
+              background: `linear-gradient(to right, #6366f1 ${played * 100}%, rgba(255,255,255,0.2) ${played * 100}%)`,
+            }}
+          />
+        </div>
+
+        <div className="flex flex-col gap-3 text-white sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 md:gap-6">
+            <button onClick={handlePlayPause} className="hover:text-indigo-400 transition-colors" aria-label={playing ? 'إيقاف' : 'تشغيل'}>
+              {playing ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
+            </button>
+
+            <div className="hidden sm:flex items-center gap-4">
+              <button onClick={() => seekBySeconds(-10)} className="hover:text-indigo-400 transition-colors" aria-label="رجوع 10 ثوان">
+                <SkipBack size={20} />
+              </button>
+              <button onClick={() => seekBySeconds(10)} className="hover:text-indigo-400 transition-colors" aria-label="تقديم 10 ثوان">
+                <SkipForward size={20} />
+              </button>
             </div>
 
-            {/* Custom Controls */}
-            <motion.div 
-                initial={false}
-                animate={{ opacity: showControls ? 1 : 0, y: showControls ? 0 : 20 }}
-                className="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-3 sm:p-4 md:p-6 pt-16 sm:pt-20"
-            >
-                {/* Progress Bar */}
-                <div className="relative group/progress mb-4">
-                    <input
-                        type="range"
-                        min={0}
-                        max={0.999999}
-                        step="any"
-                        value={played}
-                        onMouseDown={handleSeekMouseDown}
-                        onChange={handleSeekChange}
-                        onMouseUp={handleSeekMouseUp}
-                        className="w-full h-1.5 bg-white/20 rounded-full appearance-none cursor-pointer accent-indigo-500 hover:h-2 transition-all"
-                        style={{
-                            background: `linear-gradient(to right, #6366f1 ${played * 100}%, rgba(255,255,255,0.2) ${played * 100}%)`
-                        }}
-                    />
-                </div>
+            <div className="text-xs md:text-sm font-medium font-mono whitespace-nowrap">
+              {formatTime(played * duration)} / {formatTime(duration)}
+            </div>
 
-                <div className="flex flex-col gap-3 text-white sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex flex-wrap items-center gap-3 sm:gap-4 md:gap-6">
-                        {/* Play/Pause */}
-                        <button onClick={handlePlayPause} className="hover:text-indigo-400 transition-colors">
-                            {playing ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
-                        </button>
+            <div className="hidden sm:flex items-center gap-2 group/volume">
+              <button onClick={() => setMuted((value) => !value)} className="hover:text-indigo-400 transition-colors" aria-label="الصوت">
+                {muted || volume === 0 ? <VolumeX size={20} /> : volume < 0.5 ? <Volume1 size={20} /> : <Volume2 size={20} />}
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step="any"
+                value={muted ? 0 : volume}
+                onChange={handleVolumeChange}
+                className="w-0 group-hover/volume:w-20 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-white transition-all overflow-hidden"
+              />
+            </div>
+          </div>
 
-                        {/* Rewind/Forward */}
-                        <div className="hidden sm:flex items-center gap-4">
-                            <button onClick={handleRewind} className="hover:text-indigo-400 transition-colors">
-                                <SkipBack size={20} />
-                            </button>
-                            <button onClick={handleFastForward} className="hover:text-indigo-400 transition-colors">
-                                <SkipForward size={20} />
-                            </button>
-                        </div>
-
-                        {/* Time */}
-                        <div className="text-xs md:text-sm font-medium font-mono whitespace-nowrap">
-                            {formatTime(played * duration)} / {formatTime(duration)}
-                        </div>
-
-                        {/* Volume */}
-                        <div className="hidden sm:flex items-center gap-2 group/volume">
-                            <button onClick={handleToggleMuted} className="hover:text-indigo-400 transition-colors">
-                                {muted || volume === 0 ? <VolumeX size={20} /> : volume < 0.5 ? <Volume1 size={20} /> : <Volume2 size={20} />}
-                            </button>
-                            <input
-                                type="range"
-                                min={0}
-                                max={1}
-                                step="any"
-                                value={muted ? 0 : volume}
-                                onChange={handleVolumeChange}
-                                className="w-0 group-hover/volume:w-20 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-white transition-all overflow-hidden"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-4 sm:justify-end md:gap-6">
-                        <button className="hidden sm:inline-flex hover:text-indigo-400 transition-colors">
-                            <Settings size={20} />
-                        </button>
-                        <button onClick={handleToggleMuted} className="sm:hidden hover:text-indigo-400 transition-colors">
-                            {muted || volume === 0 ? <VolumeX size={20} /> : volume < 0.5 ? <Volume1 size={20} /> : <Volume2 size={20} />}
-                        </button>
-                        <button onClick={toggleFullscreen} className="hover:text-indigo-400 transition-colors">
-                            <Maximize size={20} />
-                        </button>
-                    </div>
-                </div>
-            </motion.div>
-
-            {/* Custom CSS for range inputs */}
-            <style dangerouslySetInnerHTML={{ __html: `
-                input[type=range]::-webkit-slider-thumb {
-                    -webkit-appearance: none;
-                    height: 12px;
-                    width: 12px;
-                    border-radius: 50%;
-                    background: white;
-                    cursor: pointer;
-                    box-shadow: 0 0 10px rgba(0,0,0,0.5);
-                }
-                input[type=range]::-moz-range-thumb {
-                    height: 12px;
-                    width: 12px;
-                    border-radius: 50%;
-                    background: white;
-                    cursor: pointer;
-                    border: none;
-                }
-            `}} />
+          <div className="flex items-center justify-between gap-4 sm:justify-end md:gap-6">
+            <button className="hidden sm:inline-flex hover:text-indigo-400 transition-colors" aria-label="الإعدادات">
+              <Settings size={20} />
+            </button>
+            <button onClick={() => setMuted((value) => !value)} className="sm:hidden hover:text-indigo-400 transition-colors" aria-label="الصوت">
+              {muted || volume === 0 ? <VolumeX size={20} /> : volume < 0.5 ? <Volume1 size={20} /> : <Volume2 size={20} />}
+            </button>
+            <button onClick={toggleFullscreen} className="hover:text-indigo-400 transition-colors" aria-label={isFullscreen ? 'إغلاق الشاشة الكاملة' : 'شاشة كاملة'}>
+              <Maximize size={20} />
+            </button>
+          </div>
         </div>
-    );
+      </motion.div>
+
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            input[type=range]::-webkit-slider-thumb {
+              -webkit-appearance: none;
+              height: 12px;
+              width: 12px;
+              border-radius: 50%;
+              background: white;
+              cursor: pointer;
+              box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            }
+            input[type=range]::-moz-range-thumb {
+              height: 12px;
+              width: 12px;
+              border-radius: 50%;
+              background: white;
+              cursor: pointer;
+              border: none;
+            }
+          `,
+        }}
+      />
+    </div>
+  );
 };
