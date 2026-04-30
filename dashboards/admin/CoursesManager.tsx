@@ -116,6 +116,10 @@ export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => 
     });
   };
 
+  const handlePreviewCourse = (course: Course) => {
+    window.open(`${window.location.origin}/#/course/${course.id}`, '_blank', 'noopener,noreferrer');
+  };
+
   const filteredCourses = courses.filter((course) => {
     const matchesSearch =
       (course.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -253,8 +257,9 @@ export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => 
                           <Edit2 size={18} />
                         </button>
                         <button
+                          onClick={() => handlePreviewCourse(course)}
                           className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                          title="معاينة"
+                          title="معاينة الدورة قبل النشر"
                         >
                           <Eye size={18} />
                         </button>

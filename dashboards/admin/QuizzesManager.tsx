@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Question, Quiz } from '../../types';
-import { AlertTriangle, CheckCircle2, Plus, Search, Edit2, Trash2, FileQuestion, Lock, LockOpen } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Plus, Search, Edit2, Trash2, FileQuestion, Lock, LockOpen, Eye } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { QuizBuilder } from './QuizBuilder';
 
@@ -326,6 +326,10 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
     updateQuiz(quiz.id, {
       showOnPlatform: quiz.showOnPlatform === false,
     });
+  };
+
+  const handlePreviewQuiz = (quiz: Quiz) => {
+    window.open(`${window.location.origin}/#/quiz/${quiz.id}`, '_blank', 'noopener,noreferrer');
   };
 
   if (isEditing) {
@@ -655,6 +659,9 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
                         </button>
                         <button onClick={() => handleEdit(quiz.id)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل">
                           <Edit2 size={18} />
+                        </button>
+                        <button onClick={() => handlePreviewQuiz(quiz)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors" title="معاينة الاختبار قبل النشر">
+                          <Eye size={18} />
                         </button>
                         <button
                           onClick={() => handleTogglePlatformVisibility(quiz)}

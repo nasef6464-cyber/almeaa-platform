@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { LibraryItem } from '../../types';
-import { Plus, Edit2, Trash2, FileText, Lock, LockOpen } from 'lucide-react';
+import { Plus, Edit2, Trash2, FileText, Lock, LockOpen, Eye } from 'lucide-react';
 
 interface LibraryManagerProps {
   subjectId: string;
@@ -113,6 +113,16 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
 
   const handleTogglePlatformVisibility = (item: LibraryItem) => {
     updateLibraryItem(item.id, { showOnPlatform: item.showOnPlatform === false });
+  };
+
+  const handlePreviewLibraryItem = (item: LibraryItem) => {
+    if (item.url) {
+      window.open(item.url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    const pathId = item.pathId || currentSubject?.pathId || '';
+    window.open(`${window.location.origin}/#/category/${pathId}?subject=${subjectId}&tab=library`, '_blank', 'noopener,noreferrer');
   };
 
   if (isEditing) {
@@ -344,6 +354,13 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
               )}
             </div>
             <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100">
+              <button
+                onClick={() => handlePreviewLibraryItem(item)}
+                className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+                title="معاينة الملف قبل النشر"
+              >
+                <Eye size={18} />
+              </button>
               <button
                 onClick={() => handleTogglePlatformVisibility(item)}
                 className={`p-2 rounded-lg transition-colors ${item.showOnPlatform === false ? 'text-gray-500 hover:bg-gray-100' : 'text-sky-600 hover:bg-sky-50'}`}

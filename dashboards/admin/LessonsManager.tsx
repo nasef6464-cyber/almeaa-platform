@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Lesson } from '../../types';
-import { Plus, Search, Edit2, Trash2, Play, FileText, Lock, LockOpen } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Play, FileText, Lock, LockOpen, Eye } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { UnifiedLessonBuilder } from './builders/UnifiedLessonBuilder';
 
@@ -160,6 +160,16 @@ export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => 
     updateLesson(lesson.id, {
       showOnPlatform: lesson.showOnPlatform === false,
     });
+  };
+
+  const handlePreviewLesson = (lesson: Lesson) => {
+    if (lesson.videoUrl) {
+      window.open(lesson.videoUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    const query = lesson.subjectId ? `?subject=${lesson.subjectId}&tab=skills` : '?tab=skills';
+    window.open(`${window.location.origin}/#/category/${lesson.pathId || selectedPathId || ''}${query}`, '_blank', 'noopener,noreferrer');
   };
 
   const filteredLessons = lessons.filter((lesson) => lesson.title.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -351,6 +361,9 @@ export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => 
                         </button>
                         <button onClick={() => handleEdit(lesson)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل">
                           <Edit2 size={18} />
+                        </button>
+                        <button onClick={() => handlePreviewLesson(lesson)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors" title="معاينة الدرس قبل النشر">
+                          <Eye size={18} />
                         </button>
                         <button onClick={() => handleDelete(lesson.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="حذف">
                           <Trash2 size={18} />
