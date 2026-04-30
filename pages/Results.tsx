@@ -590,35 +590,37 @@ const Results: React.FC = () => {
                 className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100"
               >
                 <BarChart3 size={18} />
-                تحليل المهارات
+                أين أبدأ؟
               </button>
               <Link
                 to="/plan"
                 className="flex items-center justify-center gap-2 border border-purple-200 text-purple-700 px-6 py-3 rounded-xl font-bold text-sm hover:bg-purple-50 transition-colors"
               >
                 <CheckCircle2 size={18} />
-                خطة مذاكرة
+                خطة قصيرة
               </Link>
             </div>
 
-            <div className="print-hide mt-3 flex flex-wrap gap-2 text-xs font-bold">
-              <button onClick={() => setViewMode('history')} className="rounded-full bg-gray-50 px-3 py-1.5 text-gray-600 hover:bg-gray-100">
-                <History size={13} className="inline ml-1" />
-                المحاولات السابقة
-              </button>
-              <Link to="/quiz" className="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700 hover:bg-emerald-100">
-                <RefreshCw size={13} className="inline ml-1" />
-                إعادة الاختبار
-              </Link>
-              <Link to="/quizzes" className="rounded-full bg-amber-50 px-3 py-1.5 text-amber-700 hover:bg-amber-100">
-                <PlusCircle size={13} className="inline ml-1" />
-                اختبار إضافي
-              </Link>
-              <Link to="/reports" className="rounded-full bg-indigo-50 px-3 py-1.5 text-indigo-700 hover:bg-indigo-100">
-                <BarChart3 size={13} className="inline ml-1" />
-                تقريري العام
-              </Link>
-            </div>
+            {isFullResult ? (
+              <div className="print-hide mt-3 flex flex-wrap gap-2 text-xs font-bold">
+                <button onClick={() => setViewMode('history')} className="rounded-full bg-gray-50 px-3 py-1.5 text-gray-600 hover:bg-gray-100">
+                  <History size={13} className="inline ml-1" />
+                  المحاولات السابقة
+                </button>
+                <Link to="/quiz" className="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700 hover:bg-emerald-100">
+                  <RefreshCw size={13} className="inline ml-1" />
+                  إعادة الاختبار
+                </Link>
+                <Link to="/quizzes" className="rounded-full bg-amber-50 px-3 py-1.5 text-amber-700 hover:bg-amber-100">
+                  <PlusCircle size={13} className="inline ml-1" />
+                  اختبار إضافي
+                </Link>
+                <Link to="/reports" className="rounded-full bg-indigo-50 px-3 py-1.5 text-indigo-700 hover:bg-indigo-100">
+                  <BarChart3 size={13} className="inline ml-1" />
+                  تقريري العام
+                </Link>
+              </div>
+            ) : null}
 
             {isFullResult ? (
               <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50 p-4">
@@ -651,7 +653,7 @@ const Results: React.FC = () => {
             ) : (
               <details className="print-hide mt-5 rounded-2xl border border-slate-100 bg-white/80 p-4 text-sm text-slate-700">
                 <summary className="cursor-pointer select-none font-black text-slate-800">
-                  ملخص ولي الأمر أو المعلم
+                  ملخص ولي الأمر عند الحاجة
                 </summary>
                 <p className="mt-3 leading-7 text-slate-600">{guardianFollowUpSummary}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
