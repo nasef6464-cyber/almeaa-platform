@@ -831,6 +831,11 @@ const Plan: React.FC = () => {
     () => createDailySessionSlices(draft.preferredStartTime, draft.dailyMinutes),
     [draft.dailyMinutes, draft.preferredStartTime],
   );
+  const draftEligibleDates = useMemo(
+    () => enumerateDates(draft.startDate, draft.endDate, draft.offDays),
+    [draft.endDate, draft.offDays, draft.startDate],
+  );
+  const draftStudyWeeks = draftEligibleDates.length ? Math.max(1, Math.ceil(draftEligibleDates.length / 6)) : 0;
 
   const activePlanStudyDays = useMemo(
     () =>
@@ -1298,6 +1303,29 @@ const Plan: React.FC = () => {
               <div className="rounded-2xl bg-white/70 p-4">
                 <div className="text-xs font-bold text-emerald-700">أيام الإجازة</div>
                 <div className="mt-1 text-lg font-black text-emerald-800">{draft.offDays.length} / 3</div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-4">
+              <div className="rounded-2xl border border-white/70 bg-white/80 p-4">
+                <div className="text-xs font-black text-gray-500">أيام دراسة فعلية</div>
+                <div className="mt-1 text-2xl font-black text-gray-900">{draftEligibleDates.length}</div>
+                <div className="mt-1 text-xs font-bold text-gray-400">بعد استبعاد أيام الإجازة</div>
+              </div>
+              <div className="rounded-2xl border border-white/70 bg-white/80 p-4">
+                <div className="text-xs font-black text-gray-500">تقدير الأسابيع</div>
+                <div className="mt-1 text-2xl font-black text-gray-900">{draftStudyWeeks || '—'}</div>
+                <div className="mt-1 text-xs font-bold text-gray-400">لمتابعة الطالب بدون ضغط</div>
+              </div>
+              <div className="rounded-2xl border border-white/70 bg-white/80 p-4">
+                <div className="text-xs font-black text-gray-500">مواد داخل الخطة</div>
+                <div className="mt-1 text-2xl font-black text-gray-900">{draft.subjectIds.length}</div>
+                <div className="mt-1 text-xs font-bold text-gray-400">يمكن اختيار مادة أو أكثر</div>
+              </div>
+              <div className="rounded-2xl border border-white/70 bg-white/80 p-4">
+                <div className="text-xs font-black text-gray-500">دورات مخصصة</div>
+                <div className="mt-1 text-2xl font-black text-gray-900">{draft.courseIds.length || 'كل المتاح'}</div>
+                <div className="mt-1 text-xs font-bold text-gray-400">فارغة يعني يعتمد على كل المحتوى المفتوح</div>
               </div>
             </div>
 
