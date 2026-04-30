@@ -408,6 +408,31 @@ export const SchoolsManager: React.FC = () => {
         const schoolClasses = classes.filter((group) => group.parentId === selectedSchool.id);
         const schoolSupervisors = supervisors.filter((currentUser) => currentUser.groupIds?.includes(selectedSchool.id));
         const schoolCourses = publishedCourses.filter((course) => selectedSchool.courseIds.includes(course.id));
+        const activeSchoolPackages = schoolPackages.filter((pkg) => pkg.status === 'active');
+        const activeSchoolCodes = schoolCodes.filter((code) => code.expiresAt > Date.now());
+        const readinessChecks = [
+            {
+                label: 'فصول دراسية',
+                isReady: schoolClasses.length > 0,
+                hint: schoolClasses.length > 0 ? `${schoolClasses.length} فصل جاهز` : 'أضف فصلًا واحدًا على الأقل',
+            },
+            {
+                label: 'مشرفون',
+                isReady: schoolSupervisors.length > 0,
+                hint: schoolSupervisors.length > 0 ? `${schoolSupervisors.length} مشرف/معلم` : 'اربط مشرفًا أو معلمًا بالمدرسة',
+            },
+            {
+                label: 'باقات نشطة',
+                isReady: activeSchoolPackages.length > 0,
+                hint: activeSchoolPackages.length > 0 ? `${activeSchoolPackages.length} باقة نشطة` : 'فعّل باقة مدرسية واحدة على الأقل',
+            },
+            {
+                label: 'أكواد دخول',
+                isReady: activeSchoolCodes.length > 0,
+                hint: activeSchoolCodes.length > 0 ? `${activeSchoolCodes.length} كود صالح` : 'ولّد كودًا صالحًا للطلاب',
+            },
+        ];
+        const readinessScore = readinessChecks.filter((check) => check.isReady).length;
 
         return (
             <div className="space-y-6 animate-fade-in">
@@ -462,6 +487,42 @@ export const SchoolsManager: React.FC = () => {
                         {managementError}
                     </div>
                 )}
+
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+                        <div>
+                            <h2 className="text-lg font-bold text-gray-900">جاهزية المدرسة للتشغيل</h2>
+                            <p className="text-sm text-gray-500 mt-1">فحص سريع قبل تسليم المدرسة للطلاب والمشرفين.</p>
+                        </div>
+                        <span className={`px-4 py-2 rounded-full text-sm font-bold ${
+                            readinessScore === readinessChecks.length
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : readinessScore >= 2
+                                    ? 'bg-amber-100 text-amber-700'
+                                    : 'bg-red-100 text-red-700'
+                        }`}>
+                            {readinessScore}/{readinessChecks.length} جاهز
+                        </span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        {readinessChecks.map((check) => (
+                            <div
+                                key={check.label}
+                                className={`rounded-xl border p-4 ${
+                                    check.isReady
+                                        ? 'border-emerald-100 bg-emerald-50'
+                                        : 'border-amber-100 bg-amber-50'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2 mb-2">
+                                    <CheckCircle size={18} className={check.isReady ? 'text-emerald-600' : 'text-amber-600'} />
+                                    <p className="font-bold text-gray-900 text-sm">{check.label}</p>
+                                </div>
+                                <p className={`text-xs ${check.isReady ? 'text-emerald-700' : 'text-amber-700'}`}>{check.hint}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
 
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                     {activeTab === 'overview' && (
@@ -1367,6 +1428,14 @@ export const SchoolsManager: React.FC = () => {
                     const schoolPackages = b2bPackages.filter((pkg) => pkg.schoolId === school.id);
                     const schoolCodes = accessCodes.filter((code) => code.schoolId === school.id && code.expiresAt > Date.now());
                     const schoolStudents = students.filter((student) => student.schoolId === school.id);
+                    const schoolClassCount = classes.filter((group) => group.parentId === school.id).length;
+                    const activePackageCount = schoolPackages.filter((pkg) => pkg.status === 'active').length;
+                    const cardReadinessScore = [
+                        schoolClassCount > 0,
+                        school.supervisorIds.length > 0,
+                        activePackageCount > 0,
+                        schoolCodes.length > 0,
+                    ].filter(Boolean).length;
 
                     return (
                         <div key={school.id} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-all group">
@@ -1382,14 +1451,25 @@ export const SchoolsManager: React.FC = () => {
                             <h3 className="text-lg font-bold text-gray-900 mb-1">{school.name}</h3>
                             <p className="text-sm text-gray-500 mb-5">إدارة الطلاب والفصول والباقات والمشرفين لهذه الجهة التعليمية.</p>
 
+                            <div className={`mb-4 rounded-xl px-3 py-2 text-xs font-bold flex items-center justify-between ${
+                                cardReadinessScore === 4
+                                    ? 'bg-emerald-50 text-emerald-700'
+                                    : cardReadinessScore >= 2
+                                        ? 'bg-amber-50 text-amber-700'
+                                        : 'bg-red-50 text-red-700'
+                            }`}>
+                                <span>{cardReadinessScore === 4 ? 'جاهزة للتشغيل' : 'تحتاج استكمال'}</span>
+                                <span>{cardReadinessScore}/4</span>
+                            </div>
+
                             <div className="grid grid-cols-3 gap-3 mb-5">
                                 <div className="bg-gray-50 rounded-xl p-3 text-center">
                                     <p className="text-xs text-gray-500 mb-1">طلاب</p>
                                     <p className="font-bold text-gray-900">{schoolStudents.length}</p>
                                 </div>
                                 <div className="bg-gray-50 rounded-xl p-3 text-center">
-                                    <p className="text-xs text-gray-500 mb-1">باقات</p>
-                                    <p className="font-bold text-gray-900">{schoolPackages.length}</p>
+                                    <p className="text-xs text-gray-500 mb-1">باقات نشطة</p>
+                                    <p className="font-bold text-gray-900">{activePackageCount}</p>
                                 </div>
                                 <div className="bg-gray-50 rounded-xl p-3 text-center">
                                     <p className="text-xs text-gray-500 mb-1">أكواد</p>
