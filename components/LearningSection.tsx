@@ -318,6 +318,9 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
         const totalQuizzes = countVisibleQuizzes(parentTopic.quizIds) + subTopics.reduce((sum, topic) => sum + countVisibleQuizzes(topic.quizIds), 0);
 
         setActiveTab('skills');
+        const requestedContentTab = searchParams.get('content') === 'quizzes' ? 'quizzes' : 'lessons';
+        const requestedLessonId = searchParams.get('lesson');
+
         setSelectedSkill({
             id: parentTopic.id,
             title: parentTopic.title,
@@ -328,6 +331,8 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
             progress: 0,
             originalTopic: parentTopic,
             initialSubTopicId: requestedTopic.parentId ? requestedTopic.id : null,
+            initialContentTab: requestedContentTab,
+            initialLessonId: requestedLessonId || null,
         });
     }, [isStaffViewer, lessons, quizList, searchParams, subject, topicList]);
 

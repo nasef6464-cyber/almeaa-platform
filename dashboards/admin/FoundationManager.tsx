@@ -137,9 +137,11 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const handlePreviewAttachment = (item: Lesson | Quiz, type: 'lesson' | 'quiz') => {
+  const handlePreviewAttachment = (topic: Topic, item: Lesson | Quiz, type: 'lesson' | 'quiz') => {
+    const pathId = item.pathId || topic.pathId || currentSubject?.pathId || '';
+    const targetSubjectId = item.subjectId || topic.subjectId || subjectId;
     const url = type === 'lesson'
-      ? (item as Lesson).videoUrl || `/#/category/${item.pathId || currentSubject?.pathId || ''}?subject=${item.subjectId || subjectId}&tab=skills`
+      ? `/#/category/${pathId}?subject=${targetSubjectId}&tab=skills&topic=${topic.id}&content=lessons&lesson=${item.id}`
       : `/#/quiz/${item.id}`;
     window.open(url, '_blank', 'noopener,noreferrer');
   };
@@ -230,7 +232,7 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
                 <BookOpen size={14} />
                 <span className="truncate max-w-[150px]">{lesson.title}</span>
                 <button
-                  onClick={() => handlePreviewAttachment(lesson, 'lesson')}
+                  onClick={() => handlePreviewAttachment(topic, lesson, 'lesson')}
                   className="text-blue-400 hover:text-blue-700"
                   title="معاينة الدرس"
                 >
@@ -246,7 +248,7 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
                 <FileQuestion size={14} />
                 <span className="truncate max-w-[150px]">{quiz.title}</span>
                 <button
-                  onClick={() => handlePreviewAttachment(quiz, 'quiz')}
+                  onClick={() => handlePreviewAttachment(topic, quiz, 'quiz')}
                   className="text-amber-400 hover:text-amber-700"
                   title="معاينة التدريب"
                 >

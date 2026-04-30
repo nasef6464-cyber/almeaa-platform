@@ -18,6 +18,7 @@ export const SkillDetailsModal: React.FC<SkillDetailsModalProps> = ({ isOpen, on
   const [selectedSubTopic, setSelectedSubTopic] = useState<Topic | null>(null);
   const [topicModalTab, setTopicModalTab] = useState<'lessons' | 'quizzes'>('lessons');
   const [videoData, setVideoData] = useState<{ url: string; title: string } | null>(null);
+  const [openedInitialLessonId, setOpenedInitialLessonId] = useState<string | null>(null);
   const isStaffViewer = ['admin', 'teacher', 'supervisor'].includes(user.role);
 
   const selectedTopic = skill?.originalTopic as Topic | undefined;
@@ -39,9 +40,10 @@ export const SkillDetailsModal: React.FC<SkillDetailsModalProps> = ({ isOpen, on
       setSelectedSubTopic(
         skill.initialSubTopicId ? subTopics.find((topic) => topic.id === skill.initialSubTopicId) || null : null,
       );
-      setTopicModalTab('lessons');
+      setTopicModalTab(skill.initialContentTab === 'quizzes' ? 'quizzes' : 'lessons');
+      setOpenedInitialLessonId(null);
     }
-  }, [isOpen, isStaffViewer, skill?.initialSubTopicId, skill?.originalTopic?.id, topics]);
+  }, [isOpen, isStaffViewer, skill?.initialContentTab, skill?.initialSubTopicId, skill?.originalTopic?.id, topics]);
 
   const subTopics = useMemo(
     () =>
@@ -145,8 +147,6 @@ export const SkillDetailsModal: React.FC<SkillDetailsModalProps> = ({ isOpen, on
     [activeTopic?.sectionId, libraryItems, selectedTopic?.pathId, selectedTopic?.subjectId],
   );
 
-  if (!isOpen || !selectedTopic || !activeTopic) return null;
-
   const openLessonVideo = (lesson: (typeof lessons)[number]) => {
     if (lesson.videoUrl) {
       setVideoData({ url: lesson.videoUrl, title: lesson.title });
@@ -157,6 +157,24 @@ export const SkillDetailsModal: React.FC<SkillDetailsModalProps> = ({ isOpen, on
       openExternalUrl(lesson.fileUrl);
     }
   };
+
+  useEffect(() => {
+    const initialLessonId = skill?.initialLessonId;
+    if (!isOpen || !initialLessonId || openedInitialLessonId === initialLessonId || activeTopicLessons.length === 0) {
+      return;
+    }
+
+    const initialLesson = activeTopicLessons.find((lesson) => lesson.id === initialLessonId);
+    if (!initialLesson) {
+      return;
+    }
+
+    setOpenedInitialLessonId(initialLessonId);
+    setTopicModalTab('lessons');
+    openLessonVideo(initialLesson);
+  }, [activeTopicLessons, isOpen, openedInitialLessonId, skill?.initialLessonId]);
+
+  if (!isOpen || !selectedTopic || !activeTopic) return null;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6" dir="rtl">
