@@ -63,6 +63,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
     const [selectedSkill, setSelectedSkill] = useState<any>(null);
     const [viewingFile, setViewingFile] = useState<any>(null);
     const [paymentModalData, setPaymentModalData] = useState<{ isOpen: boolean, item: any, type: string }>({ isOpen: false, item: null, type: '' });
+    const [openedPreviewPackageId, setOpenedPreviewPackageId] = useState<string | null>(null);
     const isStaffViewer = ['admin', 'teacher', 'supervisor'].includes(user.role);
     const accessibleCourseIds = new Set([
         ...enrolledCourses,
@@ -214,6 +215,24 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
             const bSubject = (b.subjectId || b.subject) === subject ? 1 : 0;
             return bSubject - aSubject || (a.price || 0) - (b.price || 0);
         });
+
+    useEffect(() => {
+        const previewPackageId = searchParams.get('package');
+        if (!previewPackageId) {
+            setOpenedPreviewPackageId(null);
+            return;
+        }
+        if (openedPreviewPackageId === previewPackageId || subjectPublicPackages.length === 0) return;
+        const previewPackage = subjectPublicPackages.find((pkg) => pkg.id === previewPackageId);
+        if (!previewPackage) return;
+        setActiveTab('courses');
+        setOpenedPreviewPackageId(previewPackageId);
+        setPaymentModalData({
+            isOpen: true,
+            item: previewPackage,
+            type: 'package',
+        });
+    }, [openedPreviewPackageId, searchParams, subjectPublicPackages]);
 
     // Data Retrieval from Store
     let sectionCourses = courses.filter((course) => {

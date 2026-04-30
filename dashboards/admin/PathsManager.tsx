@@ -455,6 +455,13 @@ export const PathsManager: React.FC = () => {
     });
   };
 
+  const handlePreviewPathPackage = (pkg: Course) => {
+    if (!selectedPathId) return;
+    const previewSubjectId = pkg.subjectId || pkg.subject || pathSubjects[0]?.id;
+    const subjectQuery = previewSubjectId ? `?subject=${previewSubjectId}&tab=courses&package=${pkg.id}` : `?package=${pkg.id}`;
+    window.open(`/#/category/${selectedPathId}${subjectQuery}`, '_blank', 'noopener,noreferrer');
+  };
+
   const togglePackageContentType = (type: PackageContentType) => {
     setPackageContentTypes((current) => {
       if (type === 'all') {
@@ -1052,6 +1059,13 @@ export const PathsManager: React.FC = () => {
                         </div>
                       </div>
                       <div className="border-t border-gray-100 bg-gray-50 px-5 py-3 flex flex-wrap justify-end gap-2">
+                        <button
+                          onClick={() => handlePreviewPathPackage(pkg)}
+                          className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 border border-gray-100"
+                        >
+                          <Eye size={16} />
+                          معاينة العرض
+                        </button>
                         <button
                           onClick={() => handleTogglePackageVisibility(pkg)}
                           className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold ${
