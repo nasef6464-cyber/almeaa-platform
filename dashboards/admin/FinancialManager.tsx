@@ -40,7 +40,7 @@ const defaultSettings: PaymentSettings = {
 };
 
 export const FinancialManager: React.FC = () => {
-    const { users, groups, b2bPackages, accessCodes, courses, paths, subjects, lessons, quizzes, libraryItems, updateCourse } = useStore();
+    const { users, groups, b2bPackages, accessCodes, courses, paths, subjects, lessons, quizzes, libraryItems, updateCourse, updateB2BPackage } = useStore();
     const [activeTab, setActiveTab] = useState<'overview' | 'requests' | 'settings' | 'b2b' | 'b2c' | 'transactions'>('overview');
     const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>([]);
     const [settings, setSettings] = useState<PaymentSettings>(defaultSettings);
@@ -336,6 +336,12 @@ export const FinancialManager: React.FC = () => {
         window.open(`/#/category/${pathId}${query}`, '_blank', 'noopener,noreferrer');
     };
 
+    const toggleSchoolPackageStatus = (packageId: string, currentStatus: 'active' | 'expired') => {
+        const nextStatus = currentStatus === 'active' ? 'expired' : 'active';
+        updateB2BPackage(packageId, { status: nextStatus });
+        setFeedback(nextStatus === 'active' ? 'تم تنشيط باقة المدرسة.' : 'تم إيقاف باقة المدرسة مؤقتًا بدون حذفها.');
+    };
+
     const packageCoverageRows = useMemo(() => {
         return b2bPackages.map((pkg) => {
             const packagePathIds = new Set(pkg.pathIds || []);
@@ -373,6 +379,7 @@ export const FinancialManager: React.FC = () => {
                 type: pkg.type,
                 discountPercentage: pkg.discountPercentage,
                 maxStudents: pkg.maxStudents,
+                isActive: pkg.status === 'active',
                 usedSeats,
                 seatRate,
                 activeCodes: activePackageCodes.length,
@@ -861,6 +868,16 @@ export const FinancialManager: React.FC = () => {
                                                 <div className="h-full rounded-full bg-indigo-600" style={{ width: `${pkg.seatRate}%` }} />
                                             </div>
                                             <div className="mt-3 text-xs text-gray-500">{pkg.activeCodes} كود نشط لهذه الباقة</div>
+                                            <button
+                                                onClick={() => toggleSchoolPackageStatus(pkg.id, pkg.status)}
+                                                className={`mt-4 w-full rounded-xl px-3 py-2 text-xs font-black transition-colors ${
+                                                    pkg.isActive
+                                                        ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                                }`}
+                                            >
+                                                {pkg.isActive ? 'إيقاف الباقة مؤقتًا' : 'تنشيط الباقة'}
+                                            </button>
                                         </div>
                                     </div>
 
