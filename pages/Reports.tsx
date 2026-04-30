@@ -593,6 +593,91 @@ const Reports: React.FC = () => {
                 </button>
             </header>
 
+            <Card className="p-4 sm:p-6 border-0 shadow-sm bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white overflow-hidden relative">
+                <div className="absolute -left-10 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+                <div className="absolute -bottom-12 right-10 h-40 w-40 rounded-full bg-indigo-400/20 blur-3xl" />
+                <div className="relative z-10 grid gap-5 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+                    <div>
+                        <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-black text-indigo-100">
+                            <Sparkles size={14} />
+                            القرار السريع من التقرير
+                        </div>
+                        <h2 className="text-2xl font-black leading-9">
+                            {isStudentView ? 'ابدأ بخطوة واحدة واضحة اليوم' : 'ابدأ التدخل من أعلى نقطة تأثير'}
+                        </h2>
+                        <p className="mt-3 max-w-3xl text-sm leading-8 text-indigo-100">
+                            {isStudentView
+                                ? (studentFollowUpSummary || 'حل اختبارًا قصيرًا أولًا حتى نحدد المهارة التي تحتاج متابعة.')
+                                : (scopedFollowUpSummary || 'بمجرد تحميل بيانات النطاق سيظهر هنا ملخص سريع للطالب أو المهارة التي تحتاج تدخلًا.')}
+                        </p>
+                        <div className="print-hide mt-4 flex flex-wrap gap-2">
+                            {isStudentView ? (
+                                <>
+                                    <button
+                                        onClick={copyStudentSummary}
+                                        className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-black text-slate-900 hover:bg-indigo-50"
+                                    >
+                                        {copiedStudentSummary ? <CheckCircle size={16} /> : <Copy size={16} />}
+                                        {copiedStudentSummary ? 'تم النسخ' : 'نسخ ملخص ولي الأمر'}
+                                    </button>
+                                    <button
+                                        onClick={shareStudentSummary}
+                                        className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-black text-white hover:bg-white/15"
+                                    >
+                                        {sharedStudentSummary ? <CheckCircle size={16} /> : <Share2 size={16} />}
+                                        {sharedStudentSummary ? 'تمت المشاركة' : 'مشاركة الملخص'}
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <button
+                                        onClick={copyScopedSummary}
+                                        disabled={!scopedFollowUpSummary}
+                                        className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-black text-slate-900 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        {copiedScopedSummary ? <CheckCircle size={16} /> : <Copy size={16} />}
+                                        {copiedScopedSummary ? 'تم النسخ' : 'نسخ ملخص المتابعة'}
+                                    </button>
+                                    <button
+                                        onClick={shareScopedSummary}
+                                        disabled={!scopedFollowUpSummary}
+                                        className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-black text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        {sharedScopedSummary ? <CheckCircle size={16} /> : <Share2 size={16} />}
+                                        {sharedScopedSummary ? 'تمت المشاركة' : 'مشاركة الملخص'}
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                        <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                            <div className="text-xs font-bold text-indigo-100">أهم مؤشر</div>
+                            <div className="mt-2 text-2xl font-black">
+                                {isStudentView ? `${stats?.averageScore ?? 0}%` : `${scopedAnalytics?.scope.studentCount ?? 0} طالب`}
+                            </div>
+                            <div className="mt-1 text-xs font-bold text-indigo-100">
+                                {isStudentView ? 'متوسط الأداء' : 'داخل نطاق المتابعة'}
+                            </div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                            <div className="text-xs font-bold text-indigo-100">أولوية الآن</div>
+                            <div className="mt-2 text-base font-black leading-7">
+                                {isStudentView
+                                    ? displayText(weakestSkill?.skill) || 'ابدأ باختبار قصير'
+                                    : displayText(scopedAnalytics?.weakestSkills?.[0]?.skill) || 'بانتظار بيانات المهارات'}
+                            </div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                            <div className="text-xs font-bold text-indigo-100">الخطوة التالية</div>
+                            <div className="mt-2 text-sm font-bold leading-7">
+                                {isStudentView ? 'شرح قصير + تدريب + إعادة قياس' : 'تدخل موجه + اختبار متابعة'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </Card>
+
             {!isStudentView && (
                 <Card className="p-4 sm:p-6 border-0 shadow-sm bg-white">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-5">
