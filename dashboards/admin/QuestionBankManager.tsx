@@ -1,13 +1,104 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
+import * as XLSX from 'xlsx';
+import { Download, Edit2, Plus, Search, Trash2, Upload } from 'lucide-react';
 import { Question } from '../../types';
-import { Plus, Search, Edit2, Trash2, Download, Upload } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { UnifiedQuestionBuilder } from './builders/UnifiedQuestionBuilder';
-import * as XLSX from 'xlsx';
 
 interface QuestionBankManagerProps {
   subjectId?: string;
 }
+
+type ImportDraftQuestion = Question;
+
+const normalizeLookup = (value?: string) =>
+  String(value || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .toLowerCase();
+
+const readCell = (row: Record<string, unknown>, keys: string[]) => {
+  const normalizedRow = new Map<string, string>();
+  Object.entries(row).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim()) {
+      normalizedRow.set(normalizeLookup(key), String(value).trim());
+    }
+  });
+
+  for (const key of keys) {
+    const value = normalizedRow.get(normalizeLookup(key));
+    if (value) return value;
+  }
+
+  return '';
+};
+
+const splitSkillNames = (value: string) =>
+  value
+    .split(/[,،;؛|]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const resolveDifficulty = (value?: string): Question['difficulty'] => {
+  const normalized = normalizeLookup(value);
+  if (['easy', 'سهل', 'سهله', 'بسيط', 'منخفض'].includes(normalized)) return 'Easy';
+  if (['hard', 'صعب', 'صعبه', 'مرتفع', 'عالي'].includes(normalized)) return 'Hard';
+  return 'Medium';
+};
+
+const resolveQuestionType = (value?: string): Question['type'] => {
+  const normalized = normalizeLookup(value);
+  if (['true_false', 'true false', 'صح خطا', 'صح/خطا', 'صح او خطا'].includes(normalized)) return 'true_false';
+  if (['essay', 'مقالي', 'مقاليه', 'كتابي'].includes(normalized)) return 'essay';
+  return 'mcq';
+};
+
+const normalizeQuestionContent = (questionText: string, imageValue?: string) => {
+  const trimmed = questionText.trim();
+  const image = String(imageValue || '').trim();
+
+  if (/^image:/i.test(trimmed)) {
+    return { text: '', imageUrl: trimmed.replace(/^image:/i, '').trim() || image };
+  }
+
+  if (/^https?:\/\/.+\.(png|jpg|jpeg|gif|webp|svg)(\?.*)?$/i.test(trimmed)) {
+    return { text: '', imageUrl: image || trimmed };
+  }
+
+  return { text: trimmed, imageUrl: image || undefined };
+};
+
+const resolveCorrectOptionIndex = (value: string, options: string[]) => {
+  const normalized = normalizeLookup(value);
+  const letterMap: Record<string, number> = {
+    a: 0,
+    '1': 0,
+    ا: 0,
+    أ: 0,
+    b: 1,
+    '2': 1,
+    ب: 1,
+    c: 2,
+    '3': 2,
+    ج: 2,
+    d: 3,
+    '4': 3,
+    د: 3,
+    true: 0,
+    صح: 0,
+    false: 1,
+    خطا: 1,
+    خطأ: 1,
+  };
+
+  if (normalized in letterMap) return letterMap[normalized];
+
+  const matchedIndex = options.findIndex((option) => normalizeLookup(option) === normalized);
+  return matchedIndex >= 0 ? matchedIndex : -1;
+};
 
 const getStatusMeta = (question: Question) => {
   if (question.approvalStatus === 'rejected') {
@@ -22,106 +113,62 @@ const getStatusMeta = (question: Question) => {
     return { label: 'معتمد', className: 'bg-emerald-50 text-emerald-600' };
   }
 
-  return { label: 'محتوى قديم', className: 'bg-gray-100 text-gray-600' };
+  return { label: 'مسودة', className: 'bg-gray-100 text-gray-600' };
 };
 
-const normalizeLookup = (value?: string) =>
-  String(value || '')
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase();
-
-const resolveDifficulty = (value?: string): Question['difficulty'] => {
-  const normalized = normalizeLookup(value);
-  if (['easy', 'سهل', 'سهلة'].includes(normalized)) return 'Easy';
-  if (['hard', 'صعب', 'صعبة'].includes(normalized)) return 'Hard';
-  return 'Medium';
-};
-
-const resolveQuestionType = (value?: string): Question['type'] => {
-  const normalized = normalizeLookup(value);
-  if (['true_false', 'true false', 'صح خطأ', 'صح/خطأ', 'صح او خطأ'].includes(normalized)) return 'true_false';
-  if (['essay', 'مقالي', 'مقاليّة'].includes(normalized)) return 'essay';
-  return 'mcq';
-};
-
-const normalizeQuestionContent = (value: string) => {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return { text: '', imageUrl: undefined as string | undefined };
-  }
-
-  if (/^image:/i.test(trimmed)) {
-    return { text: '', imageUrl: trimmed.replace(/^image:/i, '').trim() };
-  }
-
-  if (/^https?:\/\/.+\.(png|jpg|jpeg|gif|webp|svg)(\?.*)?$/i.test(trimmed)) {
-    return { text: '', imageUrl: trimmed };
-  }
-
-  return { text: trimmed, imageUrl: undefined as string | undefined };
-};
-
-const readCell = (row: Record<string, unknown>, keys: string[]) => {
-  for (const key of keys) {
-    const value = row[key];
-    if (value !== undefined && value !== null && String(value).trim()) {
-      return String(value).trim();
-    }
-  }
-
-  return '';
-};
-
-const splitSkillNames = (value: string) =>
-  value
-    .split(/[,،;؛|]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-const resolveCorrectOptionIndex = (value: string, options: string[]) => {
-  const normalized = normalizeLookup(value);
-  const letterMap: Record<string, number> = { a: 0, 'أ': 0, b: 1, 'ب': 1, c: 2, 'ج': 2, d: 3, 'د': 3 };
-
-  if (normalized in letterMap) {
-    return letterMap[normalized];
-  }
-
-  const numeric = Number(normalized);
-  if (!Number.isNaN(numeric) && numeric >= 1 && numeric <= options.length) {
-    return numeric - 1;
-  }
-
-  const matchedIndex = options.findIndex((option) => normalizeLookup(option) === normalized);
-  return matchedIndex >= 0 ? matchedIndex : -1;
+const difficultyLabel = (difficulty: Question['difficulty']) => {
+  if (difficulty === 'Easy') return 'سهل';
+  if (difficulty === 'Hard') return 'صعب';
+  return 'متوسط';
 };
 
 export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjectId }) => {
-  const { user, questions: globalQuestions, addQuestion, updateQuestion, deleteQuestion, paths, subjects, sections, skills } = useStore();
+  const {
+    user,
+    questions: globalQuestions,
+    addQuestion,
+    updateQuestion,
+    deleteQuestion,
+    paths,
+    subjects,
+    sections,
+    skills,
+  } = useStore();
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const canReview = user.role === 'admin';
   const managedPathIds = user.managedPathIds || [];
   const managedSubjectIds = user.managedSubjectIds || [];
-  const allowedPaths = user.role === 'teacher'
-    ? paths.filter((path) => managedPathIds.length === 0 || managedPathIds.includes(path.id))
-    : paths;
-  const allowedSubjects = user.role === 'teacher'
-    ? subjects.filter((subject) => {
-        if (managedSubjectIds.length > 0) return managedSubjectIds.includes(subject.id);
-        if (managedPathIds.length > 0) return managedPathIds.includes(subject.pathId);
-        return true;
-      })
-    : subjects;
+
+  const allowedPaths = useMemo(
+    () =>
+      user.role === 'teacher'
+        ? paths.filter((path) => managedPathIds.length === 0 || managedPathIds.includes(path.id))
+        : paths,
+    [managedPathIds, paths, user.role],
+  );
+
+  const allowedSubjects = useMemo(
+    () =>
+      user.role === 'teacher'
+        ? subjects.filter((subject) => {
+            if (managedSubjectIds.length > 0) return managedSubjectIds.includes(subject.id);
+            if (managedPathIds.length > 0) return managedPathIds.includes(subject.pathId);
+            return true;
+          })
+        : subjects,
+    [managedPathIds, managedSubjectIds, subjects, user.role],
+  );
 
   const [selectedPathId, setSelectedPathId] = useState('');
   const [selectedSubjectId, setSelectedSubjectId] = useState(subjectId || '');
   const [selectedSectionId, setSelectedSectionId] = useState('');
   const [selectedSkillId, setSelectedSkillId] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
-
   const [currentQuestion, setCurrentQuestion] = useState<Partial<Question>>({
     text: '',
     options: ['', '', '', ''],
@@ -136,8 +183,11 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
   });
 
   const availableMainSkills = useMemo(
-    () => sections.filter((section) => section.subjectId === selectedSubjectId && allowedSubjects.some((subject) => subject.id === section.subjectId)),
-    [allowedSubjects, sections, selectedSubjectId],
+    () =>
+      sections
+        .filter((section) => section.subjectId === selectedSubjectId)
+        .sort((a, b) => a.name.localeCompare(b.name, 'ar')),
+    [sections, selectedSubjectId],
   );
 
   const availableSubSkills = useMemo(
@@ -145,25 +195,46 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
       skills
         .filter((skill) => skill.subjectId === selectedSubjectId && (!selectedSectionId || skill.sectionId === selectedSectionId))
         .sort((a, b) => a.name.localeCompare(b.name, 'ar')),
-    [skills, selectedSectionId, selectedSubjectId],
+    [selectedSectionId, selectedSubjectId, skills],
   );
 
-  const questions = globalQuestions.filter((question) => {
-    if (user.role === 'teacher') {
-      if (managedSubjectIds.length > 0 && !managedSubjectIds.includes(question.subject)) return false;
-      if (managedPathIds.length > 0 && question.pathId && !managedPathIds.includes(question.pathId)) return false;
-    }
-    if (subjectId && question.subject !== subjectId) return false;
-    if (selectedSubjectId && question.subject !== selectedSubjectId) return false;
-    if (selectedSectionId && question.sectionId !== selectedSectionId) return false;
-    if (selectedPathId && !subjectId && !selectedSubjectId && question.pathId !== selectedPathId) return false;
-    if (selectedSkillId && (!question.skillIds || !question.skillIds.includes(selectedSkillId))) return false;
-    return true;
-  });
+  const questions = useMemo(
+    () =>
+      globalQuestions.filter((question) => {
+        if (user.role === 'teacher') {
+          if (managedSubjectIds.length > 0 && !managedSubjectIds.includes(question.subject)) return false;
+          if (managedPathIds.length > 0 && question.pathId && !managedPathIds.includes(question.pathId)) return false;
+        }
+        if (subjectId && question.subject !== subjectId) return false;
+        if (selectedSubjectId && question.subject !== selectedSubjectId) return false;
+        if (selectedSectionId && question.sectionId !== selectedSectionId) return false;
+        if (selectedPathId && !subjectId && !selectedSubjectId && question.pathId !== selectedPathId) return false;
+        if (selectedSkillId && (!question.skillIds || !question.skillIds.includes(selectedSkillId))) return false;
+        return true;
+      }),
+    [
+      globalQuestions,
+      managedPathIds,
+      managedSubjectIds,
+      selectedPathId,
+      selectedSectionId,
+      selectedSkillId,
+      selectedSubjectId,
+      subjectId,
+      user.role,
+    ],
+  );
 
-  const filteredQuestions = questions.filter((question) => question.text.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredQuestions = useMemo(
+    () =>
+      questions.filter((question) => {
+        const haystack = `${question.text || ''} ${question.options?.join(' ') || ''}`;
+        return normalizeLookup(haystack).includes(normalizeLookup(searchTerm));
+      }),
+    [questions, searchTerm],
+  );
 
-  const handleCreateNew = () => {
+  const resetEditorQuestion = () => {
     setCurrentQuestion({
       text: '',
       options: ['', '', '', ''],
@@ -175,7 +246,15 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
       subject: selectedSubjectId || '',
       sectionId: selectedSectionId || '',
       skillIds: [],
+      ownerType: user.role === 'teacher' ? 'teacher' : 'platform',
+      ownerId: user.id,
+      createdBy: user.id,
+      approvalStatus: user.role === 'admin' ? 'approved' : 'pending_review',
     });
+  };
+
+  const handleCreateNew = () => {
+    resetEditorQuestion();
     setIsEditing(true);
   };
 
@@ -195,9 +274,11 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
       await addQuestion({
         ...question,
         id: `q_${Date.now()}_copy`,
-        text: `${question.text} (نسخة)`,
+        text: question.text ? `${question.text} (نسخة)` : question.text,
         approvalStatus: 'draft',
       });
+      setImportMessage('تم نسخ السؤال بنجاح.');
+      setImportError(null);
     } catch (error) {
       setImportError(error instanceof Error ? error.message : 'تعذر نسخ السؤال الآن.');
     }
@@ -211,41 +292,157 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
         await addQuestion({
           ...savedQuestion,
           id: `q_${Date.now()}`,
+          ownerType: savedQuestion.ownerType || (user.role === 'teacher' ? 'teacher' : 'platform'),
+          ownerId: savedQuestion.ownerId || user.id,
+          createdBy: savedQuestion.createdBy || user.id,
+          approvalStatus: savedQuestion.approvalStatus || (user.role === 'admin' ? 'approved' : 'pending_review'),
         } as Question);
       } catch (error) {
         setImportError(error instanceof Error ? error.message : 'تعذر حفظ السؤال الآن.');
         return;
       }
     }
+
     setIsEditing(false);
   };
 
   const downloadImportTemplate = () => {
+    const samplePath = allowedPaths[0];
+    const sampleSubject = allowedSubjects.find((subject) => subject.pathId === samplePath?.id) || allowedSubjects[0];
+    const sampleMainSkill = sections.find((section) => section.subjectId === sampleSubject?.id) || sections[0];
+    const sampleSubSkill =
+      skills.find((skill) => skill.subjectId === sampleSubject?.id && skill.sectionId === sampleMainSkill?.id) || skills[0];
+
     const templateRows = [
       {
-        السؤال: 'إذا كان 2 + 2 = ؟',
-        المسار: allowedPaths[0]?.name || '',
-        المادة: allowedSubjects[0]?.name || '',
-        'المهارة الرئيسية': availableMainSkills[0]?.name || '',
-        'المهارة الفرعية': availableSubSkills[0]?.name || '',
+        المسار: samplePath?.name || 'مسار القدرات',
+        المادة: sampleSubject?.name || 'الكمي',
+        'المهارة الرئيسية': sampleMainSkill?.name || 'العمليات الحسابية الأساسية',
+        'المهارة الفرعية': sampleSubSkill?.name || 'ترتيب العمليات الحسابية',
+        'نص السؤال': 'إذا كان 2 + 2 = ؟',
+        'رابط صورة السؤال': '',
+        'الاختيار أ': '3',
+        'الاختيار ب': '4',
+        'الاختيار ج': '5',
+        'الاختيار د': '6',
+        'الإجابة الصحيحة': 'ب',
         الصعوبة: 'متوسط',
         النوع: 'mcq',
-        'الخيار أ': '3',
-        'الخيار ب': '4',
-        'الخيار ج': '5',
-        'الخيار د': '6',
-        'الإجابة الصحيحة': 'ب',
-        'رابط الشرح': 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-        'رابط صورة السؤال': '',
-        'شرح نصي': 'اجمع 2 + 2 للوصول إلى الإجابة الصحيحة.',
-        ملاحظة: 'ضع نص السؤال أو رابط صورة السؤال. أسئلة الصور فقط مدعومة الآن بشرط وجود رابط صورة السؤال. ويمكن كتابة أكثر من مهارة فرعية مفصولة بفاصلة، أو كتابة image:https://example.com/question.png داخل خانة السؤال.',
+        'رابط الشرح': 'https://www.youtube.com/watch?v=example',
+        'شرح نصي': 'نجمع 2 + 2 فنحصل على 4.',
       },
     ];
 
-    const worksheet = XLSX.utils.json_to_sheet(templateRows);
+    const instructions = [
+      { البيان: 'المسار / المادة / المهارة الرئيسية / المهارة الفرعية', التوضيح: 'يجب أن تكون موجودة مسبقًا في مركز المهارات.' },
+      { البيان: 'نص السؤال', التوضيح: 'اكتب نص السؤال أو اكتب image:https://example.com/question.png لو السؤال صورة فقط.' },
+      { البيان: 'رابط صورة السؤال', التوضيح: 'اختياري، يستخدم عند وجود صورة خارجية للسؤال.' },
+      { البيان: 'الإجابة الصحيحة', التوضيح: 'يمكن كتابة أ، ب، ج، د أو A، B، C، D أو نص الاختيار نفسه.' },
+      { البيان: 'الصعوبة', التوضيح: 'سهل، متوسط، صعب.' },
+      { البيان: 'النوع', التوضيح: 'mcq أو true_false أو essay.' },
+    ];
+
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'questions-template');
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(templateRows), 'questions');
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(instructions), 'instructions');
     XLSX.writeFile(workbook, 'questions-import-template.xlsx');
+  };
+
+  const buildQuestionFromRow = (row: Record<string, unknown>, rowNumber: number): ImportDraftQuestion => {
+    const questionValue = readCell(row, ['نص السؤال', 'السؤال', 'question', 'questionText']);
+    const questionImageValue = readCell(row, ['رابط صورة السؤال', 'صورة السؤال', 'imageUrl', 'questionImage']);
+    const pathName = readCell(row, ['المسار', 'path', 'pathName']);
+    const subjectName = readCell(row, ['المادة', 'subject', 'subjectName']);
+    const sectionName = readCell(row, ['المهارة الرئيسية', 'المهارة الرئيسة', 'mainSkill', 'section']);
+    const skillName = readCell(row, ['المهارة الفرعية', 'skill', 'subSkill']);
+    const explanationLink = readCell(row, ['رابط الشرح', 'videoUrl', 'explanationVideo']);
+    const explanationText = readCell(row, ['شرح نصي', 'الشرح', 'explanation']);
+    const typeValue = readCell(row, ['النوع', 'type', 'questionType']);
+    const optionA = readCell(row, ['الاختيار أ', 'الاختيار ا', 'الاختيار A', 'optionA', 'A']);
+    const optionB = readCell(row, ['الاختيار ب', 'الاختيار B', 'optionB', 'B']);
+    const optionC = readCell(row, ['الاختيار ج', 'الاختيار C', 'optionC', 'C']);
+    const optionD = readCell(row, ['الاختيار د', 'الاختيار D', 'optionD', 'D']);
+    const correctAnswer = readCell(row, ['الإجابة الصحيحة', 'الاجابة الصحيحة', 'correctAnswer', 'answer']);
+    const difficulty = readCell(row, ['الصعوبة', 'مستوى الصعوبة', 'difficulty']);
+
+    if ((!questionValue && !questionImageValue) || !pathName || !subjectName || !sectionName || !skillName) {
+      throw new Error(`الصف ${rowNumber}: بيانات أساسية ناقصة.`);
+    }
+
+    const matchedPath = allowedPaths.find((path) => normalizeLookup(path.name) === normalizeLookup(pathName));
+    if (!matchedPath) {
+      throw new Error(`الصف ${rowNumber}: المسار "${pathName}" غير موجود أو ليس ضمن صلاحياتك.`);
+    }
+
+    const matchedSubject = allowedSubjects.find(
+      (subject) => subject.pathId === matchedPath.id && normalizeLookup(subject.name) === normalizeLookup(subjectName),
+    );
+    if (!matchedSubject) {
+      throw new Error(`الصف ${rowNumber}: المادة "${subjectName}" غير موجودة داخل المسار "${pathName}".`);
+    }
+
+    const matchedSection = sections.find(
+      (section) => section.subjectId === matchedSubject.id && normalizeLookup(section.name) === normalizeLookup(sectionName),
+    );
+    if (!matchedSection) {
+      throw new Error(`الصف ${rowNumber}: المهارة الرئيسية "${sectionName}" غير موجودة داخل المادة "${subjectName}".`);
+    }
+
+    const requestedSkillNames = splitSkillNames(skillName);
+    const matchedSkills = requestedSkillNames
+      .map((requestedSkillName) =>
+        skills.find(
+          (skill) =>
+            skill.subjectId === matchedSubject.id &&
+            skill.sectionId === matchedSection.id &&
+            normalizeLookup(skill.name) === normalizeLookup(requestedSkillName),
+        ),
+      )
+      .filter(Boolean) as typeof skills;
+
+    if (requestedSkillNames.length === 0 || matchedSkills.length !== requestedSkillNames.length) {
+      const missingNames = requestedSkillNames.filter(
+        (requestedSkillName) => !matchedSkills.some((skill) => normalizeLookup(skill.name) === normalizeLookup(requestedSkillName)),
+      );
+      throw new Error(`الصف ${rowNumber}: المهارة الفرعية "${missingNames.join('، ') || skillName}" غير موجودة تحت "${sectionName}".`);
+    }
+
+    const { text, imageUrl } = normalizeQuestionContent(questionValue, questionImageValue);
+    if (!text && !imageUrl) {
+      throw new Error(`الصف ${rowNumber}: حقل السؤال غير صالح.`);
+    }
+
+    const type = resolveQuestionType(typeValue);
+    const options = type === 'true_false' ? ['صح', 'خطأ'] : [optionA, optionB, optionC, optionD].filter(Boolean);
+    if (type !== 'essay' && options.length < 2) {
+      throw new Error(`الصف ${rowNumber}: يجب توفير اختيارين على الأقل.`);
+    }
+
+    const correctOptionIndex = type === 'essay' ? 0 : resolveCorrectOptionIndex(correctAnswer, options);
+    if (type !== 'essay' && correctOptionIndex < 0) {
+      throw new Error(`الصف ${rowNumber}: الإجابة الصحيحة غير مطابقة للاختيارات.`);
+    }
+
+    return {
+      id: `q_import_${Date.now()}_${rowNumber}`,
+      text,
+      imageUrl,
+      options: type === 'essay' ? [] : options,
+      correctOptionIndex,
+      explanation: explanationText,
+      videoUrl: explanationLink || undefined,
+      skillIds: [...new Set(matchedSkills.map((skill) => skill.id))],
+      pathId: matchedPath.id,
+      subject: matchedSubject.id,
+      sectionId: matchedSection.id,
+      difficulty: resolveDifficulty(difficulty),
+      type,
+      ownerType: user.role === 'teacher' ? 'teacher' : 'platform',
+      ownerId: user.id,
+      createdBy: user.id,
+      approvalStatus: user.role === 'admin' ? 'approved' : 'pending_review',
+      approvedAt: user.role === 'admin' ? Date.now() : undefined,
+    };
   };
 
   const handleImportQuestions = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -272,123 +469,25 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
       const rowErrors: string[] = [];
 
       rows.forEach((row, rowIndex) => {
-        const rowNumber = rowIndex + 2;
-        const questionValue = readCell(row, ['السؤال', 'نص السؤال', 'question', 'questionText']);
-        const questionImageValue = readCell(row, ['رابط صورة السؤال', 'صورة السؤال', 'imageUrl', 'questionImage']);
-        const pathName = readCell(row, ['المسار', 'path', 'pathName']);
-        const subjectName = readCell(row, ['المادة', 'subject', 'subjectName']);
-        const sectionName = readCell(row, ['المهارة الرئيسية', 'المهارة الرئيسة', 'section', 'mainSkill']);
-        const skillName = readCell(row, ['المهارة الفرعية', 'skill', 'subSkill']);
-        const explanationLink = readCell(row, ['رابط الشرح', 'videoUrl', 'explanationVideo']);
-        const explanationText = readCell(row, ['شرح نصي', 'الشرح', 'explanation']);
-        const typeValue = readCell(row, ['النوع', 'type', 'questionType']);
-        const optionA = readCell(row, ['الخيار أ', 'الخيار A', 'optionA', 'A']);
-        const optionB = readCell(row, ['الخيار ب', 'الخيار B', 'optionB', 'B']);
-        const optionC = readCell(row, ['الخيار ج', 'الخيار C', 'optionC', 'C']);
-        const optionD = readCell(row, ['الخيار د', 'الخيار D', 'optionD', 'D']);
-        const correctAnswer = readCell(row, ['الإجابة الصحيحة', 'الاجابة الصحيحة', 'correctAnswer', 'answer']);
-
-        if ((!questionValue && !questionImageValue) || !pathName || !subjectName || !sectionName || !skillName) {
-          rowErrors.push(`الصف ${rowNumber}: البيانات الأساسية ناقصة.`);
-          return;
+        try {
+          importedQuestions.push(buildQuestionFromRow(row, rowIndex + 2));
+        } catch (error) {
+          rowErrors.push(error instanceof Error ? error.message : `الصف ${rowIndex + 2}: تعذر قراءة البيانات.`);
         }
-
-        const matchedPath = paths.find((path) => normalizeLookup(path.name) === normalizeLookup(pathName));
-        if (!matchedPath) {
-          rowErrors.push(`الصف ${rowNumber}: المسار "${pathName}" غير موجود.`);
-          return;
-        }
-
-        const matchedSubject = subjects.find(
-          (subject) =>
-            subject.pathId === matchedPath.id &&
-            normalizeLookup(subject.name) === normalizeLookup(subjectName),
-        );
-        if (!matchedSubject) {
-          rowErrors.push(`الصف ${rowNumber}: المادة "${subjectName}" غير موجودة داخل المسار "${pathName}".`);
-          return;
-        }
-
-        const matchedSection = sections.find(
-          (section) =>
-            section.subjectId === matchedSubject.id &&
-            normalizeLookup(section.name) === normalizeLookup(sectionName),
-        );
-        if (!matchedSection) {
-          rowErrors.push(`الصف ${rowNumber}: المهارة الرئيسية "${sectionName}" غير موجودة داخل المادة "${subjectName}".`);
-          return;
-        }
-
-        const requestedSkillNames = splitSkillNames(skillName);
-        const matchedSkills = requestedSkillNames
-          .map((requestedSkillName) =>
-            skills.find(
-              (skill) =>
-                skill.subjectId === matchedSubject.id &&
-                skill.sectionId === matchedSection.id &&
-                normalizeLookup(skill.name) === normalizeLookup(requestedSkillName),
-            ),
-          )
-          .filter(Boolean) as typeof skills;
-        if (requestedSkillNames.length === 0 || matchedSkills.length !== requestedSkillNames.length) {
-          const missingNames = requestedSkillNames.filter(
-            (requestedSkillName) => !matchedSkills.some((skill) => normalizeLookup(skill.name) === normalizeLookup(requestedSkillName)),
-          );
-          rowErrors.push(`الصف ${rowNumber}: المهارة الفرعية "${missingNames.join('، ') || skillName}" غير موجودة تحت "${sectionName}".`);
-          return;
-        }
-
-        const { text, imageUrl } = normalizeQuestionContent(questionValue || (questionImageValue ? `image:${questionImageValue}` : ''));
-        const finalImageUrl = questionImageValue || imageUrl;
-        if (!text && !finalImageUrl) {
-          rowErrors.push(`الصف ${rowNumber}: حقل السؤال غير صالح.`);
-          return;
-        }
-
-        const type = resolveQuestionType(typeValue);
-        const options = type === 'true_false' ? ['صح', 'خطأ'] : [optionA, optionB, optionC, optionD].filter(Boolean);
-        if (type !== 'essay' && options.length < 2) {
-          rowErrors.push(`الصف ${rowNumber}: يجب توفير الخيارات للسؤال.`);
-          return;
-        }
-
-        const correctOptionIndex = type === 'essay' ? 0 : resolveCorrectOptionIndex(correctAnswer, options);
-        if (type !== 'essay' && correctOptionIndex < 0) {
-          rowErrors.push(`الصف ${rowNumber}: الإجابة الصحيحة غير مطابقة للخيارات.`);
-          return;
-        }
-
-        importedQuestions.push({
-          id: `q_import_${Date.now()}_${rowIndex}`,
-          text,
-          imageUrl: finalImageUrl,
-          options: type === 'essay' ? [] : options,
-          correctOptionIndex,
-          explanation: explanationText,
-          videoUrl: explanationLink || undefined,
-          skillIds: [...new Set(matchedSkills.map((skill) => skill.id))],
-          pathId: matchedPath.id,
-          subject: matchedSubject.id,
-          sectionId: matchedSection.id,
-          difficulty: resolveDifficulty(readCell(row, ['الصعوبة', 'difficulty'])),
-          type,
-          ownerType: user.role === 'teacher' ? 'teacher' : 'platform',
-          ownerId: user.id,
-          createdBy: user.id,
-          approvalStatus: user.role === 'admin' ? 'approved' : 'pending_review',
-          approvedAt: user.role === 'admin' ? Date.now() : undefined,
-        });
       });
 
       if (importedQuestions.length === 0) {
         throw new Error(rowErrors.slice(0, 6).join(' ') || 'لم يتم العثور على أسئلة صالحة للاستيراد.');
       }
 
-      await Promise.all(importedQuestions.map((question) => addQuestion(question)));
+      for (const question of importedQuestions) {
+        await addQuestion(question);
+      }
+
       setImportMessage(
         rowErrors.length > 0
-          ? `تم استيراد ${importedQuestions.length} سؤال بنجاح، وتم تخطي ${rowErrors.length} صف يحتاج مراجعة. أول الملاحظات: ${rowErrors.slice(0, 3).join(' ')}`
-          : `تم استيراد ${importedQuestions.length} سؤال بنجاح.`,
+          ? `تم استيراد ${importedQuestions.length} سؤال بنجاح، وتخطينا ${rowErrors.length} صف يحتاج مراجعة. أول الملاحظات: ${rowErrors.slice(0, 3).join(' ')}`
+          : `تم استيراد ${importedQuestions.length} سؤال بنجاح وربطها بمركز المهارات.`,
       );
     } catch (error) {
       setImportError(error instanceof Error ? error.message : 'تعذر استيراد ملف الأسئلة الآن.');
@@ -429,7 +528,9 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">مركز الأسئلة</h2>
-          <p className="text-gray-500 text-sm mt-1">مراجعة بنك الأسئلة واعتماد ما يُضاف قبل دخوله في الاختبارات والتحليلات.</p>
+          <p className="text-gray-500 text-sm mt-1">
+            مستودع الأسئلة الرئيسي، وكل سؤال يرتبط بمسار ثم مادة ثم مهارة رئيسية ثم مهارة فرعية من مركز المهارات.
+          </p>
         </div>
         <button
           onClick={handleCreateNew}
@@ -443,7 +544,9 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h3 className="font-bold text-gray-800 mb-1">استيراد الأسئلة دفعة واحدة</h3>
-          <p className="text-sm text-gray-500">حمّل نموذج Excel، ثم ارفع الملف وسيتم ربط المسار والمادة والمهارات من مركز المهارات مباشرة.</p>
+          <p className="text-sm text-gray-500">
+            حمّل النموذج، املأ الأسئلة، ثم ارفعه. الربط يتم من مركز المهارات فقط، ولا يتم الخلط مع موضوعات التأسيس.
+          </p>
         </div>
         <div className="flex flex-wrap gap-3">
           <button
@@ -453,22 +556,29 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
             <Download size={18} />
             تحميل نموذج Excel
           </button>
-          <label className="bg-amber-50 text-amber-700 px-4 py-2 rounded-xl font-bold hover:bg-amber-100 transition-colors flex items-center gap-2 cursor-pointer">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="bg-amber-50 text-amber-700 px-4 py-2 rounded-xl font-bold hover:bg-amber-100 transition-colors flex items-center gap-2"
+            disabled={isImporting}
+          >
             <Upload size={18} />
-            رفع ملف أسئلة
-            <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportQuestions} />
-          </label>
+            {isImporting ? 'جارٍ الاستيراد...' : 'رفع ملف أسئلة'}
+          </button>
+          <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportQuestions} />
         </div>
       </div>
 
       {(importMessage || importError || isImporting) && (
-        <div className={`rounded-xl border px-4 py-3 text-sm ${
-          importError
-            ? 'border-red-100 bg-red-50 text-red-700'
-            : importMessage
-              ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
-              : 'border-amber-100 bg-amber-50 text-amber-700'
-        }`}>
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm ${
+            importError
+              ? 'border-red-100 bg-red-50 text-red-700'
+              : importMessage
+                ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
+                : 'border-amber-100 bg-amber-50 text-amber-700'
+          }`}
+        >
           {isImporting ? 'جارٍ قراءة ملف الأسئلة وربطه بمركز المهارات...' : importError || importMessage}
         </div>
       )}
@@ -488,7 +598,9 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
             >
               <option value="">كل المسارات</option>
               {allowedPaths.map((path) => (
-                <option key={path.id} value={path.id}>{path.name}</option>
+                <option key={path.id} value={path.id}>
+                  {path.name}
+                </option>
               ))}
             </select>
             <select
@@ -502,9 +614,13 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
               disabled={!selectedPathId}
             >
               <option value="">كل المواد</option>
-              {allowedSubjects.filter((subject) => subject.pathId === selectedPathId).map((subject) => (
-                <option key={subject.id} value={subject.id}>{subject.name}</option>
-              ))}
+              {allowedSubjects
+                .filter((subject) => subject.pathId === selectedPathId)
+                .map((subject) => (
+                  <option key={subject.id} value={subject.id}>
+                    {subject.name}
+                  </option>
+                ))}
             </select>
           </>
         )}
@@ -518,9 +634,11 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
           className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
           disabled={!selectedSubjectId}
         >
-          <option value="">كل المهارات الرئيسة</option>
+          <option value="">كل المهارات الرئيسية</option>
           {availableMainSkills.map((section) => (
-            <option key={section.id} value={section.id}>{section.name}</option>
+            <option key={section.id} value={section.id}>
+              {section.name}
+            </option>
           ))}
         </select>
 
@@ -532,7 +650,9 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
         >
           <option value="">كل المهارات الفرعية</option>
           {availableSubSkills.map((subSkill) => (
-            <option key={subSkill.id} value={subSkill.id}>{subSkill.name}</option>
+            <option key={subSkill.id} value={subSkill.id}>
+              {subSkill.name}
+            </option>
           ))}
         </select>
 
@@ -575,7 +695,11 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
                           <div className="text-sm text-gray-400">سؤال بدون نص</div>
                         )}
                         <div className="text-[11px] text-gray-400 mt-1">
-                          {question.ownerType === 'teacher' ? 'سؤال معلم' : question.ownerType === 'school' ? 'سؤال مدرسة' : 'سؤال المنصة'}
+                          {question.ownerType === 'teacher'
+                            ? 'سؤال معلم'
+                            : question.ownerType === 'school'
+                              ? 'سؤال مدرسة'
+                              : 'سؤال المنصة'}
                         </div>
                       </div>
                     </td>
@@ -589,6 +713,7 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
                             </span>
                           ) : null;
                         })}
+                        {!question.skillIds?.length && <span className="text-xs text-gray-400">غير مربوط</span>}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -601,7 +726,7 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
                               : 'bg-red-50 text-red-600'
                         }`}
                       >
-                        {question.difficulty === 'Easy' ? 'سهل' : question.difficulty === 'Medium' ? 'متوسط' : 'صعب'}
+                        {difficultyLabel(question.difficulty)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -610,22 +735,53 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({ subjec
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2 flex-wrap">
                         {canReview && question.approvalStatus !== 'approved' && (
-                          <button onClick={() => handleApprove(question)} className="px-3 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors">
+                          <button
+                            onClick={() => handleApprove(question)}
+                            className="px-3 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
+                          >
                             اعتماد
                           </button>
                         )}
                         {canReview && question.approvalStatus !== 'rejected' && (
-                          <button onClick={() => handleReject(question)} className="px-3 py-1 text-xs font-bold text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+                          <button
+                            onClick={() => handleReject(question)}
+                            className="px-3 py-1 text-xs font-bold text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                          >
                             رفض
                           </button>
                         )}
-                        <button onClick={() => handleDuplicate(question)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="نسخ">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        <button
+                          onClick={() => handleDuplicate(question)}
+                          className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                          title="نسخ"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
                         </button>
-                        <button onClick={() => handleEdit(question)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل">
+                        <button
+                          onClick={() => handleEdit(question)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="تعديل"
+                        >
                           <Edit2 size={18} />
                         </button>
-                        <button onClick={() => handleDelete(question.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="حذف">
+                        <button
+                          onClick={() => handleDelete(question.id)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="حذف"
+                        >
                           <Trash2 size={18} />
                         </button>
                       </div>
