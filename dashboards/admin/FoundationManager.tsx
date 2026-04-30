@@ -69,7 +69,7 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
     if (editingTopic.id) {
       const updateData = { ...editingTopic, pathId: editingTopic.pathId || subject?.pathId };
       if (updateData.parentId === undefined) {
-        updateData.parentId = null; // Use null instead of undefined for Firebase
+        updateData.parentId = null;
       }
       updateTopic(editingTopic.id, updateData);
     } else {
@@ -79,7 +79,7 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
         id: `topic_${Date.now()}`
       };
       if (newTopic.parentId === undefined) {
-        newTopic.parentId = null; // Use null instead of undefined for Firebase
+        newTopic.parentId = null;
       }
       addTopic(newTopic);
     }

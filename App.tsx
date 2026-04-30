@@ -66,8 +66,7 @@ const App: React.FC = () => {
   const hydrateSkillProgress = useStore((state) => state.hydrateSkillProgress);
 
   useEffect(() => {
-    const useRealApi =
-      (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_USE_REAL_API !== 'false';
+    const useRealApi = import.meta.env.VITE_USE_REAL_API !== 'false';
 
     if (useRealApi) {
       return;
