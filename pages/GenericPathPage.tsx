@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { Card } from '../components/ui/Card';
-import { ChevronRight, LayoutGrid } from 'lucide-react';
+import { ChevronRight, LayoutGrid, Lock, Package, Unlock } from 'lucide-react';
 import { LearningSection } from '../components/LearningSection';
 import { normalizePathId } from '../utils/normalizePathId';
 
@@ -24,7 +24,7 @@ export const GenericPathPage: React.FC = () => {
     const { pathId } = useParams<{ pathId: string }>();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const { paths, levels, subjects, user, courses, topics, quizzes, libraryItems } = useStore();
+    const { paths, levels, subjects, user, courses, topics, quizzes, libraryItems, hasScopedPackageAccess } = useStore();
 
     const initialLevelId = searchParams.get('level') || null;
     const initialSubjectId = searchParams.get('subject') || null;
@@ -79,6 +79,7 @@ export const GenericPathPage: React.FC = () => {
     const pathLevels = levels?.filter(l => l.pathId === path.id) || [];
     const pathSubjects = subjects.filter(s => s.pathId === path.id);
     const pathSubjectIds = new Set(pathSubjects.map((subject) => subject.id));
+    const purchasedPackageIds = new Set(user.subscription?.purchasedPackages || []);
     const isPublicPackageVisible = (pkg: any) =>
         pkg.showOnPlatform !== false &&
         pkg.isPublished !== false &&
@@ -145,6 +146,77 @@ export const GenericPathPage: React.FC = () => {
             },
         ].filter((item) => item.count > 0);
     };
+    const contentAccessRows = [
+        { type: 'courses', label: 'الدورات' },
+        { type: 'foundation', label: 'التأسيس' },
+        { type: 'banks', label: 'التدريب' },
+        { type: 'tests', label: 'الاختبارات' },
+        { type: 'library', label: 'المكتبة' },
+    ] as const;
+    const getSubjectContentSummary = (subjectId: string) => {
+        const matchesSubjectScope = (item: { pathId?: string; category?: string; subjectId?: string; subject?: string }) => {
+            const itemPathId = item.pathId || item.category;
+            const itemSubjectId = item.subjectId || item.subject;
+            return itemPathId === path.id && itemSubjectId === subjectId;
+        };
+        const visibleCounts = {
+            courses: courses.filter((course) => !course.isPackage && canStudentSeeContent(course) && matchesSubjectScope(course)).length,
+            foundation: topics.filter((topic) => canStudentSeeContent(topic) && matchesSubjectScope(topic)).length,
+            banks: quizzes.filter((quiz) => quiz.type === 'bank' && canStudentSeeContent(quiz) && matchesSubjectScope(quiz)).length,
+            tests: quizzes.filter((quiz) => quiz.type !== 'bank' && canStudentSeeContent(quiz) && matchesSubjectScope(quiz)).length,
+            library: libraryItems.filter((item) => canStudentSeeContent(item) && matchesSubjectScope(item)).length,
+        };
+        const unlockedRows = contentAccessRows.filter(({ type }) => hasScopedPackageAccess(type, path.id, subjectId));
+        const lockedRows = contentAccessRows.filter(({ type }) => visibleCounts[type] > 0 && !hasScopedPackageAccess(type, path.id, subjectId));
+
+        return {
+            visibleCounts,
+            unlockedRows,
+            lockedRows,
+            totalVisible: Object.values(visibleCounts).reduce((sum, count) => sum + count, 0),
+        };
+    };
+    const isPackageActiveForCurrentUser = (pkg: any) => {
+        if (canSeeHiddenPaths || purchasedPackageIds.has(pkg.id)) {
+            return true;
+        }
+
+        const packageSubjectId = pkg.subjectId || pkg.subject;
+        const contentTypes = resolvePackageContentTypes(pkg);
+        const scopedTypes = contentTypes.includes('all') ? contentAccessRows.map((row) => row.type) : contentTypes;
+
+        return scopedTypes.every((type) => hasScopedPackageAccess(type as any, path.id, packageSubjectId));
+    };
+    const pathOverview = {
+        subjects: pathSubjects.length,
+        packages: pathPackages.length,
+        activePackages: pathPackages.filter((pkg) => isPackageActiveForCurrentUser(pkg)).length,
+        openSubjects: pathSubjects.filter((subject) => getSubjectContentSummary(subject.id).lockedRows.length === 0).length,
+    };
+    const renderPathOverview = () => (
+        <div className="mb-10 grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
+                <div className="text-xs font-black text-gray-500">مواد المسار</div>
+                <div className="mt-2 text-3xl font-black text-gray-900">{pathOverview.subjects}</div>
+                <div className="mt-2 text-xs font-bold text-gray-400">مهيأة للتوسع والإضافة</div>
+            </div>
+            <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
+                <div className="text-xs font-black text-gray-500">الباقات العامة</div>
+                <div className="mt-2 text-3xl font-black text-gray-900">{pathOverview.packages}</div>
+                <div className="mt-2 text-xs font-bold text-gray-400">المعروضة داخل هذا المسار</div>
+            </div>
+            <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5 shadow-sm">
+                <div className="text-xs font-black text-emerald-700">باقات مفعلة لديك</div>
+                <div className="mt-2 text-3xl font-black text-emerald-800">{pathOverview.activePackages}</div>
+                <div className="mt-2 text-xs font-bold text-emerald-600">يتم احتسابها تلقائيًا</div>
+            </div>
+            <div className="rounded-3xl border border-indigo-100 bg-indigo-50 p-5 shadow-sm">
+                <div className="text-xs font-black text-indigo-700">مواد مفتوحة بالكامل</div>
+                <div className="mt-2 text-3xl font-black text-indigo-800">{pathOverview.openSubjects}</div>
+                <div className="mt-2 text-xs font-bold text-indigo-600">بدون أجزاء مغلقة على الطالب</div>
+            </div>
+        </div>
+    );
 
     const getPathStyle = () => {
         const c = path.color || 'indigo';
@@ -171,6 +243,7 @@ export const GenericPathPage: React.FC = () => {
                     {pathPackages.map(pkg => {
                         const contentTypes = resolvePackageContentTypes(pkg);
                         const packageCoverage = getPackageCoverage(pkg, contentTypes);
+                        const packageIsActive = isPackageActiveForCurrentUser(pkg);
                         const scopeLabel = contentTypes.includes('all')
                             ? 'باقة شاملة'
                             : `تشمل: ${contentTypes.map((type) => packageContentLabels[type]?.label).filter(Boolean).join(' + ')}`;
@@ -182,6 +255,9 @@ export const GenericPathPage: React.FC = () => {
                                  <div className="text-2xl sm:text-3xl font-bold">{pkg.price} {pkg.currency}</div>
                                  <div className="mt-3 flex flex-wrap justify-center gap-2">
                                      <span className="inline-flex rounded-full bg-white/20 px-3 py-1 text-xs font-black text-white">{scopeLabel}</span>
+                                     {packageIsActive ? (
+                                         <span className="inline-flex rounded-full bg-emerald-500/90 px-3 py-1 text-xs font-black text-white">مفعلة لديك</span>
+                                     ) : null}
                                      {!isPublicPackageVisible(pkg) ? (
                                          <span className="inline-flex rounded-full bg-gray-900/40 px-3 py-1 text-xs font-black text-white">مخفية عن الطلاب</span>
                                      ) : null}
@@ -229,9 +305,11 @@ export const GenericPathPage: React.FC = () => {
                                          }
                                          navigate(`/course/${pkg.id}`);
                                      }}
-                                     className="w-full py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-colors"
+                                     className={`w-full rounded-xl py-3 font-bold transition-colors ${
+                                         packageIsActive ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-900 text-white hover:bg-black'
+                                     }`}
                                  >
-                                     اشترك الآن
+                                     {packageIsActive ? 'افتح محتوى الباقة' : 'اشترك الآن'}
                                  </button>
                              </div>
                          </Card>
@@ -247,6 +325,46 @@ const renderSubjectCard = (s: any, levelId: string | null) => {
         const isHex = sColor.startsWith('#');
         const iconStyle = s.iconStyle || (path as any).iconStyle || 'default';
         const icon = s.iconUrl ? <img src={s.iconUrl} className="w-12 h-12 object-contain mx-auto" alt={s.name} /> : <div className="text-4xl">{s.icon || '📚'}</div>;
+        const summary = getSubjectContentSummary(s.id);
+        const topContentRows = contentAccessRows
+            .map((row) => ({ ...row, count: summary.visibleCounts[row.type] }))
+            .filter((row) => row.count > 0)
+            .slice(0, 3);
+        const hasLockedAreas = summary.lockedRows.length > 0;
+        const subjectPackageCount = pathPackages.filter((pkg) => {
+            const packageSubjectId = pkg.subjectId || pkg.subject;
+            return !packageSubjectId || packageSubjectId === s.id;
+        }).length;
+        const footer = (
+            <>
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                    <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black ${
+                        hasLockedAreas ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                    }`}>
+                        {hasLockedAreas ? <Lock size={14} /> : <Unlock size={14} />}
+                        {hasLockedAreas ? `يحتاج باقة في ${summary.lockedRows.length} مساحة` : 'مفتوحة بالكامل'}
+                    </span>
+                    {subjectPackageCount > 0 ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-3 py-1 text-xs font-black text-indigo-700">
+                            <Package size={14} />
+                            {subjectPackageCount} باقة مرتبطة
+                        </span>
+                    ) : null}
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                    {topContentRows.length > 0 ? topContentRows.map((row) => (
+                        <div key={row.type} className="rounded-2xl bg-white/70 px-2 py-2 text-center text-xs font-black text-gray-700">
+                            <div className="text-base text-gray-900">{row.count}</div>
+                            <div>{row.label}</div>
+                        </div>
+                    )) : (
+                        <div className="col-span-3 rounded-2xl bg-white/70 px-3 py-3 text-center text-xs font-bold text-gray-500">
+                            لا توجد عناصر منشورة بعد في هذه المادة.
+                        </div>
+                    )}
+                </div>
+            </>
+        );
 
         if (iconStyle === 'modern') {
             return (
@@ -263,6 +381,7 @@ const renderSubjectCard = (s: any, levelId: string | null) => {
                     <div className="text-gray-500 text-sm font-bold flex gap-2 justify-center">
                         <span>تأسيس</span> • <span>نماذج</span> • <span>تدريب</span>
                     </div>
+                    {footer}
                 </div>
             );
         }
@@ -281,6 +400,7 @@ const renderSubjectCard = (s: any, levelId: string | null) => {
                     <div className="text-gray-400 text-xs flex gap-2 justify-center">
                         <span>تأسيس</span> • <span>نماذج</span>
                     </div>
+                    {footer}
                 </div>
             );
         }
@@ -298,6 +418,7 @@ const renderSubjectCard = (s: any, levelId: string | null) => {
                         {icon}
                     </div>
                     <h3 className="text-3xl font-black mb-3">{s.name}</h3>
+                    {footer}
                 </div>
             );
         }
@@ -316,6 +437,7 @@ const renderSubjectCard = (s: any, levelId: string | null) => {
                 <div className="text-white/80 text-sm font-bold flex gap-2 justify-center">
                     <span>تأسيس</span> • <span>نماذج</span> • <span>تدريب</span>
                 </div>
+                {footer}
             </div>
         );
     };
@@ -334,6 +456,7 @@ const renderSubjectCard = (s: any, levelId: string | null) => {
                     </div>
                 </header>
                 <div className="max-w-5xl mx-auto px-4 py-8">
+                    {renderPathOverview()}
                     {renderPackages()}
                     {pathPackages.length === 0 && <div className="text-center py-12 text-gray-500">لا توجد عروض حالياً.</div>}
                 </div>
@@ -353,6 +476,7 @@ const renderSubjectCard = (s: any, levelId: string | null) => {
                         </div>
                     </header>
                     <div className="max-w-5xl mx-auto px-4 py-12">
+                        {renderPathOverview()}
                         {pathSubjects.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 {pathSubjects.map(s => renderSubjectCard(s, null))}
@@ -398,6 +522,7 @@ const renderSubjectCard = (s: any, levelId: string | null) => {
                     </div>
                 </header>
                 <div className="max-w-5xl mx-auto px-4 py-12">
+                    {renderPathOverview()}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {pathLevels.map(level => {
                             const shortText = level.name.split(' ')[0] || level.name;
@@ -438,6 +563,7 @@ const renderSubjectCard = (s: any, levelId: string | null) => {
                     </div>
                 </header>
                 <div className="max-w-5xl mx-auto px-4 py-12">
+                    {renderPathOverview()}
                     {levelSubjects.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {levelSubjects.map(s => renderSubjectCard(s, selectedLevelId))}
