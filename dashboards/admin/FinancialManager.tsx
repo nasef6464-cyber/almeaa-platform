@@ -282,12 +282,17 @@ export const FinancialManager: React.FC = () => {
         const pkg = publicPackages.find((item) => item.id === packageId);
         if (!pkg) return;
 
-        const nextVisible = pkg.showOnPlatform === false || pkg.isPublished === false;
+        const isCurrentlyVisible =
+            pkg.showOnPlatform !== false &&
+            pkg.isPublished !== false &&
+            (!pkg.approvalStatus || pkg.approvalStatus === 'approved');
+        const nextVisible = !isCurrentlyVisible;
+
         updateCourse(packageId, {
             showOnPlatform: nextVisible,
-            isPublished: true,
-            approvalStatus: 'approved',
-            approvedAt: Date.now(),
+            isPublished: nextVisible,
+            approvalStatus: nextVisible ? 'approved' : 'draft',
+            approvedAt: nextVisible ? Date.now() : undefined,
         });
         setFeedback(nextVisible ? 'تم إظهار الباقة العامة للطلاب.' : 'تم إخفاء الباقة العامة مؤقتًا بدون حذفها.');
     };

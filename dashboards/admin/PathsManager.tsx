@@ -452,10 +452,12 @@ export const PathsManager: React.FC = () => {
   };
 
   const handleTogglePackageVisibility = (pkg: Course) => {
+    const nextVisible = !isPublicPackageVisible(pkg);
     updateCourse(pkg.id, {
-      showOnPlatform: pkg.showOnPlatform === false,
-      isPublished: true,
-      approvalStatus: 'approved',
+      showOnPlatform: nextVisible,
+      isPublished: nextVisible,
+      approvalStatus: nextVisible ? 'approved' : 'draft',
+      approvedAt: nextVisible ? Date.now() : undefined,
     });
   };
 
