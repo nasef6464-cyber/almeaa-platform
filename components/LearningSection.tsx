@@ -381,6 +381,40 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
         const subjectMatches = !subject || item.subjectId === subject;
         return pathMatches && subjectMatches;
     });
+    const learningInventory = {
+        courses: {
+            total: sectionCourses.length,
+            locked: sectionCourses.filter((course) => !(accessibleCourseIds.has(course.id) || hasCourseAccess || course.isPurchased)).length,
+            label: 'الدورات',
+        },
+        skills: {
+            total: mappedSkills.length,
+            locked: mappedSkills.filter((skill) => skill.isLocked).length,
+            label: 'التأسيس',
+        },
+        banks: {
+            total: banks.length,
+            locked: banks.filter((bank) => bank.isLocked).length,
+            label: 'التدريب',
+        },
+        tests: {
+            total: tests.length,
+            locked: tests.filter((test) => test.isLocked).length,
+            label: 'الاختبارات',
+        },
+        library: {
+            total: sectionLibraryItems.length,
+            locked: sectionLibraryItems.filter((item) => item.isLocked).length,
+            label: 'المكتبة',
+        },
+    };
+    const activeInventory = learningInventory[activeTab];
+    const activeTabSummary = {
+        total: activeInventory.total,
+        locked: activeInventory.locked,
+        open: Math.max(activeInventory.total - activeInventory.locked, 0),
+        label: activeInventory.label,
+    };
 
     const handleItemClick = (item: any, type: string) => {
         if (item.isLocked) {
@@ -412,9 +446,49 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                 {(settings.showTests ?? true) && <TabButton active={activeTab === 'tests'} onClick={() => handleTabChange('tests')} icon={<FileText size={20} />} label="الاختبارات المحاكية" colorTheme={colorTheme} />}
                 {(settings.showLibrary ?? true) && <TabButton active={activeTab === 'library'} onClick={() => handleTabChange('library')} icon={<Library size={20} />} label="المكتبة" colorTheme={colorTheme} />}
             </div>
+            <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
+                {Object.entries(learningInventory).map(([key, item]) => {
+                    const isActive = activeTab === key;
+                    return (
+                        <div
+                            key={key}
+                            className={`rounded-3xl border p-4 shadow-sm transition-all ${
+                                isActive ? 'border-indigo-200 bg-indigo-50' : 'border-gray-100 bg-white'
+                            }`}
+                        >
+                            <div className={`text-xs font-black ${isActive ? 'text-indigo-700' : 'text-gray-500'}`}>{item.label}</div>
+                            <div className="mt-2 text-2xl font-black text-gray-900">{item.total}</div>
+                            <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold">
+                                <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">مفتوح {Math.max(item.total - item.locked, 0)}</span>
+                                <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-700">مغلق {item.locked}</span>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
 
             {/* Content */}
             <div className="animate-fade-in">
+                <div className="mb-6 rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                            <div className="text-xs font-black text-gray-500">حالة المساحة الحالية</div>
+                            <h3 className="mt-2 text-xl font-black text-gray-900">{activeTabSummary.label}</h3>
+                            <p className="mt-1 text-sm leading-7 text-gray-500">
+                                يوجد الآن {activeTabSummary.total} عنصرًا في هذا القسم، المفتوح منها {activeTabSummary.open} والمغلق {activeTabSummary.locked}.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-sm font-black">
+                            <span className="rounded-full bg-emerald-50 px-3 py-2 text-emerald-700">متاح الآن: {activeTabSummary.open}</span>
+                            <span className="rounded-full bg-amber-50 px-3 py-2 text-amber-700">يحتاج باقة: {activeTabSummary.locked}</span>
+                            {activeTabAccess?.hasAccess ? (
+                                <span className="rounded-full bg-indigo-50 px-3 py-2 text-indigo-700">وصولك لهذا القسم مفعل</span>
+                            ) : (
+                                <span className="rounded-full bg-gray-100 px-3 py-2 text-gray-700">يمكن فتحه من الباقة المناسبة</span>
+                            )}
+                        </div>
+                    </div>
+                </div>
                 {showActiveTabAccessNotice && activeTabPackage && (
                     <div className="mb-6 rounded-3xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -550,6 +624,11 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                                     
                                     <div className="absolute bottom-0 left-0 right-0 p-5">
                                         <span className="bg-white/20 backdrop-blur-sm text-white text-xs font-bold px-3 py-1 rounded-full mb-2 inline-block">{course.category}</span>
+                                        <div className="mb-2 flex flex-wrap gap-2">
+                                            <span className={`rounded-full px-3 py-1 text-[11px] font-black ${isPurchased ? 'bg-emerald-500/90 text-white' : 'bg-amber-500/90 text-white'}`}>
+                                                {isPurchased ? 'مفتوح لك الآن' : 'يتطلب باقة أو شراء'}
+                                            </span>
+                                        </div>
                                         <h3 className="font-bold text-xl text-white mb-1">{course.title}</h3>
                                     </div>
                                 </div>
@@ -616,6 +695,11 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                                         </span>
                                     </div>
                                 </div>
+                                <div className="mb-4 flex flex-wrap gap-2">
+                                    <span className={`rounded-full px-3 py-1 text-[11px] font-black ${skill.isLocked ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                                        {skill.isLocked ? 'مغلق حتى التفعيل' : 'جاهز للتعلّم الآن'}
+                                    </span>
+                                </div>
                                 <div className="space-y-2">
                                     <div className="flex justify-between text-xs font-bold text-gray-600">
                                         <span>التقدم</span>
@@ -629,6 +713,13 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                 )}
 
                 {activeTab === 'banks' && enabledTabs.banks && (
+                    <>
+                    <div className="mb-4 rounded-3xl border border-gray-100 bg-white p-4 shadow-sm">
+                        <div className="flex flex-wrap items-center gap-2 text-sm font-black">
+                            <span className="rounded-full bg-emerald-50 px-3 py-2 text-emerald-700">متاح الآن: {learningInventory.banks.total - learningInventory.banks.locked}</span>
+                            <span className="rounded-full bg-amber-50 px-3 py-2 text-amber-700">يحتاج تفعيل: {learningInventory.banks.locked}</span>
+                        </div>
+                    </div>
                     <SimulatedTestExperience 
                         mode="bank"
                         tests={banks.map(bank => ({
@@ -643,14 +734,23 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                         onStartTest={(test) => navigate(`/quiz/${test.id}`)}
                         onLockedClick={(test) => handleItemClick(test, 'bank')}
                     />
+                    </>
                 )}
 
                 {activeTab === 'tests' && enabledTabs.tests && (
+                    <>
+                    <div className="mb-4 rounded-3xl border border-gray-100 bg-white p-4 shadow-sm">
+                        <div className="flex flex-wrap items-center gap-2 text-sm font-black">
+                            <span className="rounded-full bg-emerald-50 px-3 py-2 text-emerald-700">متاح الآن: {learningInventory.tests.total - learningInventory.tests.locked}</span>
+                            <span className="rounded-full bg-amber-50 px-3 py-2 text-amber-700">يحتاج تفعيل: {learningInventory.tests.locked}</span>
+                        </div>
+                    </div>
                     <SimulatedTestExperience 
                         tests={tests} 
                         onStartTest={(test) => navigate(`/quiz/${test.id}`)}
                         onLockedClick={(test) => handleItemClick(test, 'test')}
                     />
+                    </>
                 )}
 
                 {activeTab === 'library' && enabledTabs.library && (
@@ -672,6 +772,11 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                                 <div className="flex items-center gap-2 text-sm text-gray-500 mb-6 font-medium">
                                     <User size={16} />
                                     <span>{item.downloads} تحميل</span>
+                                </div>
+                                <div className="mb-4 flex flex-wrap gap-2">
+                                    <span className={`rounded-full px-3 py-1 text-[11px] font-black ${item.isLocked ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                                        {item.isLocked ? 'مغلقة حتى التفعيل' : 'متاحة للعرض والتحميل'}
+                                    </span>
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-auto">
                                     <button 
