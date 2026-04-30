@@ -18,23 +18,79 @@ interface CustomVideoPlayerProps {
   title?: string;
 }
 
+interface NormalizedVideoSource {
+  playerUrl: string;
+  externalUrl: string;
+  iframeUrl?: string;
+}
+
 const normalizeVideoUrl = (rawUrl: string) => {
   const url = rawUrl.trim();
-  if (!url) return '';
+  if (!url) return { playerUrl: '', externalUrl: '' };
 
-  const googleDriveMatch = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
-  if (googleDriveMatch?.[1]) {
-    return `https://drive.google.com/file/d/${googleDriveMatch[1]}/preview`;
+  const safeUrl = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+
+  try {
+    const parsedUrl = new URL(safeUrl);
+    const host = parsedUrl.hostname.replace(/^www\./, '').toLowerCase();
+
+    if (host === 'youtu.be') {
+      const videoId = parsedUrl.pathname.split('/').filter(Boolean)[0];
+      if (videoId) {
+        const normalized = `https://www.youtube.com/watch?v=${videoId}`;
+        return { playerUrl: normalized, externalUrl: normalized };
+      }
+    }
+
+    if (host.includes('youtube.com')) {
+      const videoId =
+        parsedUrl.searchParams.get('v') ||
+        parsedUrl.pathname.match(/\/(?:embed|shorts|live)\/([^/?#]+)/)?.[1];
+      if (videoId) {
+        const normalized = `https://www.youtube.com/watch?v=${videoId}`;
+        return { playerUrl: normalized, externalUrl: normalized };
+      }
+    }
+
+    if (host.includes('vimeo.com')) {
+      const videoId = parsedUrl.pathname.split('/').filter(Boolean).find((part) => /^\d+$/.test(part));
+      if (videoId) {
+        const normalized = `https://vimeo.com/${videoId}`;
+        return { playerUrl: normalized, externalUrl: normalized };
+      }
+    }
+
+    if (host === 'drive.google.com') {
+      const fileId =
+        parsedUrl.pathname.match(/\/file\/d\/([^/]+)/)?.[1] ||
+        parsedUrl.searchParams.get('id');
+      if (fileId) {
+        return {
+          playerUrl: `https://drive.google.com/file/d/${fileId}/preview`,
+          iframeUrl: `https://drive.google.com/file/d/${fileId}/preview`,
+          externalUrl: `https://drive.google.com/file/d/${fileId}/view`,
+        };
+      }
+    }
+
+    if (host.includes('dropbox.com')) {
+      parsedUrl.searchParams.set('raw', '1');
+      parsedUrl.searchParams.delete('dl');
+      return { playerUrl: parsedUrl.toString(), externalUrl: safeUrl };
+    }
+  } catch {
+    return { playerUrl: url, externalUrl: url };
   }
 
-  return url;
+  return { playerUrl: safeUrl, externalUrl: safeUrl };
 };
 
 export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ url, title }) => {
   const Player = ReactPlayer as any;
   const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const normalizedUrl = normalizeVideoUrl(url);
+  const videoSource = normalizeVideoUrl(url);
+  const normalizedUrl = videoSource.playerUrl;
 
   const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
@@ -136,6 +192,8 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ url, title
     playerRef.current?.seekTo(Math.max(0, currentTime + seconds));
   };
 
+  const usesNativeIframe = Boolean(videoSource.iframeUrl);
+
   return (
     <div
       ref={containerRef}
@@ -144,43 +202,53 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ url, title
       onMouseLeave={() => playing && setShowControls(false)}
       dir="ltr"
     >
-      <Player
-        ref={playerRef}
-        url={normalizedUrl}
-        width="100%"
-        height="100%"
-        playing={playing}
-        playsInline
-        volume={volume}
-        muted={muted}
-        onProgress={handleProgress as any}
-        onDuration={(nextDuration: number) => {
-          if (nextDuration > 0) setDuration(nextDuration);
-        }}
-        onReady={handleReady}
-        onError={() => {
-          setPlaying(false);
-          setHasPlaybackError(true);
-        }}
-        config={{
-          file: {
-            attributes: {
-              controlsList: 'nodownload',
-              preload: 'metadata',
+      {usesNativeIframe ? (
+        <iframe
+          src={videoSource.iframeUrl}
+          title={title || 'منصة المئة التعليمية'}
+          className="h-full w-full border-0"
+          allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+          allowFullScreen
+        />
+      ) : (
+        <Player
+          ref={playerRef}
+          url={normalizedUrl}
+          width="100%"
+          height="100%"
+          playing={playing}
+          playsInline
+          volume={volume}
+          muted={muted}
+          onProgress={handleProgress as any}
+          onDuration={(nextDuration: number) => {
+            if (nextDuration > 0) setDuration(nextDuration);
+          }}
+          onReady={handleReady}
+          onError={() => {
+            setPlaying(false);
+            setHasPlaybackError(true);
+          }}
+          config={{
+            file: {
+              attributes: {
+                controlsList: 'nodownload',
+                preload: 'metadata',
+              },
             },
-          },
-          youtube: {
-            playerVars: {
-              controls: 0,
-              modestbranding: 1,
-              rel: 0,
-              showinfo: 0,
-              iv_load_policy: 3,
+            youtube: {
+              playerVars: {
+                controls: 0,
+                modestbranding: 1,
+                rel: 0,
+                showinfo: 0,
+                iv_load_policy: 3,
+              },
             },
-          },
-        } as any}
-        style={{ pointerEvents: 'none' }}
-      />
+          } as any}
+          style={{ pointerEvents: 'none' }}
+        />
+      )}
 
       {hasPlaybackError && (
         <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-black/80 px-6 text-center text-white" dir="rtl">
@@ -189,7 +257,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ url, title
             قد يكون الرابط يمنع التشغيل المدمج. يمكنك فتحه في نافذة جديدة الآن، وسنظل محتفظين بالدرس داخل المنصة.
           </p>
           <a
-            href={normalizedUrl}
+            href={videoSource.externalUrl || normalizedUrl}
             target="_blank"
             rel="noreferrer"
             className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 transition-colors font-bold"
@@ -199,6 +267,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ url, title
         </div>
       )}
 
+      {!usesNativeIframe && (
       <div className="absolute inset-0 z-10 cursor-pointer" onClick={handlePlayPause}>
         <AnimatePresence>
           {!playing && !hasPlaybackError && (
@@ -215,6 +284,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ url, title
           )}
         </AnimatePresence>
       </div>
+      )}
 
       {title ? (
         <div className="pointer-events-none absolute left-4 right-4 top-4 z-20 rounded-2xl bg-black/35 px-4 py-2 text-right text-sm font-bold text-white backdrop-blur" dir="rtl">
@@ -222,6 +292,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ url, title
         </div>
       ) : null}
 
+      {!usesNativeIframe && (
       <motion.div
         initial={false}
         animate={{ opacity: showControls ? 1 : 0, y: showControls ? 0 : 20 }}
@@ -294,6 +365,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ url, title
           </div>
         </div>
       </motion.div>
+      )}
 
       <style
         dangerouslySetInnerHTML={{
