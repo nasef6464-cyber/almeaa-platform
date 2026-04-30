@@ -118,6 +118,7 @@ async function run() {
     teacherAnalytics,
     supervisorAnalytics,
     parentAnalytics,
+    aiStatus,
   ] = await Promise.all([
     request<any>("/auth/me", "GET", undefined, admin.token),
     request<any>("/auth/me", "GET", undefined, teacher.token),
@@ -141,6 +142,7 @@ async function run() {
     request<any>("/quizzes/analytics/overview", "GET", undefined, teacher.token),
     request<any>("/quizzes/analytics/overview", "GET", undefined, supervisor.token),
     request<any>("/quizzes/analytics/overview", "GET", undefined, parent.token),
+    request<any>("/ai/status", "GET", undefined, admin.token),
   ]);
 
   pushResult(results, "admin", "login", adminMe.user?.role === "admin", `role=${adminMe.user?.role}`);
@@ -149,6 +151,16 @@ async function run() {
   pushResult(results, "student", "login", studentMe.user?.role === "student", `role=${studentMe.user?.role}`);
   pushResult(results, "student-redeemed", "login", studentRedeemedMe.user?.role === "student", `role=${studentRedeemedMe.user?.role}`);
   pushResult(results, "parent", "login", parentMe.user?.role === "parent", `role=${parentMe.user?.role}`);
+
+  pushResult(
+    results,
+    "admin",
+    "ai status available",
+    ["gemini", "ollama", "none"].includes(String(aiStatus?.provider || "")) &&
+      typeof aiStatus?.timeoutMs === "number" &&
+      typeof aiStatus?.model === "string",
+    `provider=${aiStatus?.provider || "unknown"}, model=${aiStatus?.model || "unknown"}`,
+  );
 
   pushResult(
     results,
