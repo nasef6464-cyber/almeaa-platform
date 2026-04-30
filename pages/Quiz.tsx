@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, ArrowLeft, Clock, CheckCircle, AlertTriangle, Gauge, ChevronRight, Save, Trash2, Heart, PlayCircle, FileQuestion } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Clock, CheckCircle, AlertTriangle, Gauge, ChevronRight, Save, Trash2, Heart, PlayCircle, FileQuestion, Star } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { VideoModal } from '../components/VideoModal';
@@ -33,7 +33,9 @@ const Quiz: React.FC = () => {
   const {
     saveExamResult,
     toggleFavorite: toggleStoreFavorite,
+    toggleReviewLater: toggleStoreReviewLater,
     favorites: storeFavorites,
+    reviewLater: storeReviewLater,
     recordQuestionAttempt,
     skills,
     subjects,
@@ -167,6 +169,11 @@ const Quiz: React.FC = () => {
   const toggleFavorite = (idx: number) => {
     const questionId = questions[idx].id.toString();
     toggleStoreFavorite(questionId);
+  };
+
+  const toggleReviewLater = (idx: number) => {
+    const questionId = questions[idx].id.toString();
+    toggleStoreReviewLater(questionId);
   };
 
   const showStatus = (message: string, tone: 'success' | 'error' | 'info' = 'info') => {
@@ -796,13 +803,22 @@ const Quiz: React.FC = () => {
 
         <Card className="rounded-t-none rounded-b-xl p-4 sm:p-6 min-h-[400px] flex flex-col">
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-between mb-6">
-            <button
-              onClick={() => toggleFavorite(currentQuestion)}
-              className={`${storeFavorites.includes(questions[currentQuestion].id) ? 'bg-rose-50 text-rose-700 hover:bg-rose-100' : 'bg-indigo-50 text-indigo-900 hover:bg-indigo-100'} w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors`}
-            >
-              {storeFavorites.includes(questions[currentQuestion].id) ? <Trash2 size={18} /> : <Heart size={18} />}
-              {storeFavorites.includes(questions[currentQuestion].id) ? 'مسح من المفضلة' : 'إضافة إلى المفضلة'}
-            </button>
+            <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+              <button
+                onClick={() => toggleFavorite(currentQuestion)}
+                className={`${storeFavorites.includes(questions[currentQuestion].id) ? 'bg-rose-50 text-rose-700 hover:bg-rose-100' : 'bg-indigo-50 text-indigo-900 hover:bg-indigo-100'} w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors`}
+              >
+                {storeFavorites.includes(questions[currentQuestion].id) ? <Trash2 size={18} /> : <Heart size={18} />}
+                {storeFavorites.includes(questions[currentQuestion].id) ? 'مسح من المفضلة' : 'إضافة إلى المفضلة'}
+              </button>
+              <button
+                onClick={() => toggleReviewLater(currentQuestion)}
+                className={`${storeReviewLater.includes(questions[currentQuestion].id) ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'} w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors`}
+              >
+                <Star size={18} className={storeReviewLater.includes(questions[currentQuestion].id) ? 'fill-current' : ''} />
+                {storeReviewLater.includes(questions[currentQuestion].id) ? 'محدد للمراجعة' : 'مراجعة لاحقًا'}
+              </button>
+            </div>
 
             <button
               onClick={() => setShowVideo(true)}
@@ -883,6 +899,7 @@ const Quiz: React.FC = () => {
                   const isCurrent = idx === currentQuestion;
                   const isAnswered = answers[idx] !== undefined;
                   const isFavorite = storeFavorites.includes(question.id);
+                  const isReviewLater = storeReviewLater.includes(question.id);
 
                   return (
                     <button
@@ -897,11 +914,13 @@ const Quiz: React.FC = () => {
                           ? 'bg-amber-500 text-white shadow-sm'
                           : isAnswered
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                            : isFavorite
+                            : isReviewLater
+                              ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                              : isFavorite
                               ? 'bg-rose-50 text-rose-700 border border-rose-100'
                               : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-100'
                       }`}
-                      title={isFavorite ? 'سؤال في المفضلة' : isAnswered ? 'تمت الإجابة' : 'لم تتم الإجابة بعد'}
+                      title={isReviewLater ? 'سؤال للمراجعة لاحقًا' : isFavorite ? 'سؤال في المفضلة' : isAnswered ? 'تمت الإجابة' : 'لم تتم الإجابة بعد'}
                     >
                       {idx + 1}
                     </button>

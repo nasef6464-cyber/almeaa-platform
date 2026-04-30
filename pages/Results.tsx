@@ -905,7 +905,7 @@ const ReviewSolutions = ({
   onBack: () => void;
   onShowVideo: (url: string, title: string) => void;
 }) => {
-  const { favorites, toggleFavorite } = useStore();
+  const { favorites, reviewLater, toggleFavorite, toggleReviewLater } = useStore();
   const [currentIdx, setCurrentIdx] = React.useState(0);
   const [showExplanation, setShowExplanation] = React.useState(false);
 
@@ -938,6 +938,7 @@ const ReviewSolutions = ({
   }
 
   const isFavorite = favorites.includes(q.questionId);
+  const isReviewLater = reviewLater.includes(q.questionId);
 
   return (
     <div className="space-y-6 pb-20 animate-fade-in">
@@ -958,6 +959,13 @@ const ReviewSolutions = ({
           >
             {isFavorite ? <Trash2 size={16} /> : <Star size={16} />}
             {isFavorite ? 'مسح من المفضلة' : 'إضافة للمفضلة'}
+          </button>
+          <button
+            onClick={() => toggleReviewLater(q.questionId)}
+            className={`${isReviewLater ? 'bg-purple-600 hover:bg-purple-700' : 'bg-amber-500 hover:bg-amber-600'} text-white px-4 py-1.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors`}
+          >
+            <Star size={16} className={isReviewLater ? 'fill-current' : ''} />
+            {isReviewLater ? 'محدد للمراجعة' : 'مراجعة لاحقًا'}
           </button>
         </div>
       </header>

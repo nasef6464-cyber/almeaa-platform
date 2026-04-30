@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { Question, Quiz, QuizResult } from '../types';
-import { Clock, AlertCircle, CheckCircle2, XCircle, ArrowRight, ArrowLeft, FileQuestion, Target } from 'lucide-react';
+import { Clock, AlertCircle, CheckCircle2, XCircle, ArrowRight, ArrowLeft, FileQuestion, Target, Star } from 'lucide-react';
 import { api } from '../services/api';
 
 interface QuestionThreadItem {
@@ -45,7 +45,9 @@ export const QuizPage: React.FC = () => {
     subjects,
     sections,
     toggleFavorite,
+    toggleReviewLater,
     favorites,
+    reviewLater,
   } = useStore();
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
@@ -207,6 +209,11 @@ export const QuizPage: React.FC = () => {
       timeSpentSeconds: 0,
       date: new Date().toISOString(),
     });
+  };
+
+  const handleToggleCurrentReviewLater = () => {
+    if (!currentQuestion) return;
+    toggleReviewLater(currentQuestion.id);
   };
 
   const handleNext = () => {
@@ -413,7 +420,16 @@ export const QuizPage: React.FC = () => {
             <div className="p-4 sm:p-8">
               <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center mb-6">
                 <span className="text-sm font-bold text-gray-500">السؤال {currentQuestionIndex + 1} من {quizQuestions.length}</span>
-                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded font-bold">{currentQuestion?.difficulty}</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={handleToggleCurrentReviewLater}
+                    className={`${reviewLater.includes(currentQuestion.id) ? 'bg-purple-100 text-purple-700' : 'bg-amber-50 text-amber-700'} inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-black transition hover:opacity-90`}
+                  >
+                    <Star size={14} className={reviewLater.includes(currentQuestion.id) ? 'fill-current' : ''} />
+                    {reviewLater.includes(currentQuestion.id) ? 'للمراجعة' : 'مراجعة لاحقًا'}
+                  </button>
+                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded font-bold">{currentQuestion?.difficulty}</span>
+                </div>
               </div>
 
               <div className="text-base sm:text-lg text-gray-800 mb-6 break-words" dangerouslySetInnerHTML={{ __html: currentQuestion?.text || '' }} />
