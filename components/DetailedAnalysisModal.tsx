@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Sparkles, TrendingUp } from 'lucide-react';
+import { Sparkles, TrendingUp, X } from 'lucide-react';
 
 interface Skill {
     name: string;
@@ -38,6 +38,41 @@ const getSimpleLevel = (percentage: number) => {
     };
 };
 
+const defaultSkills: Skill[] = [
+    {
+        name: 'العمليات الحسابية',
+        percentage: 85,
+        color: 'bg-blue-500',
+        subjectName: 'القدرات',
+        sectionName: 'الكمي',
+        recommendation: 'استمر على تدريب قصير لتثبيت المهارة.',
+    },
+    {
+        name: 'الجبر',
+        percentage: 70,
+        color: 'bg-purple-500',
+        subjectName: 'القدرات',
+        sectionName: 'الكمي',
+        recommendation: 'راجع شرحًا مختصرًا ثم حل 5 أسئلة متنوعة.',
+    },
+    {
+        name: 'الهندسة',
+        percentage: 92,
+        color: 'bg-emerald-500',
+        subjectName: 'القدرات',
+        sectionName: 'الكمي',
+        recommendation: 'مستواك مطمئن، فقط حافظ على المراجعة الأسبوعية.',
+    },
+    {
+        name: 'حل المسائل',
+        percentage: 65,
+        color: 'bg-amber-500',
+        subjectName: 'القدرات',
+        sectionName: 'التطبيقات',
+        recommendation: 'ابدأ بالمسائل الأسهل ثم ارفع الصعوبة تدريجيًا.',
+    },
+];
+
 export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
     isOpen,
     onClose,
@@ -46,17 +81,11 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
 }) => {
     if (!isOpen) return null;
 
-    const defaultSkills: Skill[] = [
-        { name: 'العمليات الحسابية', percentage: 85, color: 'bg-blue-500', subjectName: 'القدرات', sectionName: 'الكمي' },
-        { name: 'الجبر', percentage: 70, color: 'bg-purple-500', subjectName: 'القدرات', sectionName: 'الكمي' },
-        { name: 'الهندسة', percentage: 92, color: 'bg-emerald-500', subjectName: 'القدرات', sectionName: 'الكمية والهندسية' },
-        { name: 'حل المسائل', percentage: 65, color: 'bg-amber-500', subjectName: 'القدرات', sectionName: 'التطبيقات' },
-    ];
-
     const displaySkills = skills && skills.length > 0 ? skills : defaultSkills;
+    const weakestSkill = [...displaySkills].sort((a, b) => a.percentage - b.percentage)[0];
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-3 backdrop-blur-sm sm:p-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-3 backdrop-blur-sm sm:p-4" dir="rtl">
             <div className="w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-3xl bg-white shadow-2xl animate-scale-up">
                 <div className="flex items-start justify-between gap-3 bg-indigo-600 p-4 text-white sm:p-6">
                     <div className="flex min-w-0 items-start gap-3">
@@ -64,7 +93,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
                             <TrendingUp size={24} />
                         </div>
                         <div className="min-w-0">
-                            <h2 className="break-words text-lg font-bold sm:text-xl">التحليل التفصيلي للمهارات</h2>
+                            <h2 className="break-words text-lg font-bold sm:text-xl">تحليل المهارات ببساطة</h2>
                             <p className="text-[11px] text-indigo-100 sm:text-xs">
                                 بناءً على أدائك في هذا {mode === 'bank' ? 'التدريب' : 'الاختبار'}
                             </p>
@@ -73,18 +102,29 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
                     <button
                         onClick={onClose}
                         className="shrink-0 rounded-full p-2 transition-colors hover:bg-white/10"
+                        aria-label="إغلاق"
                     >
                         <X size={24} />
                     </button>
                 </div>
 
                 <div className="max-h-[calc(90vh-96px)] space-y-6 overflow-y-auto p-4 sm:space-y-8 sm:p-8">
+                    {weakestSkill ? (
+                        <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+                            <div className="text-xs font-black text-amber-700">ابدأ من هنا</div>
+                            <div className="mt-2 text-lg font-black text-gray-900">{weakestSkill.name}</div>
+                            <p className="mt-2 text-sm leading-7 text-amber-800">
+                                هذه أكثر مهارة تحتاج انتباهًا الآن. راجع شرحًا قصيرًا لها، ثم حل تدريبًا بسيطًا، وبعدها أعد القياس.
+                            </p>
+                        </div>
+                    ) : null}
+
                     <div className="grid gap-4">
                         {displaySkills.map((skill, idx) => {
                             const levelMeta = getSimpleLevel(skill.percentage);
 
                             return (
-                                <div key={idx} className="space-y-3 rounded-2xl border border-gray-100 p-4">
+                                <div key={`${skill.name}-${idx}`} className="space-y-3 rounded-2xl border border-gray-100 p-4">
                                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                         <div className="min-w-0 flex-1">
                                             <div className="mb-3 flex flex-wrap gap-2 text-[11px] font-bold">
@@ -145,8 +185,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
                                 توصية مبسطة
                             </h4>
                             <p className="text-sm leading-relaxed text-purple-700">
-                                ابدأ بالمهارة الأضعف أولًا، ثم راجع شرحها باختصار، وبعدها نفّذ تدريبًا قصيرًا. البساطة
-                                هنا أفضل من كثرة الخطوات.
+                                لا تحتاج أن تراجع كل شيء مرة واحدة. ابدأ بأضعف مهارة، شاهد شرحًا قصيرًا، حل تدريبًا من 5 إلى 10 أسئلة، ثم أعد الاختبار لاحقًا.
                             </p>
                         </div>
                     </div>
