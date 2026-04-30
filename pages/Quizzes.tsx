@@ -470,7 +470,7 @@ const Quizzes: React.FC<QuizzesProps> = ({ view = 'catalog' }) => {
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="bg-secondary-500 text-white p-4 text-center font-bold text-lg">مركز الاختبارات</div>
           <div className="p-6 space-y-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               <ActionCard
                 icon={<Zap size={24} />}
                 title="اختبار ساهر الذاتي"
@@ -487,6 +487,14 @@ const Quizzes: React.FC<QuizzesProps> = ({ view = 'catalog' }) => {
                 buttonLabel={directedQuizzes.length > 0 ? 'افتح الاختبارات الموجهة' : 'لا يوجد حاليًا'}
                 tone="amber"
                 disabled={directedQuizzes.length === 0}
+              />
+              <ActionCard
+                icon={<FileText size={24} />}
+                title="اختباراتي السابقة"
+                description="هنا فقط تراجع المحاولات التي حللتها بالفعل، وتشاهد التفاصيل وتحليل المهارات لكل اختبار."
+                to="/dashboard?tab=quizzes"
+                buttonLabel="افتح سجل اختباراتي"
+                tone="purple"
               />
             </div>
 
