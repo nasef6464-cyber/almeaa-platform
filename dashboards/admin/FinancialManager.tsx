@@ -377,6 +377,46 @@ export const FinancialManager: React.FC = () => {
         ]);
     };
 
+    const exportPaymentRequests = () => {
+        downloadCsv('payment-requests.csv', [
+            ['رقم الطلب', 'الطالب', 'البريد', 'العنصر', 'نوع العنصر', 'طريقة الدفع', 'المبلغ', 'العملة', 'الحالة', 'مرجع التحويل', 'رقم المحفظة', 'الإيصال', 'ملاحظات', 'تاريخ الإنشاء'],
+            ...paymentRequests.map((request) => [
+                request.id,
+                request.userName || 'طالب',
+                request.userEmail || '',
+                request.itemName || '',
+                request.itemType || '',
+                request.paymentMethod || '',
+                request.amount || 0,
+                request.currency || settings.currency,
+                requestStatusLabel(request.status),
+                request.transferReference || '',
+                request.walletNumber || '',
+                request.receiptUrl || '',
+                request.notes || '',
+                new Date(request.createdAt || Date.now()).toLocaleDateString('ar-SA'),
+            ]),
+        ]);
+    };
+
+    const exportFinancialSnapshot = () => {
+        downloadCsv('financial-operational-snapshot.csv', [
+            ['البند', 'القيمة'],
+            ['نسبة جاهزية الدفع', `${paymentReadinessScore}%`],
+            ['ملاحظات الجاهزية', paymentReadinessWarnings.join(' | ') || 'لا توجد'],
+            ['طلبات دفع معلقة', pendingRequestsCount],
+            ['قيمة الطلبات المعلقة', pendingRevenue],
+            ['إيراد معتمد', approvedRevenue],
+            ['باقات عامة ظاهرة', publicPackagesSummary.visible],
+            ['باقات عامة جاهزة للبيع', publicPackagesSummary.ready],
+            ['باقات عامة تحتاج ضبط', publicPackagesSummary.needsSetup],
+            ['باقات مدارس نشطة', schoolPackagesSummary.active],
+            ['مقاعد مدارس مستخدمة', schoolPackagesSummary.usedSeats],
+            ['إجمالي مقاعد المدارس', schoolPackagesSummary.totalSeats],
+            ['معدل استخدام المقاعد', `${utilizationRate}%`],
+        ]);
+    };
+
     const toggleSchoolPackageStatus = (packageId: string, currentStatus: 'active' | 'expired') => {
         const nextStatus = currentStatus === 'active' ? 'expired' : 'active';
         updateB2BPackage(packageId, { status: nextStatus });
@@ -474,6 +514,34 @@ export const FinancialManager: React.FC = () => {
         pending: publicPackageRows.reduce((sum, pkg) => sum + pkg.pending, 0),
         buyers: publicPackageRows.reduce((sum, pkg) => sum + pkg.buyers, 0),
     }), [publicPackageRows]);
+
+    const paymentReadinessWarnings = useMemo(() => {
+        const enabledMethods = [settings.card, settings.transfer, settings.wallet].filter((method) => method.enabled).length;
+        return [
+            enabledMethods === 0 ? 'لا توجد وسيلة دفع مفعلة للطلاب.' : '',
+            settings.transfer.enabled && settings.transfer.publishDetailsToStudents && !settings.transfer.iban && !settings.transfer.accountNumber
+                ? 'التحويل البنكي مفعل لكن بيانات الحساب أو الآيبان غير مكتملة.'
+                : '',
+            settings.wallet.enabled && settings.wallet.publishDetailsToStudents && !settings.wallet.phoneNumber
+                ? 'المحفظة الإلكترونية مفعلة لكن رقم الجوال/المحفظة غير مكتمل.'
+                : '',
+            publicPackagesSummary.visible === 0 ? 'لا توجد باقات عامة ظاهرة للطلاب المستقلين.' : '',
+            publicPackagesSummary.needsSetup > 0 ? `${publicPackagesSummary.needsSetup} باقة عامة تحتاج ضبط قبل البيع.` : '',
+            schoolPackagesSummary.active === 0 && schools.length > 0 ? 'توجد مدارس لكن لا توجد باقات مدرسية نشطة.' : '',
+            pendingRequestsCount > 0 ? `${pendingRequestsCount} طلب دفع ينتظر قرار الإدارة.` : '',
+        ].filter(Boolean);
+    }, [
+        pendingRequestsCount,
+        publicPackagesSummary.needsSetup,
+        publicPackagesSummary.visible,
+        schoolPackagesSummary.active,
+        schools.length,
+        settings.card,
+        settings.transfer,
+        settings.wallet,
+    ]);
+
+    const paymentReadinessScore = Math.max(0, 100 - paymentReadinessWarnings.length * 12);
 
     const premiumRows = useMemo(() => {
         return b2cPremiumUsers.map((user) => ({
@@ -610,6 +678,52 @@ export const FinancialManager: React.FC = () => {
                         ))}
                     </div>
 
+                    <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+                        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <h2 className="text-lg font-bold text-gray-900">جاهزية البيع والدفع</h2>
+                                    <p className="mt-1 text-xs text-gray-500">مؤشر سريع قبل إطلاق العروض للطلاب أو المدارس.</p>
+                                </div>
+                                <button
+                                    onClick={exportFinancialSnapshot}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-gray-100 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                                >
+                                    <Download size={14} />
+                                    تصدير لقطة
+                                </button>
+                            </div>
+                            <div className="mt-5">
+                                <div className="flex items-end justify-between">
+                                    <span className="text-4xl font-black text-indigo-700">{paymentReadinessScore}%</span>
+                                    <span className={`rounded-full px-3 py-1 text-xs font-bold ${paymentReadinessWarnings.length === 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                                        {paymentReadinessWarnings.length === 0 ? 'جاهز للتشغيل' : 'يحتاج متابعة'}
+                                    </span>
+                                </div>
+                                <div className="mt-4 h-3 overflow-hidden rounded-full bg-gray-100">
+                                    <div className="h-full rounded-full bg-indigo-600" style={{ width: `${paymentReadinessScore}%` }} />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+                            <h2 className="text-lg font-bold text-gray-900">ملاحظات تشغيلية قبل البيع</h2>
+                            {paymentReadinessWarnings.length > 0 ? (
+                                <div className="mt-4 grid gap-2 md:grid-cols-2">
+                                    {paymentReadinessWarnings.map((warning) => (
+                                        <div key={warning} className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs font-bold leading-6 text-amber-800">
+                                            {warning}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
+                                    إعدادات الدفع والعروض الأساسية جاهزة، ويمكنك استقبال طلبات الطلاب بثقة.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                         <h2 className="text-lg font-bold text-gray-900 mb-6">أحدث طلبات الدفع</h2>
                         <div className="overflow-x-auto">
@@ -659,7 +773,16 @@ export const FinancialManager: React.FC = () => {
                             <h2 className="text-lg font-bold text-gray-900">طلبات الدفع المرسلة من الطلاب</h2>
                             <p className="text-xs text-gray-500 mt-1">الطلبات المعلقة تظهر أولًا حتى لا تضيع وسط السجل القديم.</p>
                         </div>
-                        <span className="text-sm text-gray-500">{pendingRequestsCount} بانتظار المراجعة / {paymentRequests.length} إجمالي</span>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button
+                                onClick={exportPaymentRequests}
+                                className="inline-flex items-center gap-2 rounded-xl border border-gray-100 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                            >
+                                <Download size={14} />
+                                تصدير الطلبات
+                            </button>
+                            <span className="text-sm text-gray-500">{pendingRequestsCount} بانتظار المراجعة / {paymentRequests.length} إجمالي</span>
+                        </div>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-right">
