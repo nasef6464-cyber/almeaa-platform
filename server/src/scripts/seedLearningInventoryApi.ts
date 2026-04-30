@@ -182,11 +182,20 @@ async function upsertLearningTarget(token: string, target: TargetSubject) {
   const questionOneId = `q_learning_${target.slug}_01`;
   const questionTwoId = `q_learning_${target.slug}_02`;
   const bankId = `quiz_learning_${target.slug}_bank`;
+  const lockedBankId = `quiz_learning_${target.slug}_bank_locked`;
   const examId = `quiz_learning_${target.slug}_exam`;
+  const lockedExamId = `quiz_learning_${target.slug}_exam_locked`;
   const libraryId = `lib_learning_${target.slug}_summary`;
+  const lockedLibraryId = `lib_learning_${target.slug}_locked`;
   const courseId = `course_learning_${target.slug}_intro`;
+  const premiumCourseId = `course_learning_${target.slug}_premium`;
+  const foundationPackageId = `pkg_public_${target.slug}_foundation`;
+  const testsPackageId = `pkg_public_${target.slug}_tests`;
+  const subjectPackageId = `pkg_public_${target.slug}_complete`;
+  const pathPackageId = `pkg_public_${target.pathId}_complete`;
   const mainTopicId = `topic_learning_${target.slug}_main`;
   const subTopicId = `topic_learning_${target.slug}_sub`;
+  const lockedTopicId = `topic_learning_${target.slug}_locked`;
 
   await upsert(token, "taxonomy", sectionId, "/taxonomy/sections", `/taxonomy/sections/${sectionId}`, {
     id: sectionId,
@@ -281,6 +290,16 @@ async function upsertLearningTarget(token: string, target: TargetSubject) {
     mode: "regular",
   });
 
+  await upsert(token, "quizzes", lockedBankId, "/quizzes", `/quizzes/${lockedBankId}`, {
+    ...quizBase,
+    id: lockedBankId,
+    title: `${target.bankTitle} - متقدم`,
+    description: `تدريب مدفوع للتأكد من ظهور القفل وربطه بباقة ${target.subjectName}.`,
+    type: "bank",
+    mode: "regular",
+    access: { type: "paid", price: 19 },
+  });
+
   await upsert(token, "quizzes", examId, "/quizzes", `/quizzes/${examId}`, {
     ...quizBase,
     id: examId,
@@ -288,6 +307,16 @@ async function upsertLearningTarget(token: string, target: TargetSubject) {
     description: `اختبار محاكي سريع داخل ${target.subjectName}.`,
     type: "quiz",
     mode: "regular",
+  });
+
+  await upsert(token, "quizzes", lockedExamId, "/quizzes", `/quizzes/${lockedExamId}`, {
+    ...quizBase,
+    id: lockedExamId,
+    title: `${target.examTitle} - شامل`,
+    description: `اختبار محاكي مدفوع للتأكد من رحلة الطالب مع الباقات.`,
+    type: "quiz",
+    mode: "regular",
+    access: { type: "paid", price: 29 },
   });
 
   await upsert(token, "content", libraryId, "/content/library-items", `/content/library-items/${libraryId}`, {
@@ -302,6 +331,23 @@ async function upsertLearningTarget(token: string, target: TargetSubject) {
     skillIds: [skillId],
     url: SAMPLE_PDF_URL,
     showOnPlatform: true,
+    isLocked: false,
+    approvalStatus: "approved",
+  });
+
+  await upsert(token, "content", lockedLibraryId, "/content/library-items", `/content/library-items/${lockedLibraryId}`, {
+    id: lockedLibraryId,
+    title: `${target.libraryTitle} - ملف شامل`,
+    size: "2.4 MB",
+    downloads: 0,
+    type: "pdf",
+    pathId: target.pathId,
+    subjectId: target.subjectId,
+    sectionId,
+    skillIds: [skillId],
+    url: SAMPLE_PDF_URL,
+    showOnPlatform: true,
+    isLocked: true,
     approvalStatus: "approved",
   });
 
@@ -338,6 +384,113 @@ async function upsertLearningTarget(token: string, target: TargetSubject) {
     certificateEnabled: false,
   });
 
+  await upsert(token, "courses", premiumCourseId, "/courses", `/courses/${premiumCourseId}`, {
+    id: premiumCourseId,
+    title: `${target.courseTitle} - متقدم`,
+    thumbnail: "https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80",
+    instructor: "فريق منصة المئة",
+    price: 79,
+    currency: "SAR",
+    duration: 120,
+    level: "Intermediate",
+    rating: 4.9,
+    progress: 0,
+    category: target.pathId,
+    subject: target.subjectId,
+    pathId: target.pathId,
+    subjectId: target.subjectId,
+    sectionId,
+    features: ["شرح متقدم", "اختبارات محاكية", "ملفات علاجية", "تقرير مهاري"],
+    description: `دورة مغلقة لتجربة الشراء والباقات داخل ${target.subjectName}.`,
+    modules: [
+      {
+        id: `module_${target.slug}_premium_01`,
+        title: `${target.topicTitle} المتقدم`,
+        lessons: [{ id: lessonId, title: target.lessonTitle, type: "video", duration: "15 دقيقة" }],
+      },
+    ],
+    isPublished: true,
+    showOnPlatform: true,
+    isPackage: false,
+    originalPrice: 119,
+    skills: [skillId],
+    approvalStatus: "approved",
+    certificateEnabled: true,
+  });
+
+  const publicPackages = [
+    {
+      id: foundationPackageId,
+      title: `باقة التأسيس - ${target.subjectName}`,
+      price: 39,
+      originalPrice: 59,
+      packageContentTypes: ["foundation"],
+      features: ["فتح الموضوعات المغلقة", "دروس فيديو", "تدريبات قصيرة"],
+      includedCourses: [courseId, premiumCourseId],
+    },
+    {
+      id: testsPackageId,
+      title: `باقة الاختبارات - ${target.subjectName}`,
+      price: 49,
+      originalPrice: 79,
+      packageContentTypes: ["banks", "tests"],
+      features: ["تدريبات مغلقة", "اختبارات محاكية", "تحليل مهاري"],
+      includedCourses: [],
+    },
+    {
+      id: subjectPackageId,
+      title: `باقة ${target.subjectName} كاملة`,
+      price: 99,
+      originalPrice: 149,
+      packageContentTypes: ["all"],
+      features: ["الدورات", "التأسيس", "التدريب", "الاختبارات", "المكتبة"],
+      includedCourses: [courseId, premiumCourseId],
+    },
+    {
+      id: pathPackageId,
+      title: `باقة المسار كاملة - ${target.pathId === "p_qudrat" ? "القدرات" : "التحصيلي"}`,
+      price: target.pathId === "p_qudrat" ? 179 : 129,
+      originalPrice: target.pathId === "p_qudrat" ? 249 : 189,
+      packageContentTypes: ["all"],
+      features: ["كل مواد المسار", "اختبارات شاملة", "مكتبة علاجية"],
+      includedCourses: [courseId, premiumCourseId],
+      subjectId: "",
+    },
+  ];
+
+  for (const publicPackage of publicPackages) {
+    await upsert(token, "courses", publicPackage.id, "/courses", `/courses/${publicPackage.id}`, {
+      id: publicPackage.id,
+      title: publicPackage.title,
+      thumbnail: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80",
+      instructor: "منصة المئة",
+      price: publicPackage.price,
+      currency: "SAR",
+      duration: 0,
+      level: "Beginner",
+      rating: 4.9,
+      progress: 0,
+      category: target.pathId,
+      subject: publicPackage.subjectId === "" ? "" : target.subjectId,
+      pathId: target.pathId,
+      subjectId: publicPackage.subjectId === "" ? "" : target.subjectId,
+      sectionId,
+      features: publicPackage.features,
+      description: `باقة عامة ظاهرة للطالب ويمكن إدارتها من إدارة الباقات والعروض.`,
+      modules: [],
+      isPublished: true,
+      showOnPlatform: true,
+      isPackage: true,
+      packageType: "courses",
+      packageContentTypes: publicPackage.packageContentTypes,
+      originalPrice: publicPackage.originalPrice,
+      includedCourses: publicPackage.includedCourses,
+      skills: [skillId],
+      approvalStatus: "approved",
+      certificateEnabled: false,
+    });
+  }
+
   await upsert(token, "content", mainTopicId, "/content/topics", `/content/topics/${mainTopicId}`, {
     id: mainTopicId,
     pathId: target.pathId,
@@ -347,6 +500,7 @@ async function upsertLearningTarget(token: string, target: TargetSubject) {
     parentId: null,
     order: 1,
     showOnPlatform: true,
+    isLocked: false,
     lessonIds: [lessonId],
     quizIds: [bankId],
   });
@@ -360,11 +514,26 @@ async function upsertLearningTarget(token: string, target: TargetSubject) {
     parentId: mainTopicId,
     order: 2,
     showOnPlatform: true,
+    isLocked: false,
     lessonIds: [lessonId],
     quizIds: [bankId, examId],
   });
 
-  return { subject: target.subjectName, subjectId: target.subjectId, courseId, topicId: mainTopicId, lessonId, bankId, examId, libraryId };
+  await upsert(token, "content", lockedTopicId, "/content/topics", `/content/topics/${lockedTopicId}`, {
+    id: lockedTopicId,
+    pathId: target.pathId,
+    subjectId: target.subjectId,
+    sectionId,
+    title: `${target.subTopicTitle} - متقدم`,
+    parentId: mainTopicId,
+    order: 3,
+    showOnPlatform: true,
+    isLocked: true,
+    lessonIds: [lessonId],
+    quizIds: [lockedBankId, lockedExamId],
+  });
+
+  return { subject: target.subjectName, subjectId: target.subjectId, courseId, premiumCourseId, topicId: mainTopicId, lessonId, bankId, lockedBankId, examId, lockedExamId, libraryId, lockedLibraryId };
 }
 
 async function verifyLearningInventory(token: string, targets: TargetSubject[]) {

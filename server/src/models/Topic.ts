@@ -10,6 +10,7 @@ const topicSchema = new Schema(
     parentId: { type: String, default: null, index: true },
     order: { type: Number, default: 0 },
     showOnPlatform: { type: Boolean, default: true },
+    isLocked: { type: Boolean, default: false },
     lessonIds: { type: [String], default: [] },
     quizIds: { type: [String], default: [] },
   },

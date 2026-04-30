@@ -523,48 +523,42 @@ const Results: React.FC = () => {
               </div>
             </div>
 
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <button
                 onClick={() => setViewMode('review')}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors"
+                className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors"
               >
                 <Eye size={18} />
                 مراجعة الحلول
               </button>
               <button
                 onClick={() => setIsAnalysisOpen(true)}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100"
+                className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100"
               >
                 <BarChart3 size={18} />
                 تحليل المهارات
               </button>
-              <button
-                onClick={() => setViewMode('history')}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 border border-indigo-200 text-indigo-700 px-6 py-3 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-colors"
-              >
-                <History size={18} />
-                محاولاتك السابقة
-              </button>
-              <Link
-                to="/quiz"
-                className="w-full sm:w-auto flex items-center justify-center gap-2 border border-emerald-200 text-emerald-700 px-6 py-3 rounded-xl font-bold text-sm hover:bg-emerald-50 transition-colors"
-              >
-                <RefreshCw size={18} />
-                إعادة الاختبار
-              </Link>
-              <Link
-                to="/quizzes"
-                className="w-full sm:w-auto flex items-center justify-center gap-2 border border-amber-200 text-amber-700 px-6 py-3 rounded-xl font-bold text-sm hover:bg-amber-50 transition-colors"
-              >
-                <PlusCircle size={18} />
-                اختبار إضافي
-              </Link>
               <Link
                 to="/plan"
-                className="w-full sm:w-auto flex items-center justify-center gap-2 border border-purple-200 text-purple-700 px-6 py-3 rounded-xl font-bold text-sm hover:bg-purple-50 transition-colors"
+                className="flex items-center justify-center gap-2 border border-purple-200 text-purple-700 px-6 py-3 rounded-xl font-bold text-sm hover:bg-purple-50 transition-colors"
               >
                 <CheckCircle2 size={18} />
-                حوّلها لخطة مذاكرة
+                خطة مذاكرة
+              </Link>
+            </div>
+
+            <div className="print-hide mt-3 flex flex-wrap gap-2 text-xs font-bold">
+              <button onClick={() => setViewMode('history')} className="rounded-full bg-gray-50 px-3 py-1.5 text-gray-600 hover:bg-gray-100">
+                <History size={13} className="inline ml-1" />
+                المحاولات السابقة
+              </button>
+              <Link to="/quiz" className="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700 hover:bg-emerald-100">
+                <RefreshCw size={13} className="inline ml-1" />
+                إعادة الاختبار
+              </Link>
+              <Link to="/quizzes" className="rounded-full bg-amber-50 px-3 py-1.5 text-amber-700 hover:bg-amber-100">
+                <PlusCircle size={13} className="inline ml-1" />
+                اختبار إضافي
               </Link>
             </div>
 

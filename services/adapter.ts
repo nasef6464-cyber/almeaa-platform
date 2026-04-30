@@ -123,6 +123,7 @@ const normalizeTopic = (topic: any): Topic => ({
   parentId: topic?.parentId || null,
   order: Number(topic?.order ?? 0),
   showOnPlatform: topic?.showOnPlatform !== false,
+  isLocked: topic?.isLocked === true,
   lessonIds: Array.isArray(topic?.lessonIds) ? topic.lessonIds.map(String) : [],
   quizIds: Array.isArray(topic?.quizIds) ? topic.quizIds.map(String) : [],
 });
@@ -139,6 +140,7 @@ const normalizeLibraryItem = (item: any): LibraryItem => ({
   skillIds: Array.isArray(item?.skillIds) ? item.skillIds.map((value: unknown) => String(value)) : [],
   url: item?.url || undefined,
   showOnPlatform: item?.showOnPlatform !== false,
+  isLocked: item?.isLocked === true,
   ownerType: item?.ownerType,
   ownerId: item?.ownerId || undefined,
   createdBy: item?.createdBy || undefined,

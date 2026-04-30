@@ -13,6 +13,7 @@ const libraryItemSchema = new Schema(
     skillIds: { type: [String], default: [] },
     url: { type: String, default: "" },
     showOnPlatform: { type: Boolean, default: true },
+    isLocked: { type: Boolean, default: false },
     ownerType: { type: String, enum: ["platform", "teacher", "school"], default: "platform" },
     ownerId: { type: String, default: "" },
     createdBy: { type: String, default: "" },

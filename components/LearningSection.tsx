@@ -204,7 +204,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                 totalLessons: totalLessons || 1,
                 completed: Math.floor((progress / 100) * (totalLessons || 1)),
                 totalQuizzes: totalQuizzes,
-                isLocked: isPremiumLocked(settings.lockSkillsForNonSubscribers, hasFoundationAccess),
+                isLocked: isPremiumLocked(settings.lockSkillsForNonSubscribers, hasFoundationAccess) || (!isStaffViewer && topic.isLocked === true && !hasFoundationAccess),
                 progress: progress,
                 originalTopic: topic // Keep a reference to the real topic
             };
@@ -233,7 +233,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
 
     let sectionLibraryItems = libraryItems.filter(item => canStudentSeeLibraryItem(item) && matchesScopedContent(item.pathId, item.subjectId)).map(item => ({
         ...item,
-        isLocked: isPremiumLocked(settings.lockLibraryForNonSubscribers, hasLibraryAccess)
+        isLocked: isPremiumLocked(settings.lockLibraryForNonSubscribers, hasLibraryAccess) || (!isStaffViewer && item.isLocked === true && !hasLibraryAccess)
     }));
     banks = banks.filter((bank) => {
         const sourceQuiz = quizList.find((quiz) => quiz.id === bank.id);

@@ -213,6 +213,7 @@ export interface Topic {
     parentId?: string | null; // null or undefined for main topics
     order: number;
     showOnPlatform?: boolean;
+    isLocked?: boolean;
     lessonIds: string[]; // attached lessons from library
     quizIds: string[]; // attached quizzes from quiz center
 }
@@ -605,7 +606,8 @@ export interface LibraryItem extends ContentWorkflow {
     skillIds?: string[];
     url?: string;
     showOnPlatform?: boolean;
-}
+    isLocked?: boolean;
+  }
 
 // AI Learning Path Types
 export interface LearningRecommendation {

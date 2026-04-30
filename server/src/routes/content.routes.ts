@@ -25,6 +25,7 @@ const topicSchema = z.object({
   parentId: z.string().nullable().optional(),
   order: z.number().default(0),
   showOnPlatform: z.boolean().default(true),
+  isLocked: z.boolean().default(false),
   lessonIds: z.array(z.string()).default([]),
   quizIds: z.array(z.string()).default([]),
 });
@@ -261,6 +262,7 @@ const librarySchema = z.object({
   skillIds: z.array(z.string()).min(1),
   url: z.string().optional(),
   showOnPlatform: z.boolean().default(true),
+  isLocked: z.boolean().default(false),
   ownerType: z.enum(["platform", "teacher", "school"]).optional(),
   ownerId: z.string().optional(),
   createdBy: z.string().optional(),
