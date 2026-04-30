@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import * as XLSX from 'xlsx';
 import {
     BookOpen,
     Building2,
@@ -86,7 +87,56 @@ const createCsvDownload = (fileName: string, rows: string[][]) => {
     URL.revokeObjectURL(url);
 };
 
+const createXlsxDownload = (fileName: string, rows: string[][]) => {
+    const worksheet = XLSX.utils.aoa_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'students');
+    XLSX.writeFile(workbook, fileName);
+};
+
+const parseImportRows = (rows: unknown[][]): ImportRow[] => {
+    const normalizedRows = rows
+        .map((row) => row.map((cell) => String(cell ?? '').trim()))
+        .filter((row) => row.some(Boolean));
+
+    if (normalizedRows.length < 2) {
+        return [];
+    }
+
+    const headers = normalizedRows[0].map(normalizeHeader);
+    const nameIndex = headers.findIndex((header) => ['name', 'fullname', 'studentname', 'Ø§Ù„Ø§Ø³Ù…', 'Ø§Ø³Ù…Ø§Ù„Ø·Ø§Ù„Ø¨'].includes(header));
+    const emailIndex = headers.findIndex((header) => ['email', 'mail', 'Ø§Ù„Ø¨Ø±ÙŠØ¯', 'Ø§Ù„Ø¨Ø±ÙŠØ¯Ø§Ù„Ø§Ù„ÙƒØªØ±ÙˆÙ†ÙŠ'].includes(header));
+    const classIndex = headers.findIndex((header) => ['classname', 'class', 'Ø§Ù„ÙØµÙ„', 'Ø§Ø³Ù…Ø§Ù„ÙØµÙ„'].includes(header));
+    const passwordIndex = headers.findIndex((header) => ['password', 'pass', 'ÙƒÙ„Ù…Ø©Ø§Ù„Ù…Ø±ÙˆØ±', 'passwordhint'].includes(header));
+
+    if (nameIndex === -1 || emailIndex === -1) {
+        throw new Error('Ø§Ù„Ù…Ù„Ù ÙŠØ­ØªØ§Ø¬ Ø¹Ù…ÙˆØ¯ÙŠÙ† Ø£Ø³Ø§Ø³ÙŠÙŠÙ† Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„: name Ùˆ email.');
+    }
+
+    return normalizedRows
+        .slice(1)
+        .map((cells) => ({
+            name: (cells[nameIndex] || '').trim(),
+            email: (cells[emailIndex] || '').trim(),
+            className: classIndex >= 0 ? (cells[classIndex] || '').trim() : undefined,
+            password: passwordIndex >= 0 ? (cells[passwordIndex] || '').trim() : undefined,
+        }))
+        .filter((row) => row.name && row.email);
+};
+
 const parseImportFile = async (file: File): Promise<ImportRow[]> => {
+    if (/\.(xlsx|xls)$/i.test(file.name)) {
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        if (!firstSheetName) {
+            return [];
+        }
+
+        const worksheet = workbook.Sheets[firstSheetName];
+        return parseImportRows(XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as unknown[][]);
+    }
+
     const raw = await file.text();
     const content = raw.replace(/\r\n/g, '\n').trim();
     if (!content) {
@@ -99,6 +149,8 @@ const parseImportFile = async (file: File): Promise<ImportRow[]> => {
     }
 
     const delimiter = lines[0].includes('\t') ? '\t' : ',';
+    return parseImportRows(lines.map((line) => line.split(delimiter)));
+/*
     const headers = lines[0].split(delimiter).map(normalizeHeader);
     const nameIndex = headers.findIndex((header) => ['name', 'fullname', 'studentname', 'الاسم', 'اسمالطالب'].includes(header));
     const emailIndex = headers.findIndex((header) => ['email', 'mail', 'البريد', 'البريدالالكتروني'].includes(header));
@@ -119,6 +171,7 @@ const parseImportFile = async (file: File): Promise<ImportRow[]> => {
             password: passwordIndex >= 0 ? (cells[passwordIndex] || '').trim() : undefined,
         }))
         .filter((row) => row.name && row.email);
+*/
 };
 
 const PACKAGE_CONTENT_OPTIONS: Array<{ value: PackageContentType; label: string }> = [
@@ -262,7 +315,7 @@ export const SchoolsManager: React.FC = () => {
     };
 
     const downloadTemplate = () => {
-        createCsvDownload('school-import-template.csv', [
+        createXlsxDownload('school-import-template.xlsx', [
             ['name', 'email', 'className', 'password'],
             ['طالب تجريبي', 'student1@example.com', 'فصل أ', 'Nn@123456'],
             ['طالبة تجريبية', 'student2@example.com', 'فصل ب', ''],
@@ -343,13 +396,28 @@ export const SchoolsManager: React.FC = () => {
                         &rarr; عودة لقائمة المدارس
                     </button>
                     <h1 className="text-2xl font-bold text-gray-900">{selectedSchool.name}</h1>
+                    <button
+                        onClick={() => {
+                            const newName = window.prompt('اكتب اسم المدرسة الجديد:', selectedSchool.name);
+                            if (newName?.trim() && newName.trim() !== selectedSchool.name) {
+                                const nextName = newName.trim();
+                                updateGroup(selectedSchool.id, { name: nextName });
+                                setSelectedSchool({ ...selectedSchool, name: nextName });
+                            }
+                        }}
+                        className="inline-flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm font-bold text-gray-600 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                        title="تعديل اسم المدرسة"
+                    >
+                        <Edit2 size={16} />
+                        تعديل الاسم
+                    </button>
                 </div>
 
                 <div className="flex gap-2 border-b border-gray-200">
                     {[
                         { id: 'overview', label: 'نظرة عامة والفصول' },
                         { id: 'packages', label: 'الباقات والأكواد' },
-                        { id: 'import', label: 'استيراد الطلاب (CSV)' },
+                        { id: 'import', label: 'استيراد الطلاب (Excel)' },
                         { id: 'reports', label: 'تقارير الأداء' },
                     ].map((tab) => (
                         <button
@@ -681,6 +749,19 @@ export const SchoolsManager: React.FC = () => {
                                                     <span className={`text-xs font-bold px-2 py-1 rounded-full ${pkg.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                                         {pkg.status === 'active' ? 'نشطة' : 'منتهية'}
                                                     </span>
+                                                    <button
+                                                        onClick={() => updateB2BPackage(pkg.id, {
+                                                            status: pkg.status === 'active' ? 'expired' : 'active',
+                                                        })}
+                                                        className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                                                            pkg.status === 'active'
+                                                                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                                        }`}
+                                                        title="إيقاف أو تنشيط الباقة بدون حذفها"
+                                                    >
+                                                        {pkg.status === 'active' ? 'إيقاف مؤقت' : 'تنشيط'}
+                                                    </button>
                                                     <button
                                                         onClick={() => {
                                                             if (window.confirm('هل تريد حذف هذه الباقة وكل الأكواد التابعة لها؟')) {
@@ -1040,7 +1121,7 @@ export const SchoolsManager: React.FC = () => {
                         <div className="max-w-4xl mx-auto py-8 space-y-8">
                             <div className="text-center">
                                 <h2 className="text-2xl font-bold text-gray-900 mb-2">استيراد الطلاب دفعة واحدة</h2>
-                                <p className="text-gray-500">حمّل النموذج، ثم ارفع ملف CSV وسيقوم النظام بإنشاء الحسابات وربطها بالمدرسة والفصول.</p>
+                                <p className="text-gray-500">حمّل النموذج، ثم ارفع ملف Excel أو CSV وسيقوم النظام بإنشاء الحسابات وربطها بالمدرسة والفصول.</p>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1049,14 +1130,14 @@ export const SchoolsManager: React.FC = () => {
                                         <Download size={32} />
                                     </div>
                                     <h3 className="font-bold text-gray-900 mb-2">1. تحميل النموذج</h3>
-                                    <p className="text-sm text-gray-500 mb-4">نموذج CSV جاهز بالأعمدة الأساسية: الاسم، البريد، الفصل، وكلمة المرور الاختيارية.</p>
-                                    <button onClick={downloadTemplate} className="text-amber-600 font-bold text-sm">تحميل school-import-template.csv</button>
+                                    <p className="text-sm text-gray-500 mb-4">نموذج Excel جاهز بالأعمدة الأساسية: الاسم، البريد، الفصل، وكلمة المرور الاختيارية.</p>
+                                    <button onClick={downloadTemplate} className="text-amber-600 font-bold text-sm">تحميل school-import-template.xlsx</button>
                                 </div>
 
                                 <div className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors relative overflow-hidden ${importSummary ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300 hover:border-blue-500 hover:bg-blue-50'}`}>
                                     <input
                                         type="file"
-                                        accept=".csv,.tsv,.txt"
+                                        accept=".xlsx,.xls,.csv,.tsv,.txt"
                                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                         onChange={(event) => {
                                             const file = event.target.files?.[0];
@@ -1088,7 +1169,7 @@ export const SchoolsManager: React.FC = () => {
                                                 <Upload size={32} />
                                             </div>
                                             <h3 className="font-bold text-gray-900 mb-2">2. رفع الملف</h3>
-                                            <p className="text-sm text-gray-500 mb-4">ارفع ملف CSV أو TSV وسيتم تجهيز الصفوف للمراجعة قبل التنفيذ.</p>
+                                            <p className="text-sm text-gray-500 mb-4">ارفع ملف Excel أو CSV أو TSV وسيتم تجهيز الصفوف للمراجعة قبل التنفيذ.</p>
                                             <button className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-bold pointer-events-none">اختيار ملف</button>
                                         </>
                                     )}
