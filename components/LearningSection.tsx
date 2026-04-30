@@ -77,10 +77,15 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
         library: 'المكتبة',
         all: 'الباقة الشاملة',
     };
+    const isPublicPackageAvailable = (course: (typeof courses)[number]) =>
+        course.isPackage &&
+        course.showOnPlatform !== false &&
+        course.isPublished !== false &&
+        (!course.approvalStatus || course.approvalStatus === 'approved');
     const getPublicPackageForScope = (contentType: PackageContentType) =>
         courses
             .filter((course) => {
-                if (!course.isPackage || course.showOnPlatform === false || course.isPublished === false) return false;
+                if (!isPublicPackageAvailable(course)) return false;
                 const contentTypes = course.packageContentTypes?.length ? course.packageContentTypes : ['all'];
                 const packagePathId = course.pathId || course.category;
                 const packageSubjectId = course.subjectId || course.subject;

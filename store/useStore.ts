@@ -220,6 +220,14 @@ const packageMatchesScope = (
     return matchesPath && matchesSubject;
 };
 
+const isPublicPackageAvailable = (course: Course) =>
+    Boolean(
+        course.isPackage &&
+        course.showOnPlatform !== false &&
+        course.isPublished !== false &&
+        (!course.approvalStatus || course.approvalStatus === 'approved'),
+    );
+
 const getUserSchoolIds = (groups: Group[], userGroupIds: string[] = []) => {
     const ids = new Set<string>();
 
@@ -682,7 +690,7 @@ export const useStore = create<AppState>()(
                 }
 
                 const hasPublicPathPackage = state.courses.some((course) => {
-                    if (!course.isPackage || !purchasedPackageIds.has(course.id)) {
+                    if (!isPublicPackageAvailable(course) || !purchasedPackageIds.has(course.id)) {
                         return false;
                     }
 
