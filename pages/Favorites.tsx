@@ -80,6 +80,12 @@ const Favorites: React.FC = () => {
     return uniqueById(questions.filter((question) => wrongQuestionIds.has(question.id)));
   }, [activeTab, favorites, questions, reviewLater, wrongQuestionIds]);
 
+  const tabCounts = useMemo<Record<ReviewTab, number>>(() => ({
+    favorites: questions.filter((question) => favorites.includes(question.id)).length,
+    reviewLater: questions.filter((question) => reviewLater.includes(question.id)).length,
+    mistakes: uniqueById(questions.filter((question) => wrongQuestionIds.has(question.id))).length,
+  }), [favorites, questions, reviewLater, wrongQuestionIds]);
+
   const currentQuestion = tabQuestions[currentIndex];
   const currentMeta = tabMeta[activeTab];
 
@@ -142,6 +148,11 @@ const Favorites: React.FC = () => {
             >
               {tabMeta[tab].icon}
               {tabMeta[tab].label}
+              <span className={`min-w-6 rounded-full px-2 py-0.5 text-[11px] font-black ${
+                activeTab === tab ? 'bg-indigo-50 text-indigo-700' : 'bg-white text-gray-500'
+              }`}>
+                {tabCounts[tab]}
+              </span>
             </button>
           ))}
         </div>
