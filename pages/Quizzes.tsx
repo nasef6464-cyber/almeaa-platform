@@ -330,7 +330,18 @@ const Quizzes: React.FC<QuizzesProps> = ({ view = 'catalog' }) => {
           <div className="bg-secondary-500 text-white p-4 text-center font-bold text-lg">سجل محاولاتي</div>
 
           {filteredQuizzes.length > 0 ? (
-            <div className="overflow-x-auto">
+            <>
+            <div className="md:hidden divide-y divide-gray-100">
+              {filteredQuizzes.map((quiz, index) => (
+                <AttemptSummaryCard
+                  key={`${quiz.quizId}-${quiz.date}-${index}-mobile`}
+                  quiz={quiz}
+                  onDetails={setSelectedAttempt}
+                />
+              ))}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full min-w-[980px]">
                 <thead className="bg-gray-50 text-gray-500 text-xs font-bold">
                   <tr>
@@ -396,7 +407,7 @@ const Quizzes: React.FC<QuizzesProps> = ({ view = 'catalog' }) => {
                               تفاصيل
                             </button>
                             <Link
-                              to="/reports"
+                              to="/dashboard?tab=reports"
                               className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
                             >
                               <BarChart3 size={14} />
@@ -417,11 +428,12 @@ const Quizzes: React.FC<QuizzesProps> = ({ view = 'catalog' }) => {
                 </tbody>
               </table>
             </div>
+            </>
           ) : (
             <div className="p-10 text-center text-gray-500">
               لا توجد محاولات بعد. ابدأ اختبارًا من صفحة ساهر أو من الاختبارات الموجهة، وبعد الإنهاء سيظهر السجل هنا.
               <div className="mt-5">
-                <Link to="/quiz" className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 py-3 text-sm font-bold text-white hover:bg-amber-600">
+                <Link to="/dashboard?tab=saher" className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 py-3 text-sm font-bold text-white hover:bg-amber-600">
                   <Zap size={16} />
                   ابدأ اختبار ساهر
                 </Link>
@@ -720,6 +732,68 @@ const QuizSection = ({
     )}
   </div>
 );
+
+const AttemptSummaryCard = ({
+  quiz,
+  onDetails,
+}: {
+  quiz: QuizResult;
+  onDetails: (quiz: QuizResult) => void;
+}) => {
+  const weakestSkill = [...(quiz.skillsAnalysis || [])].sort((a, b) => a.mastery - b.mastery)[0];
+  const isPassed = quiz.score >= 50;
+
+  return (
+    <article className="p-4 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="font-black text-gray-900 leading-7">{quiz.quizTitle}</h3>
+          <p className="mt-1 text-xs text-gray-500">{quiz.totalQuestions} سؤال - {new Date(quiz.date).toLocaleDateString('ar-SA')}</p>
+        </div>
+        <div className={`shrink-0 rounded-2xl px-4 py-3 text-center ${isPassed ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+          <div className="text-xl font-black">{quiz.score}%</div>
+          <div className="text-[10px] font-bold">{isPassed ? 'ممتاز' : 'نحتاج تدريب'}</div>
+        </div>
+      </div>
+
+      <div className="rounded-xl bg-gray-50 p-3">
+        <div className="text-[11px] font-bold text-gray-500 mb-1">أهم مهارة تحتاج متابعة</div>
+        {weakestSkill ? (
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-bold text-gray-900">{weakestSkill.skill}</span>
+            <span className={`text-sm font-black ${weakestSkill.mastery < 50 ? 'text-rose-600' : 'text-amber-600'}`}>{weakestSkill.mastery}%</span>
+          </div>
+        ) : (
+          <div className="text-sm text-gray-400">لا يوجد تحليل مهارات لهذا الاختبار.</div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <button
+          onClick={() => onDetails(quiz)}
+          className="inline-flex items-center justify-center gap-1 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100"
+        >
+          <Eye size={14} />
+          تفاصيل
+        </button>
+        <Link
+          to="/dashboard?tab=reports"
+          className="inline-flex items-center justify-center gap-1 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+        >
+          <BarChart3 size={14} />
+          تقريري
+        </Link>
+        <Link
+          to={quiz.quizId ? `/quiz/${quiz.quizId}` : '/quiz'}
+          className="inline-flex items-center justify-center gap-1 rounded-xl bg-gray-900 px-3 py-2 text-xs font-bold text-white hover:bg-gray-800"
+        >
+          <RotateCcw size={14} />
+          إعادة
+        </Link>
+      </div>
+    </article>
+  );
+};
 
 const ActionCard = ({
   icon,
