@@ -117,6 +117,14 @@ export const CoursesManager: React.FC<CoursesManagerProps> = ({ subjectId }) => 
   };
 
   const handlePreviewCourse = (course: Course) => {
+    if (course.isPackage) {
+      const pathId = course.pathId || course.category || '';
+      const subjectId = course.subjectId || course.subject || '';
+      const subjectQuery = subjectId ? `?subject=${subjectId}&tab=courses&package=${course.id}` : `?tab=packages&package=${course.id}`;
+      window.open(`${window.location.origin}/#/category/${pathId}${subjectQuery}`, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
     window.open(`${window.location.origin}/#/course/${course.id}`, '_blank', 'noopener,noreferrer');
   };
 
