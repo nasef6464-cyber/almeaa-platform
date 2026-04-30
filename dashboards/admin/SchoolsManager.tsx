@@ -74,7 +74,18 @@ const normalizeHeader = (value: string) =>
         .trim()
         .toLowerCase()
         .replace(/\uFEFF/g, '')
+        .replace(/[ًٌٍَُِّْـ]/g, '')
         .replace(/\s+/g, '');
+
+const headerMatches = (header: string, aliases: string[]) =>
+    aliases.map(normalizeHeader).includes(header);
+
+const STUDENT_IMPORT_HEADERS = {
+    name: ['name', 'fullName', 'studentName', 'الاسم', 'اسم الطالب', 'اسم', 'الطالب'],
+    email: ['email', 'mail', 'البريد', 'البريد الإلكتروني', 'الايميل', 'الإيميل', 'بريد الطالب'],
+    className: ['className', 'class', 'classroom', 'الفصل', 'اسم الفصل', 'الصف', 'المجموعة'],
+    password: ['password', 'pass', 'كلمة المرور', 'كلمة السر', 'الرقم السري', 'passwordHint'],
+};
 
 const createCsvDownload = (fileName: string, rows: string[][]) => {
     const csv = `\uFEFF${rows.map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')}`;
@@ -102,6 +113,15 @@ const parseImportRows = (rows: unknown[][]): ImportRow[] => {
     if (normalizedRows.length < 2) {
         return [];
     }
+
+    normalizedRows[0] = normalizedRows[0].map((header) => {
+        const normalizedHeader = normalizeHeader(header);
+        if (headerMatches(normalizedHeader, STUDENT_IMPORT_HEADERS.name)) return 'name';
+        if (headerMatches(normalizedHeader, STUDENT_IMPORT_HEADERS.email)) return 'email';
+        if (headerMatches(normalizedHeader, STUDENT_IMPORT_HEADERS.className)) return 'className';
+        if (headerMatches(normalizedHeader, STUDENT_IMPORT_HEADERS.password)) return 'password';
+        return header;
+    });
 
     const headers = normalizedRows[0].map(normalizeHeader);
     const nameIndex = headers.findIndex((header) => ['name', 'fullname', 'studentname', 'Ø§Ù„Ø§Ø³Ù…', 'Ø§Ø³Ù…Ø§Ù„Ø·Ø§Ù„Ø¨'].includes(header));
@@ -316,7 +336,7 @@ export const SchoolsManager: React.FC = () => {
 
     const downloadTemplate = () => {
         createXlsxDownload('school-import-template.xlsx', [
-            ['name', 'email', 'className', 'password'],
+            ['اسم الطالب', 'البريد الإلكتروني', 'اسم الفصل', 'كلمة المرور'],
             ['طالب تجريبي', 'student1@example.com', 'فصل أ', 'Nn@123456'],
             ['طالبة تجريبية', 'student2@example.com', 'فصل ب', ''],
         ]);
