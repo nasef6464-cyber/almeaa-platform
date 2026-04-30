@@ -22,6 +22,11 @@ export const CourseLanding: React.FC<CourseLandingProps> = ({ course }) => {
     const [activeTab, setActiveTab] = useState<'overview' | 'syllabus' | 'reviews'>('overview');
     const [expandedModules, setExpandedModules] = useState<string[]>(course.modules?.map(m => m.id) || []);
     const { user, enrolledCourses, hasScopedPackageAccess, getMatchingPackage } = useStore();
+    const isStaffViewer = ['admin', 'teacher', 'supervisor'].includes(String(user?.role));
+    const isCoursePubliclyAvailable =
+        course.showOnPlatform !== false &&
+        course.isPublished !== false &&
+        (!course.approvalStatus || course.approvalStatus === 'approved');
     const hasPackageAccess = hasScopedPackageAccess('courses', course.pathId || course.category, course.subjectId || course.subject);
     const matchedPackage = getMatchingPackage('courses', course.pathId || course.category, course.subjectId || course.subject);
     const hasAccess =
@@ -29,7 +34,7 @@ export const CourseLanding: React.FC<CourseLandingProps> = ({ course }) => {
         (user.subscription?.purchasedCourses || []).includes(course.id) ||
         hasPackageAccess ||
         course.isPurchased;
-    const publicPackageItem = course.isPackage
+    const publicPackageItem = course.isPackage && isCoursePubliclyAvailable
         ? {
             ...course,
             packageId: course.id,
@@ -56,6 +61,26 @@ export const CourseLanding: React.FC<CourseLandingProps> = ({ course }) => {
         }
         : course);
     const purchaseType = publicPackageItem || matchedPackage ? 'package' : 'course';
+
+    if (!isStaffViewer && !isCoursePubliclyAvailable) {
+        return (
+            <div className="min-h-screen bg-gray-50 px-4 py-20 text-center" dir="rtl">
+                <div className="mx-auto max-w-xl rounded-3xl border border-gray-100 bg-white p-8 shadow-sm">
+                    <Lock className="mx-auto mb-4 text-gray-400" size={42} />
+                    <h1 className="text-2xl font-black text-gray-900">المحتوى غير متاح حاليًا</h1>
+                    <p className="mt-3 text-sm leading-7 text-gray-500">
+                        هذه الدورة أو الباقة قيد التجهيز من الإدارة، وستظهر للطلاب بعد اعتمادها ونشرها.
+                    </p>
+                    <Link
+                        to="/"
+                        className="mt-6 inline-flex rounded-2xl bg-indigo-600 px-6 py-3 text-sm font-black text-white hover:bg-indigo-700"
+                    >
+                        العودة للرئيسية
+                    </Link>
+                </div>
+            </div>
+        );
+    }
 
     const toggleModule = (id: string) => {
         setExpandedModules(prev => 

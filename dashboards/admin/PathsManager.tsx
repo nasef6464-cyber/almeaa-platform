@@ -100,6 +100,10 @@ export const PathsManager: React.FC = () => {
   const pathSubjects = subjects.filter(s => s.pathId === selectedPathId && (selectedLevelId ? s.levelId === selectedLevelId : true));
   const currentSubject = subjects.find(s => s.id === selectedSubjectId);
   const pathPackages = courses.filter((course: any) => (course.pathId || course.category) === selectedPathId && course.isPackage);
+  const isPublicPackageVisible = (pkg: Course) =>
+    pkg.showOnPlatform !== false &&
+    pkg.isPublished !== false &&
+    (!pkg.approvalStatus || pkg.approvalStatus === 'approved');
   const pathScopedContent = {
     courses: courses.filter((course: any) => (course.pathId || course.category) === selectedPathId && !course.isPackage),
     packages: pathPackages,
@@ -996,13 +1000,13 @@ export const PathsManager: React.FC = () => {
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5">
                   <div className="text-sm font-bold text-emerald-700">ظاهرة للطلاب</div>
                   <div className="mt-2 text-3xl font-black text-emerald-700">
-                    {pathPackages.filter((pkg) => pkg.showOnPlatform !== false && pkg.isPublished !== false).length}
+                    {pathPackages.filter((pkg) => isPublicPackageVisible(pkg)).length}
                   </div>
                 </div>
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
                   <div className="text-sm font-bold text-gray-700">مخفية/قيد الإعداد</div>
                   <div className="mt-2 text-3xl font-black text-gray-700">
-                    {pathPackages.filter((pkg) => pkg.showOnPlatform === false || pkg.isPublished === false).length}
+                    {pathPackages.filter((pkg) => !isPublicPackageVisible(pkg)).length}
                   </div>
                 </div>
               </div>
@@ -1040,12 +1044,12 @@ export const PathsManager: React.FC = () => {
                             </div>
                             <span
                               className={`px-2 py-1 rounded-full text-xs font-bold flex-shrink-0 ${
-                                pkg.showOnPlatform === false || pkg.isPublished === false
+                                !isPublicPackageVisible(pkg)
                                   ? 'bg-gray-100 text-gray-600'
                                   : 'bg-emerald-50 text-emerald-700'
                               }`}
                             >
-                              {pkg.showOnPlatform === false || pkg.isPublished === false ? 'مخفية' : 'ظاهرة'}
+                              {!isPublicPackageVisible(pkg) ? 'مخفية' : 'ظاهرة'}
                             </span>
                           </div>
                           <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
@@ -1069,13 +1073,13 @@ export const PathsManager: React.FC = () => {
                         <button
                           onClick={() => handleTogglePackageVisibility(pkg)}
                           className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold ${
-                            pkg.showOnPlatform === false || pkg.isPublished === false
+                            !isPublicPackageVisible(pkg)
                               ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
                         >
-                          {pkg.showOnPlatform === false || pkg.isPublished === false ? <Eye size={16} /> : <EyeOff size={16} />}
-                          {pkg.showOnPlatform === false || pkg.isPublished === false ? 'إظهار' : 'إخفاء'}
+                          {!isPublicPackageVisible(pkg) ? <Eye size={16} /> : <EyeOff size={16} />}
+                          {!isPublicPackageVisible(pkg) ? 'إظهار' : 'إخفاء'}
                         </button>
                         <button
                           onClick={() => openPackageModal(pkg)}

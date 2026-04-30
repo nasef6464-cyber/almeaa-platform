@@ -268,7 +268,7 @@ export const FinancialManager: React.FC = () => {
                 subjectName,
                 price: pkg.price || 0,
                 originalPrice: pkg.originalPrice || 0,
-                isVisible: pkg.showOnPlatform !== false && pkg.isPublished !== false,
+                isVisible: pkg.showOnPlatform !== false && pkg.isPublished !== false && (!pkg.approvalStatus || pkg.approvalStatus === 'approved'),
                 contentTypes,
                 requests: packageRequests.length,
                 pending: pendingRequests.length,
