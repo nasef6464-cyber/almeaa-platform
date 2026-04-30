@@ -41,10 +41,33 @@ The project now includes a backend foundation under [server](</C:/ALMEAA MAY - c
 
 The platform uses the backend as the only AI gateway. The frontend never talks to Gemini directly, so keys stay private and the UI stays unchanged.
 
+Default managed provider:
+
 ```env
+AI_PROVIDER=gemini
 GEMINI_API_KEY=your-key
 GEMINI_MODEL=gemini-2.5-flash
 ```
+
+Local/open-source provider for development labs:
+
+```env
+AI_PROVIDER=ollama
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=gemma3:4b
+AI_REQUEST_TIMEOUT_MS=15000
+```
+
+Disable AI safely while keeping the platform running:
+
+```env
+AI_PROVIDER=none
+```
+
+Notes:
+- Use `MONGODB_URI` as the single MongoDB variable name.
+- Keep AI keys and model endpoints in `server/.env` or hosting environment variables only.
+- Ollama/LM Studio style local models are useful for experimentation, while hosted production needs a reachable model endpoint.
 
 ### Local MongoDB option
 
