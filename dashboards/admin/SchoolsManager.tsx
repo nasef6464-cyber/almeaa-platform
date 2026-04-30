@@ -196,6 +196,23 @@ const parseImportFile = async (file: File): Promise<ImportRow[]> => {
 */
 };
 
+const getDuplicateImportEmails = (rows: ImportRow[]) => {
+    const seen = new Set<string>();
+    const duplicates = new Set<string>();
+
+    rows.forEach((row) => {
+        const email = row.email.trim().toLowerCase();
+        if (!email) return;
+        if (seen.has(email)) {
+            duplicates.add(email);
+            return;
+        }
+        seen.add(email);
+    });
+
+    return Array.from(duplicates);
+};
+
 const PACKAGE_CONTENT_OPTIONS: Array<{ value: PackageContentType; label: string }> = [
     { value: 'all', label: 'شاملة' },
     { value: 'courses', label: 'الدورات' },
@@ -259,6 +276,22 @@ export const SchoolsManager: React.FC = () => {
         [users],
     );
     const publishedCourses = useMemo(() => courses.filter((course) => course.isPublished !== false), [courses]);
+    const importPreviewStats = useMemo(() => {
+        const duplicateEmails = getDuplicateImportEmails(importRows);
+        const existingEmailSet = new Set(users.map((currentUser) => (currentUser.email || '').toLowerCase()).filter(Boolean));
+        const existingEmails = importRows
+            .map((row) => row.email.trim().toLowerCase())
+            .filter((email) => email && existingEmailSet.has(email));
+        const classNames = Array.from(new Set(importRows.map((row) => row.className?.trim()).filter(Boolean) as string[]));
+        const rowsWithoutPassword = importRows.filter((row) => !row.password?.trim()).length;
+
+        return {
+            duplicateEmails,
+            existingEmails,
+            classNames,
+            rowsWithoutPassword,
+        };
+    }, [importRows, users]);
 
     const filteredSchools = useMemo(() => {
         const keyword = schoolSearch.trim().toLowerCase();
@@ -360,6 +393,21 @@ export const SchoolsManager: React.FC = () => {
         ]);
     };
 
+    const downloadSchoolRoster = (school: Group, schoolStudents: User[], schoolClasses: Group[]) => {
+        createXlsxDownload(`${school.name}-students-roster.xlsx`, [
+            ['اسم الطالب', 'البريد الإلكتروني', 'الفصل', 'الحالة'],
+            ...schoolStudents.map((student) => {
+                const classroomName = schoolClasses.find((classroom) => (student.groupIds || []).includes(classroom.id))?.name || '';
+                return [
+                    student.name,
+                    student.email || '',
+                    classroomName,
+                    student.isActive === false ? 'موقوف' : 'نشط',
+                ];
+            }),
+        ]);
+    };
+
     const handleImportFile = async (file: File) => {
         setImportError(null);
         setImportSummary(null);
@@ -381,6 +429,12 @@ export const SchoolsManager: React.FC = () => {
 
     const handleStartImport = async () => {
         if (!selectedSchool || !importRows.length) {
+            return;
+        }
+
+        const duplicateEmails = getDuplicateImportEmails(importRows);
+        if (duplicateEmails.length > 0) {
+            setImportError(`يوجد بريد مكرر داخل الملف: ${duplicateEmails.slice(0, 3).join(', ')}${duplicateEmails.length > 3 ? '...' : ''}. صحح الملف ثم ارفعه مرة أخرى.`);
             return;
         }
 
@@ -683,8 +737,14 @@ export const SchoolsManager: React.FC = () => {
                             </div>
 
                             <div>
-                                <div className="flex justify-between items-center mb-4">
+                                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
                                     <h3 className="text-lg font-bold text-gray-900">الفصول الدراسية</h3>
+                                    <button
+                                        onClick={() => downloadSchoolRoster(selectedSchool, schoolStudents, schoolClasses)}
+                                        className="bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 transition-colors flex items-center gap-2"
+                                    >
+                                        <Download size={16} /> تصدير كشف الطلاب
+                                    </button>
                                     <button
                                         onClick={() => {
                                             createGroup({
@@ -1450,6 +1510,50 @@ export const SchoolsManager: React.FC = () => {
 
                             {importRows.length > 0 && !importSummary && (
                                 <div className="space-y-4">
+                                    <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                                        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                                            <p className="text-xs font-black text-blue-700 mb-1">صفوف جاهزة</p>
+                                            <p className="text-2xl font-black text-blue-800">{importRows.length}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-purple-100 bg-purple-50 p-4">
+                                            <p className="text-xs font-black text-purple-700 mb-1">فصول في الملف</p>
+                                            <p className="text-2xl font-black text-purple-800">{importPreviewStats.classNames.length}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+                                            <p className="text-xs font-black text-amber-700 mb-1">كلمات مرور تلقائية</p>
+                                            <p className="text-2xl font-black text-amber-800">{importPreviewStats.rowsWithoutPassword}</p>
+                                        </div>
+                                        <div className={`rounded-2xl border p-4 ${
+                                            importPreviewStats.duplicateEmails.length || importPreviewStats.existingEmails.length
+                                                ? 'border-rose-100 bg-rose-50'
+                                                : 'border-emerald-100 bg-emerald-50'
+                                        }`}>
+                                            <p className={`text-xs font-black mb-1 ${
+                                                importPreviewStats.duplicateEmails.length || importPreviewStats.existingEmails.length
+                                                    ? 'text-rose-700'
+                                                    : 'text-emerald-700'
+                                            }`}>فحص البريد</p>
+                                            <p className={`text-2xl font-black ${
+                                                importPreviewStats.duplicateEmails.length || importPreviewStats.existingEmails.length
+                                                    ? 'text-rose-800'
+                                                    : 'text-emerald-800'
+                                            }`}>
+                                                {importPreviewStats.duplicateEmails.length + importPreviewStats.existingEmails.length}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {(importPreviewStats.duplicateEmails.length > 0 || importPreviewStats.existingEmails.length > 0) && (
+                                        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm leading-7 text-rose-700">
+                                            {importPreviewStats.duplicateEmails.length > 0 ? (
+                                                <p><strong>إيميلات مكررة داخل الملف:</strong> {importPreviewStats.duplicateEmails.slice(0, 6).join(', ')}</p>
+                                            ) : null}
+                                            {importPreviewStats.existingEmails.length > 0 ? (
+                                                <p><strong>إيميلات موجودة مسبقًا:</strong> {Array.from(new Set(importPreviewStats.existingEmails)).slice(0, 6).join(', ')}</p>
+                                            ) : null}
+                                        </div>
+                                    )}
+
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <h3 className="text-lg font-bold text-gray-900">معاينة البيانات</h3>
