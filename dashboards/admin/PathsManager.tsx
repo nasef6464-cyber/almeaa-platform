@@ -159,6 +159,57 @@ export const PathsManager: React.FC = () => {
   const visibleItemsCount = publicationRows.reduce((sum, row) => sum + row.visible, 0);
   const hiddenItemsCount = publicationRows.reduce((sum, row) => sum + Math.max(row.total - row.visible, 0), 0);
   const lockedItemsCount = publicationRows.reduce((sum, row) => sum + row.locked, 0);
+  const getPathReadinessSummary = (pathId: string) => {
+    const scopedSubjects = subjects.filter((subject: any) => subject.pathId === pathId);
+    const subjectIds = new Set(scopedSubjects.map((subject: any) => subject.id));
+    const scopedCourses = courses.filter((course: any) => (course.pathId || course.category) === pathId && !course.isPackage);
+    const scopedPackages = courses.filter((course: any) => (course.pathId || course.category) === pathId && course.isPackage);
+    const scopedTopics = topics.filter((topic: any) => topic.pathId === pathId || subjectIds.has(topic.subjectId));
+    const scopedLessons = lessons.filter((lesson: any) => lesson.pathId === pathId || subjectIds.has(lesson.subjectId));
+    const scopedQuizzes = quizzes.filter((quiz: any) => quiz.pathId === pathId || subjectIds.has(quiz.subjectId));
+    const scopedLibrary = libraryItems.filter((item: any) => item.pathId === pathId || subjectIds.has(item.subjectId));
+
+    const rows = [
+      {
+        total: scopedCourses.length,
+        visible: scopedCourses.filter((item: any) => item.showOnPlatform !== false && item.isPublished !== false && (!item.approvalStatus || item.approvalStatus === 'approved')).length,
+      },
+      {
+        total: scopedPackages.length,
+        visible: scopedPackages.filter((item: any) => item.showOnPlatform !== false && item.isPublished !== false && (!item.approvalStatus || item.approvalStatus === 'approved')).length,
+      },
+      {
+        total: scopedTopics.length,
+        visible: scopedTopics.filter((item: any) => item.showOnPlatform !== false).length,
+      },
+      {
+        total: scopedLessons.length,
+        visible: scopedLessons.filter((item: any) => item.showOnPlatform !== false && (!item.approvalStatus || item.approvalStatus === 'approved')).length,
+      },
+      {
+        total: scopedQuizzes.length,
+        visible: scopedQuizzes.filter((item: any) => item.showOnPlatform !== false && item.isPublished !== false && (!item.approvalStatus || item.approvalStatus === 'approved')).length,
+      },
+      {
+        total: scopedLibrary.length,
+        visible: scopedLibrary.filter((item: any) => item.showOnPlatform !== false && (!item.approvalStatus || item.approvalStatus === 'approved')).length,
+      },
+    ];
+
+    const total = rows.reduce((sum, row) => sum + row.total, 0);
+    const visible = rows.reduce((sum, row) => sum + row.visible, 0);
+    const hidden = rows.reduce((sum, row) => sum + Math.max(row.total - row.visible, 0), 0);
+    const visiblePackages = scopedPackages.filter((pkg: Course) => isPublicPackageVisible(pkg)).length;
+
+    return { total, visible, hidden, subjects: scopedSubjects.length, packages: visiblePackages };
+  };
+
+  const handlePreviewPath = (pathId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const firstSubject = subjects.find((subject: any) => subject.pathId === pathId);
+    const subjectQuery = firstSubject ? `?subject=${firstSubject.id}` : '';
+    window.open(`/#/category/${pathId}${subjectQuery}`, '_blank', 'noopener,noreferrer');
+  };
 
   const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>, setUrl: (url: string) => void) => {
     const file = e.target.files?.[0];
@@ -573,6 +624,7 @@ export const PathsManager: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {paths.map((path, index) => {
             const pathSubs = subjects.filter(s => s.pathId === path.id);
+            const readiness = getPathReadinessSummary(path.id);
             return (
               <div 
                 key={`path-${path.id}-${index}`}
@@ -615,6 +667,38 @@ export const PathsManager: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-4 text-sm text-gray-500">
                   <span className="flex items-center gap-1"><Layers size={14} /> {pathSubs.length} مواد</span>
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs font-bold">
+                  <div className="rounded-xl bg-emerald-50 px-2 py-2 text-emerald-700">
+                    <div className="text-base font-black">{readiness.visible}</div>
+                    <div>ظاهر</div>
+                  </div>
+                  <div className="rounded-xl bg-gray-50 px-2 py-2 text-gray-700">
+                    <div className="text-base font-black">{readiness.hidden}</div>
+                    <div>مخفي</div>
+                  </div>
+                  <div className="rounded-xl bg-amber-50 px-2 py-2 text-amber-700">
+                    <div className="text-base font-black">{readiness.packages}</div>
+                    <div>باقات</div>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    onClick={(e) => handlePreviewPath(path.id, e)}
+                    className="inline-flex items-center gap-1 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-700 hover:bg-indigo-100"
+                  >
+                    <Eye size={14} />
+                    معاينة
+                  </button>
+                  <span className={`inline-flex items-center rounded-xl px-3 py-2 text-xs font-black ${
+                    readiness.total === 0
+                      ? 'bg-gray-100 text-gray-600'
+                      : readiness.hidden > 0
+                        ? 'bg-amber-50 text-amber-700'
+                        : 'bg-emerald-50 text-emerald-700'
+                  }`}>
+                    {readiness.total === 0 ? 'قيد البناء' : readiness.hidden > 0 ? 'يحتاج مراجعة' : 'جاهز'}
+                  </span>
                 </div>
               </div>
             );
