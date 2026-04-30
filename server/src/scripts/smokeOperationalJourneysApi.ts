@@ -70,6 +70,17 @@ function documentId(item: any) {
   return String(item?.id || item?._id || "");
 }
 
+function contentPathId(item: any) {
+  return String(item?.pathId || item?.category || "");
+}
+
+function countItemsOutsidePaths(items: any[] | undefined, visiblePathIds: Set<string>) {
+  return (items || []).filter((item: any) => {
+    const pathId = contentPathId(item);
+    return pathId && !visiblePathIds.has(pathId);
+  }).length;
+}
+
 function findSubject(subjects: any[] | undefined, pathId: string, names: string[]) {
   const normalizedNames = names.map(normalizeArabic);
   return (subjects || []).find((subject: any) => {
@@ -215,8 +226,8 @@ async function run() {
     .filter((path: any) => path.isActive === false)
     .map((path: any) => documentId(path))
     .filter(Boolean);
-  const publicPathIds = new Set((publicTaxonomy.paths || []).map((path: any) => documentId(path)));
-  const studentPathIds = new Set((taxonomy.paths || []).map((path: any) => documentId(path)));
+  const publicPathIds = new Set<string>((publicTaxonomy.paths || []).map((path: any) => documentId(path)));
+  const studentPathIds = new Set<string>((taxonomy.paths || []).map((path: any) => documentId(path)));
 
   pushResult(
     results,
@@ -232,6 +243,24 @@ async function run() {
     "hidden paths excluded from learner taxonomy",
     hiddenPathIds.every((pathId: string) => !studentPathIds.has(pathId)),
     hiddenPathIds.length ? `hiddenPathIds=${JSON.stringify(hiddenPathIds)}` : "no hidden paths configured",
+  );
+
+  const outOfScopeTopics = countItemsOutsidePaths(studentContent.topics, studentPathIds);
+  const outOfScopeLessons = countItemsOutsidePaths(studentContent.lessons, studentPathIds);
+  const outOfScopeLibrary = countItemsOutsidePaths(studentContent.libraryItems, studentPathIds);
+  const outOfScopeCourses = countItemsOutsidePaths(studentCourses, studentPathIds);
+  const outOfScopeQuizzes = countItemsOutsidePaths(studentQuizzes, studentPathIds);
+
+  pushResult(
+    results,
+    "student",
+    "learner content scoped to visible paths",
+    outOfScopeTopics === 0 &&
+      outOfScopeLessons === 0 &&
+      outOfScopeLibrary === 0 &&
+      outOfScopeCourses === 0 &&
+      outOfScopeQuizzes === 0,
+    `topics=${outOfScopeTopics}, lessons=${outOfScopeLessons}, library=${outOfScopeLibrary}, courses=${outOfScopeCourses}, quizzes=${outOfScopeQuizzes}`,
   );
 
   pushResult(
