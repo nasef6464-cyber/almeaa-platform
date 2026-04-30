@@ -460,10 +460,10 @@ const Quizzes: React.FC<QuizzesProps> = ({ view = 'catalog' }) => {
       </header>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard icon={<Sparkles size={24} />} value={`${maxScore}%`} label="أعلى درجة" color="purple" />
-        <StatCard icon={<TrendingUp size={24} />} value={`${avgImprovement}%`} label="التحسن" color="amber" />
-        <StatCard icon={<CheckCircle size={24} />} value={passedQuizzes} label="اختبارات ناجحة" color="blue" />
-        <StatCard icon={<FileText size={24} />} value={totalQuizzes} label="محاولات مسجلة" color="emerald" />
+        <StatCard icon={<Zap size={24} />} value={saherQuizzes.length} label="ساهر جاهز" color="purple" />
+        <StatCard icon={<Target size={24} />} value={directedQuizzes.length} label="اختبارات موجهة" color="amber" />
+        <StatCard icon={<CheckCircle size={24} />} value={availablePreparedQuizzes.length} label="متاح الآن" color="blue" />
+        <StatCard icon={<FileText size={24} />} value={lockedPaidQuizzes.length} label="يتطلب باقة" color="emerald" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -610,8 +610,8 @@ const Quizzes: React.FC<QuizzesProps> = ({ view = 'catalog' }) => {
             <SummaryRow label="اختبارات موجهة لك" value={directedQuizzes.length} />
             <SummaryRow label="اختبارات ساهر" value={saherQuizzes.length} />
             <SummaryRow label="اختبارات مركزية" value={centralQuizzes.length} />
-            <SummaryRow label="أفضل نتيجة" value={`${maxScore}%`} />
-            <SummaryRow label="آخر محاولة" value={examResults[0] ? formatQuizDate(examResults[0].date) : 'لا يوجد'} />
+            <SummaryRow label="اختبارات تحتاج باقة" value={lockedPaidQuizzes.length} />
+            <SummaryRow label="سجل النتائج" value={totalQuizzes > 0 ? `${totalQuizzes} محاولة في اختباراتي` : 'افتح اختباراتي بعد أول حل'} />
           </div>
         </div>
       </div>
