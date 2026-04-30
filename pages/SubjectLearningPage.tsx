@@ -46,15 +46,17 @@ export const SubjectLearningPage: React.FC = () => {
     isStaffViewer || (quiz.showOnPlatform !== false && quiz.isPublished !== false && (!quiz.approvalStatus || quiz.approvalStatus === 'approved'));
   const canSeeLibraryItem = (item: (typeof libraryItems)[number]) =>
     isStaffViewer || (item.showOnPlatform !== false && (!item.approvalStatus || item.approvalStatus === 'approved'));
+  const canSeeCourse = (course: (typeof courses)[number]) =>
+    isStaffViewer || (course.showOnPlatform !== false && course.isPublished !== false && (!course.approvalStatus || course.approvalStatus === 'approved'));
 
   const subjectCourses = useMemo(
     () =>
       courses.filter((course) => {
         const matchesPath = pathId ? (course.pathId || matchedSubject?.pathId) === pathId : true;
         const matchesSubject = subjectId ? (course.subjectId || course.subject) === subjectId : true;
-        return matchesPath && matchesSubject;
+        return !course.isPackage && matchesPath && matchesSubject && canSeeCourse(course);
       }),
-    [courses, matchedSubject?.pathId, pathId, subjectId],
+    [courses, isStaffViewer, matchedSubject?.pathId, pathId, subjectId],
   );
 
   const subjectLibrary = useMemo(
@@ -62,9 +64,9 @@ export const SubjectLearningPage: React.FC = () => {
       libraryItems.filter((item) => {
         const matchesPath = pathId ? item.pathId === pathId : true;
         const matchesSubject = subjectId ? item.subjectId === subjectId : true;
-        return matchesPath && matchesSubject;
+        return matchesPath && matchesSubject && canSeeLibraryItem(item);
       }),
-    [libraryItems, pathId, subjectId],
+    [isStaffViewer, libraryItems, pathId, subjectId],
   );
 
   const subjectQuestions = useMemo(
