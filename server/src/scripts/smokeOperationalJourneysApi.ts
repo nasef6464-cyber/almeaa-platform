@@ -107,6 +107,8 @@ async function run() {
     teacherContent,
     studentContent,
     studentRedeemedContent,
+    adminTaxonomy,
+    publicTaxonomy,
     taxonomy,
     adminQuizzes,
     teacherQuizzes,
@@ -135,6 +137,8 @@ async function run() {
     request<any>("/content/bootstrap", "GET", undefined, teacher.token),
     request<any>("/content/bootstrap", "GET", undefined, student.token),
     request<any>("/content/bootstrap", "GET", undefined, studentRedeemed.token),
+    request<any>("/taxonomy/bootstrap", "GET", undefined, admin.token),
+    request<any>("/taxonomy/bootstrap"),
     request<any>("/taxonomy/bootstrap", "GET", undefined, student.token),
     request<any[]>("/quizzes", "GET", undefined, admin.token),
     request<any[]>("/quizzes", "GET", undefined, teacher.token),
@@ -205,6 +209,29 @@ async function run() {
     Array.isArray(studentPaymentRequests?.requests) &&
       studentPaymentRequests.requests.every((item: any) => String(item.userId || "") === String(studentMe.user?._id || studentMe.user?.id || "")),
     `requests=${studentPaymentRequests?.requests?.length || 0}`,
+  );
+
+  const hiddenPathIds = (adminTaxonomy.paths || [])
+    .filter((path: any) => path.isActive === false)
+    .map((path: any) => documentId(path))
+    .filter(Boolean);
+  const publicPathIds = new Set((publicTaxonomy.paths || []).map((path: any) => documentId(path)));
+  const studentPathIds = new Set((taxonomy.paths || []).map((path: any) => documentId(path)));
+
+  pushResult(
+    results,
+    "guest",
+    "hidden paths excluded from public taxonomy",
+    hiddenPathIds.every((pathId: string) => !publicPathIds.has(pathId)),
+    hiddenPathIds.length ? `hiddenPathIds=${JSON.stringify(hiddenPathIds)}` : "no hidden paths configured",
+  );
+
+  pushResult(
+    results,
+    "student",
+    "hidden paths excluded from learner taxonomy",
+    hiddenPathIds.every((pathId: string) => !studentPathIds.has(pathId)),
+    hiddenPathIds.length ? `hiddenPathIds=${JSON.stringify(hiddenPathIds)}` : "no hidden paths configured",
   );
 
   pushResult(

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { StatusCodes } from "http-status-codes";
 import { z } from "zod";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { optionalAuth, requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { PathModel } from "../models/Path.js";
 import { LevelModel } from "../models/Level.js";
@@ -69,18 +69,42 @@ export const taxonomyRouter = Router();
 
 taxonomyRouter.get(
   "/bootstrap",
-  asyncHandler(async (_req, res) => {
+  optionalAuth,
+  asyncHandler(async (req, res) => {
     await ensureSkillTaxonomy();
 
+    const canSeeInactiveTaxonomy = ["admin", "teacher", "supervisor"].includes(req.authUser?.role || "");
+    const pathFilter = canSeeInactiveTaxonomy ? {} : { isActive: { $ne: false } };
     const [paths, levels, subjects, sections, skills] = await Promise.all([
-      PathModel.find().sort({ createdAt: 1 }),
+      PathModel.find(pathFilter).sort({ createdAt: 1 }),
       LevelModel.find().sort({ createdAt: 1 }),
       SubjectModel.find().sort({ createdAt: 1 }),
       SectionModel.find().sort({ createdAt: 1 }),
       SkillModel.find().sort({ createdAt: 1 }),
     ]);
 
-    res.json({ paths, levels, subjects, sections, skills });
+    if (canSeeInactiveTaxonomy) {
+      return res.json({ paths, levels, subjects, sections, skills });
+    }
+
+    const visiblePathIds = new Set(paths.map((path) => String(path._id)));
+    const visibleSubjects = subjects.filter((subject) => visiblePathIds.has(String(subject.pathId)));
+    const visibleSubjectIds = new Set(visibleSubjects.map((subject) => String(subject._id)));
+    const visibleSections = sections.filter((section) => visibleSubjectIds.has(String(section.subjectId)));
+    const visibleSectionIds = new Set(visibleSections.map((section) => String(section._id)));
+
+    return res.json({
+      paths,
+      levels: levels.filter((level) => visiblePathIds.has(String(level.pathId))),
+      subjects: visibleSubjects,
+      sections: visibleSections,
+      skills: skills.filter(
+        (skill) =>
+          visiblePathIds.has(String(skill.pathId)) &&
+          visibleSubjectIds.has(String(skill.subjectId)) &&
+          visibleSectionIds.has(String(skill.sectionId)),
+      ),
+    });
   }),
 );
 
