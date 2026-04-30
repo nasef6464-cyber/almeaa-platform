@@ -697,7 +697,60 @@ const Results: React.FC = () => {
             اختر خطوة واحدة الآن. المنصة رتبتها لك من الأسهل للأهم حتى لا تتشتت بعد الاختبار.
           </p>
 
-          {weakestSkill ? (
+          {!isFullResult ? (
+            <div className="mt-5 rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5">
+              <div className="inline-flex rounded-full bg-white px-3 py-1 text-xs font-black text-indigo-700 shadow-sm">
+                خطوة واحدة تكفي الآن
+              </div>
+              <h4 className="mt-4 text-lg font-black text-gray-900">
+                {weakestSkill ? `ابدأ بـ: ${weakestSkill.skillName}` : 'راجع الحلول بهدوء'}
+              </h4>
+              <p className="mt-3 text-sm font-bold leading-7 text-gray-600">
+                {weakestSkill
+                  ? 'لا تحتاج قراءة تقرير طويل الآن. راجع شرح هذه المهارة، ثم حل تدريبًا قصيرًا، وبعدها أعد القياس.'
+                  : 'افتح مراجعة الحلول أولًا، ثم اختر اختبارًا قصيرًا لاحقًا.'}
+              </p>
+
+              {weakestSkill ? (
+                <div className="mt-4 grid gap-2 text-xs font-bold sm:grid-cols-3">
+                  {weakestSkill.subjectName ? (
+                    <span className="rounded-2xl bg-white px-3 py-2 text-gray-700 shadow-sm">{weakestSkill.subjectName}</span>
+                  ) : null}
+                  {weakestSkill.sectionName ? (
+                    <span className="rounded-2xl bg-white px-3 py-2 text-indigo-700 shadow-sm">{weakestSkill.sectionName}</span>
+                  ) : null}
+                  <span className="rounded-2xl bg-white px-3 py-2 text-rose-700 shadow-sm">{weakestSkill.skillName}</span>
+                </div>
+              ) : null}
+
+              <div className="print-hide mt-5 grid gap-2">
+                <button
+                  onClick={() => setViewMode('review')}
+                  className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white hover:bg-emerald-700"
+                >
+                  مراجعة الحلول
+                </button>
+                {weakestSkill?.lessonVideoUrl ? (
+                  <button
+                    onClick={() => setVideoData({ url: weakestSkill.lessonVideoUrl!, title: `شرح مهارة ${weakestSkill.skillName}` })}
+                    className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-emerald-700 shadow-sm hover:bg-emerald-50"
+                  >
+                    شاهد شرحًا قصيرًا
+                  </button>
+                ) : weakestSkill?.lessonLink ? (
+                  <Link to={weakestSkill.lessonLink} className="rounded-2xl bg-white px-4 py-3 text-center text-sm font-black text-indigo-700 shadow-sm hover:bg-indigo-50">
+                    افتح درس المهارة
+                  </Link>
+                ) : null}
+                <button
+                  onClick={() => setResultDepth('full')}
+                  className="rounded-2xl border border-indigo-100 bg-white px-4 py-3 text-sm font-black text-indigo-700 hover:bg-indigo-50"
+                >
+                  عرض التقرير الكامل عند الحاجة
+                </button>
+              </div>
+            </div>
+          ) : weakestSkill ? (
             <div className="mt-5 space-y-4">
               <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs font-bold">
