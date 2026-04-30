@@ -143,8 +143,18 @@ export const GenericPathPage: React.FC = () => {
                                          </li>
                                      ))}
                                  </ul>
-                                 <button onClick={() => navigate(`/course/${pkg.id}`)} className="w-full py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-colors">
-                                     مشتركة الآن
+                                 <button
+                                     onClick={() => {
+                                         const packageSubjectId = pkg.subjectId || pkg.subject;
+                                         if (packageSubjectId) {
+                                             navigate(`/category/${path.id}?subject=${packageSubjectId}&tab=courses&package=${pkg.id}`);
+                                             return;
+                                         }
+                                         navigate(`/course/${pkg.id}`);
+                                     }}
+                                     className="w-full py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-colors"
+                                 >
+                                     اشترك الآن
                                  </button>
                              </div>
                          </Card>
