@@ -577,6 +577,20 @@ const Reports: React.FC = () => {
             setScopedSmartRemediationLoading(false);
         }
     };
+    const scopedLeadStudent = scopedAnalytics?.weakestStudents?.[0] || null;
+    const scopedLeadSkill = scopedAnalytics?.weakestSkills?.[0] || null;
+    const scopedLeadSubject = scopedAnalytics?.subjectSummaries?.[0] || null;
+    const scopedLeadStudentSummary = useMemo(() => {
+        if (!scopedLeadStudent) return '';
+
+        const weakSkillsText = scopedLeadStudent.weakestSkills?.slice(0, 2).map((skill) => `${displayText(skill.skill)} (${skill.mastery}%)`).join('، ');
+        return [
+            `ابدأ بمتابعة ${displayText(scopedLeadStudent.name)}.`,
+            `متوسطه الحالي ${scopedLeadStudent.averageScore}%.`,
+            weakSkillsText ? `أبرز المهارات: ${weakSkillsText}.` : null,
+            displayText(scopedLeadStudent.recommendedAction) ? `الإجراء المقترح: ${displayText(scopedLeadStudent.recommendedAction)}.` : 'الإجراء المقترح: شرح قصير ثم تدريب علاجي ثم إعادة قياس.',
+        ].filter(Boolean).join(' ');
+    }, [scopedLeadStudent]);
 
     if (isStudentView && !hasStudentAnalytics) {
         return (
@@ -788,6 +802,69 @@ const Reports: React.FC = () => {
                                         {scopedFollowUpSummary}
                                     </div>
                                 ) : null}
+                                <div className="mb-4 grid gap-3 lg:grid-cols-3">
+                                    <div className="rounded-2xl border border-rose-100 bg-white p-4">
+                                        <div className="text-xs font-black text-rose-600">أولوية الطالب</div>
+                                        <div className="mt-2 text-base font-black leading-7 text-gray-900">
+                                            {displayText(scopedLeadStudent?.name) || 'بانتظار ظهور طالب يحتاج متابعة'}
+                                        </div>
+                                        <p className="mt-2 text-sm leading-7 text-gray-600">
+                                            {scopedLeadStudent
+                                                ? `${scopedLeadStudent.averageScore}% متوسط الأداء - ${scopedLeadStudent.weakSkillCount} مهارات تحتاج دعمًا.`
+                                                : 'عند ظهور بيانات كافية سيظهر هنا أول طالب تحتاج أن تبدأ به.'}
+                                        </p>
+                                        {scopedLeadStudent ? (
+                                            <div className="print-hide mt-3 flex flex-wrap gap-2">
+                                                <button
+                                                    onClick={() => navigator.clipboard.writeText(scopedLeadStudentSummary).catch(() => undefined)}
+                                                    className="rounded-full bg-rose-50 px-3 py-1.5 text-xs font-black text-rose-700 hover:bg-rose-100"
+                                                >
+                                                    نسخ خطة المتابعة
+                                                </button>
+                                                <Link to="/dashboard?tab=reports" className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-black text-gray-700 hover:bg-gray-200">
+                                                    فتح التقارير
+                                                </Link>
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                    <div className="rounded-2xl border border-amber-100 bg-white p-4">
+                                        <div className="text-xs font-black text-amber-600">أولوية المهارة الجماعية</div>
+                                        <div className="mt-2 text-base font-black leading-7 text-gray-900">
+                                            {displayText(scopedLeadSkill?.skill) || 'بانتظار بيانات المهارات'}
+                                        </div>
+                                        <p className="mt-2 text-sm leading-7 text-gray-600">
+                                            {scopedLeadSkill
+                                                ? `${scopedLeadSkill.affectedStudents} طلاب متأثرون - ${scopedLeadSkill.mastery}% إتقان حالي.`
+                                                : 'عند تراكم النتائج سيظهر هنا أول محور يحتاج تدخلاً جماعيًا.'}
+                                        </p>
+                                        {scopedLeadSkill ? (
+                                            <div className="print-hide mt-3 flex flex-wrap gap-2">
+                                                <Link to="/quiz" className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-700 hover:bg-amber-100">
+                                                    اختبار متابعة
+                                                </Link>
+                                                <Link to={buildSkillSessionLink({ skill: scopedLeadSkill.skill, skillId: scopedLeadSkill.skillId, sectionName: scopedLeadSkill.section })} className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-black text-gray-700 hover:bg-gray-200">
+                                                    حجز شرح
+                                                </Link>
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                    <div className="rounded-2xl border border-indigo-100 bg-white p-4">
+                                        <div className="text-xs font-black text-indigo-600">أولوية المادة</div>
+                                        <div className="mt-2 text-base font-black leading-7 text-gray-900">
+                                            {displayText(scopedLeadSubject?.subjectName) || 'بانتظار توزيع المواد'}
+                                        </div>
+                                        <p className="mt-2 text-sm leading-7 text-gray-600">
+                                            {scopedLeadSubject
+                                                ? `${scopedLeadSubject.weakStudents} طلاب يحتاجون دعمًا - ${scopedLeadSubject.mastery}% مستوى المادة حاليًا.`
+                                                : 'عند ظهور فروق واضحة بين المواد سيقترح لك التقرير المادة التي تبدأ بها.'}
+                                        </p>
+                                        {scopedLeadSubject ? (
+                                            <div className="mt-3 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-bold leading-6 text-indigo-700">
+                                                الإجراء المقترح: تدريب قصير في هذه المادة ثم قياس تحسن الطلاب الضعاف خلال نفس الأسبوع.
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                </div>
                                 <div className="grid gap-3 lg:grid-cols-3">
                                     {scopedInterventionPlan.map((item) => (
                                         <div key={item.title} className={`rounded-2xl border p-4 ${item.className}`}>
@@ -865,6 +942,22 @@ const Reports: React.FC = () => {
                                                 ) : null}
                                                 {student.recommendedAction ? <div className="text-indigo-700">الإجراء المقترح: <span className="font-bold">{displayText(student.recommendedAction)}</span></div> : null}
                                             </div>
+                                            <div className="print-hide mt-3 flex flex-wrap gap-2">
+                                                <button
+                                                    onClick={() => navigator.clipboard.writeText([
+                                                        `الطالب: ${displayText(student.name)}`,
+                                                        `المتوسط الحالي: ${student.averageScore}%`,
+                                                        student.weakestSkills?.length ? `أبرز المهارات: ${student.weakestSkills.map((skill) => `${displayText(skill.skill)} (${skill.mastery}%)`).join('، ')}` : '',
+                                                        displayText(student.recommendedAction) ? `الإجراء المقترح: ${displayText(student.recommendedAction)}` : 'الإجراء المقترح: شرح قصير ثم تدريب علاجي.'
+                                                    ].filter(Boolean).join('\n')).catch(() => undefined)}
+                                                    className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-indigo-700 hover:bg-indigo-50"
+                                                >
+                                                    نسخ المتابعة
+                                                </button>
+                                                <Link to="/dashboard?tab=reports" className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-gray-700 hover:bg-gray-100">
+                                                    فتح تقارير الطالب
+                                                </Link>
+                                            </div>
                                         </div>
                                     )) : (
                                         <div className="border border-dashed border-gray-200 rounded-xl p-4 text-sm text-gray-500">لا توجد بيانات طلاب مرتبطة بهذا النطاق بعد.</div>
@@ -887,6 +980,14 @@ const Reports: React.FC = () => {
                                                 <div>محاولات مرتبطة: <span className="font-bold">{skill.attempts}</span></div>
                                                 {skill.recommendedAction ? <div className="text-indigo-700">التدخل المقترح: <span className="font-bold">{displayText(skill.recommendedAction)}</span></div> : null}
                                             </div>
+                                            <div className="print-hide mt-3 flex flex-wrap gap-2">
+                                                <Link to="/quiz" className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-700 hover:bg-amber-100">
+                                                    اختبار موجه
+                                                </Link>
+                                                <Link to={buildSkillSessionLink({ skill: skill.skill, skillId: skill.skillId, sectionName: skill.section })} className="rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-black text-indigo-700 hover:bg-indigo-100">
+                                                    شرح أو حصة
+                                                </Link>
+                                            </div>
                                         </div>
                                     )) : (
                                         <div className="border border-dashed border-gray-200 rounded-xl p-4 text-sm text-gray-500">لا توجد مهارات ضعيفة مجمعة حتى الآن.</div>
@@ -898,12 +999,20 @@ const Reports: React.FC = () => {
                                 <div className="space-y-3">
                                     <div className="font-bold text-gray-900">المواد التي تحتاج تدخلًا</div>
                                     {scopedAnalytics.subjectSummaries.length > 0 ? scopedAnalytics.subjectSummaries.slice(0, 6).map((subject) => (
-                                        <div key={subject.subjectId || subject.subjectName} className="border border-gray-100 rounded-xl p-4 bg-gray-50/50 flex items-center justify-between gap-3">
+                                        <div key={subject.subjectId || subject.subjectName} className="border border-gray-100 rounded-xl p-4 bg-gray-50/50 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                             <div>
                                                 <div className="font-bold text-gray-900">{displayText(subject.subjectName)}</div>
                                                 <div className="text-xs text-gray-500">طلاب ضعفاء: {subject.weakStudents}</div>
+                                                <div className="mt-2 text-xs font-bold text-indigo-600">
+                                                    التدخل المقترح: تدريب قصير في المادة ثم قياس خلال نفس الأسبوع.
+                                                </div>
                                             </div>
-                                            <div className={`text-lg font-black ${subject.mastery < 50 ? 'text-rose-600' : 'text-amber-600'}`}>{subject.mastery}%</div>
+                                            <div className="flex items-center gap-3">
+                                                <div className={`text-lg font-black ${subject.mastery < 50 ? 'text-rose-600' : 'text-amber-600'}`}>{subject.mastery}%</div>
+                                                <Link to="/quizzes" className="print-hide rounded-full bg-white px-3 py-1.5 text-xs font-black text-gray-700 hover:bg-gray-100">
+                                                    اختبارات المادة
+                                                </Link>
+                                            </div>
                                         </div>
                                     )) : (
                                         <div className="border border-dashed border-gray-200 rounded-xl p-4 text-sm text-gray-500">لا توجد مواد تحتاج تدخلًا ظاهرًا الآن.</div>
