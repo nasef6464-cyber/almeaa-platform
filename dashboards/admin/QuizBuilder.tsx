@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { Quiz, Question } from '../../types';
-import { Plus, Search, Edit2, Trash2, Save, X, Settings, Link as LinkIcon, Users, FileQuestion, Filter, CheckCircle2, Lock, LockOpen } from 'lucide-react';
+import { AlertTriangle, Plus, Search, Edit2, Trash2, Save, X, Settings, Link as LinkIcon, Users, FileQuestion, Filter, CheckCircle2, Lock, LockOpen } from 'lucide-react';
 import { UnifiedQuestionBuilder } from './builders/UnifiedQuestionBuilder';
 
 interface QuizBuilderProps {
@@ -410,6 +410,31 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
       .sort((a, b) => b.questionCount - a.questionCount || a.title.localeCompare(b.title, 'ar'));
   }, [selectedQuestions, skills]);
   const totalSelectedQuestions = selectedQuestions.length;
+  const publishChecklist = useMemo(() => {
+    const issues: string[] = [];
+    const isDirected =
+      (currentQuiz.targetGroupIds || []).length > 0 ||
+      (currentQuiz.targetUserIds || []).length > 0 ||
+      (currentQuiz.access?.allowedGroupIds || []).length > 0;
+
+    if (!currentQuiz.pathId) issues.push('اختر المسار حتى يظهر الاختبار في مكانه الصحيح.');
+    if (!currentQuiz.subjectId) issues.push('اختر المادة المرتبطة بالاختبار.');
+    if (totalSelectedQuestions === 0) issues.push('أضف أسئلة قبل النشر.');
+    if (derivedQuizSkills.length === 0) issues.push('اربط الأسئلة بمهارات من مركز المهارات حتى يعمل التحليل.');
+    if ((currentQuiz.mode || 'regular') === 'central' && !isDirected) issues.push('حدد مجموعة أو طلابًا للاختبار الموجّه.');
+
+    return issues;
+  }, [
+    currentQuiz.access?.allowedGroupIds,
+    currentQuiz.mode,
+    currentQuiz.pathId,
+    currentQuiz.subjectId,
+    currentQuiz.targetGroupIds,
+    currentQuiz.targetUserIds,
+    derivedQuizSkills.length,
+    totalSelectedQuestions,
+  ]);
+  const isPublishReady = publishChecklist.length === 0;
 
   if (isEditing) {
     return (
@@ -817,6 +842,39 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({ onClose, initialSubjec
             {/* Tab: Access */}
             {activeTab === 'access' && (
               <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
+                <div
+                  className={`rounded-2xl border p-4 ${
+                    isPublishReady
+                      ? 'border-emerald-100 bg-emerald-50 text-emerald-800'
+                      : 'border-amber-100 bg-amber-50 text-amber-800'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5">
+                      {isPublishReady ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
+                    </div>
+                    <div>
+                      <h4 className="font-black text-sm">
+                        {isPublishReady ? 'الاختبار جاهز للنشر الآمن' : 'مراجعة سريعة قبل إظهار الاختبار'}
+                      </h4>
+                      <p className="mt-1 text-xs leading-6">
+                        {isPublishReady
+                          ? 'تم ربط المسار والمادة والأسئلة والمهارات، ويمكنك الآن نشره أو إظهاره للطلاب بثقة.'
+                          : 'هذه الملاحظات لا تمنع الحفظ داخل المستودع، لكنها مهمة قبل عرض الاختبار للطالب.'}
+                      </p>
+                      {!isPublishReady ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {publishChecklist.map((issue) => (
+                            <span key={issue} className="rounded-full bg-white px-3 py-1 text-[11px] font-bold">
+                              {issue}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">نوع الوصول</label>
                   <select 

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Quiz } from '../../types';
-import { Plus, Search, Edit2, Trash2, FileQuestion, Lock, LockOpen } from 'lucide-react';
+import { Question, Quiz } from '../../types';
+import { AlertTriangle, CheckCircle2, Plus, Search, Edit2, Trash2, FileQuestion, Lock, LockOpen } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { QuizBuilder } from './QuizBuilder';
 
@@ -36,6 +36,57 @@ const getVisibilityMeta = (quiz: Quiz) =>
   quiz.showOnPlatform === false
     ? { label: 'مخفي عن المنصة', className: 'bg-gray-100 text-gray-600' }
     : { label: 'معروض على المنصة', className: 'bg-sky-50 text-sky-700' };
+
+const getMeasuredSkillIds = (quiz: Quiz, questions: Question[]) => {
+  const directSkillIds = quiz.skillIds || [];
+  const questionSkillIds = (quiz.questionIds || []).flatMap((questionId) => {
+    const question = questions.find((item) => item.id === questionId);
+    return question?.skillIds || [];
+  });
+
+  return [...new Set([...directSkillIds, ...questionSkillIds])];
+};
+
+const getQuizReadinessMeta = (quiz: Quiz, questions: Question[]) => {
+  const issues: string[] = [];
+  const measuredSkillIds = getMeasuredSkillIds(quiz, questions);
+  const questionCount = quiz.questionIds?.length || 0;
+  const isVisible = quiz.showOnPlatform !== false;
+  const isApproved = !quiz.approvalStatus || quiz.approvalStatus === 'approved';
+  const isDirected = (quiz.targetGroupIds || []).length > 0 || (quiz.targetUserIds || []).length > 0 || (quiz.access.allowedGroupIds || []).length > 0;
+
+  if (!quiz.pathId) issues.push('لم يتم تحديد المسار');
+  if (!quiz.subjectId) issues.push('لم يتم تحديد المادة');
+  if (questionCount === 0) issues.push('لا توجد أسئلة داخل الاختبار');
+  if (measuredSkillIds.length === 0) issues.push('لا توجد مهارات مقاسة من الأسئلة');
+  if ((quiz.mode || 'regular') === 'central' && !isDirected) issues.push('الاختبار الموجّه يحتاج مجموعة أو طلابًا محددين');
+  if (isVisible && (!quiz.isPublished || !isApproved)) issues.push('ظاهر للمنصة قبل اكتمال الاعتماد والنشر');
+
+  if (issues.length === 0) {
+    return {
+      label: 'جاهز للنشر الآمن',
+      issues,
+      className: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+      icon: 'ready' as const,
+    };
+  }
+
+  if (issues.length <= 2) {
+    return {
+      label: 'يحتاج مراجعة بسيطة',
+      issues,
+      className: 'bg-amber-50 text-amber-700 border-amber-100',
+      icon: 'warn' as const,
+    };
+  }
+
+  return {
+    label: 'غير جاهز للطالب',
+    issues,
+    className: 'bg-rose-50 text-rose-700 border-rose-100',
+    icon: 'warn' as const,
+  };
+};
 
 export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filterType }) => {
   const {
@@ -147,13 +198,19 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
   );
 
   const scopedCounts = useMemo(
-    () => ({
-      total: quizzes.length,
-      visible: quizzes.filter((quiz) => quiz.showOnPlatform !== false).length,
-      hidden: quizzes.filter((quiz) => quiz.showOnPlatform === false).length,
-      pending: quizzes.filter((quiz) => quiz.approvalStatus === 'pending_review').length,
-    }),
-    [quizzes],
+    () => {
+      const readiness = quizzes.map((quiz) => getQuizReadinessMeta(quiz, questions));
+
+      return {
+        total: quizzes.length,
+        visible: quizzes.filter((quiz) => quiz.showOnPlatform !== false).length,
+        hidden: quizzes.filter((quiz) => quiz.showOnPlatform === false).length,
+        pending: quizzes.filter((quiz) => quiz.approvalStatus === 'pending_review').length,
+        ready: readiness.filter((item) => item.issues.length === 0).length,
+        needsReview: readiness.filter((item) => item.issues.length > 0).length,
+      };
+    },
+    [questions, quizzes],
   );
 
   const managerTitle = filterType === 'bank' ? 'مستودع التدريبات' : 'مستودع الاختبارات';
@@ -170,37 +227,19 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
   const quizzesWithoutMeasuredSkills = useMemo(
     () =>
       globalQuizzes.filter((quiz) => {
-        const directSkillIds = quiz.skillIds || [];
-        const questionSkillIds = (quiz.questionIds || []).flatMap((questionId) => {
-          const question = questions.find((item) => item.id === questionId);
-          return question?.skillIds || [];
-        });
-        return [...new Set([...directSkillIds, ...questionSkillIds])].length === 0;
+        return getMeasuredSkillIds(quiz, questions).length === 0;
       }).length,
     [globalQuizzes, questions],
   );
 
   const measuredSkillNames = (quiz: Quiz) => {
-    const directSkillIds = quiz.skillIds || [];
-    const questionSkillIds = (quiz.questionIds || []).flatMap((questionId) => {
-      const question = questions.find((item) => item.id === questionId);
-      return question?.skillIds || [];
-    });
-
-    const uniqueIds = [...new Set([...directSkillIds, ...questionSkillIds])];
-    return uniqueIds.map((skillId) => skills.find((skill) => skill.id === skillId)?.name).filter(Boolean) as string[];
+    return getMeasuredSkillIds(quiz, questions).map((skillId) => skills.find((skill) => skill.id === skillId)?.name).filter(Boolean) as string[];
   };
 
   const measuredSectionNames = (quiz: Quiz) => {
-    const directSkillIds = quiz.skillIds || [];
-    const questionSkillIds = (quiz.questionIds || []).flatMap((questionId) => {
-      const question = questions.find((item) => item.id === questionId);
-      return question?.skillIds || [];
-    });
-
     const uniqueSectionIds = [
       ...new Set(
-        [...directSkillIds, ...questionSkillIds]
+        getMeasuredSkillIds(quiz, questions)
           .map((skillId) => skills.find((skill) => skill.id === skillId)?.sectionId)
           .filter(Boolean),
       ),
@@ -349,6 +388,14 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
         <div className="bg-white border border-red-100 rounded-xl p-4">
           <p className="text-xs text-red-500 mb-1">بلا أسئلة</p>
           <p className="text-2xl font-black text-red-600">{quizzesWithoutQuestions}</p>
+        </div>
+        <div className="bg-white border border-emerald-100 rounded-xl p-4">
+          <p className="text-xs text-emerald-600 mb-1">جاهز للنشر الآمن</p>
+          <p className="text-2xl font-black text-emerald-700">{scopedCounts.ready}</p>
+        </div>
+        <div className="bg-white border border-rose-100 rounded-xl p-4">
+          <p className="text-xs text-rose-500 mb-1">يحتاج ضبط قبل العرض</p>
+          <p className="text-2xl font-black text-rose-600">{scopedCounts.needsReview}</p>
         </div>
       </div>
 
@@ -502,6 +549,7 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
                 const measuredSections = measuredSectionNames(quiz);
                 const statusMeta = getStatusMeta(quiz);
                 const visibilityMeta = getVisibilityMeta(quiz);
+                const readinessMeta = getQuizReadinessMeta(quiz, questions);
 
                 return (
                   <tr key={quiz.id} className="hover:bg-gray-50 transition-colors">
@@ -571,6 +619,10 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
                       <div className="flex flex-wrap gap-2">
                         <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusMeta.className}`}>{statusMeta.label}</span>
                         <span className={`px-2 py-1 rounded-full text-xs font-bold ${visibilityMeta.className}`}>{visibilityMeta.label}</span>
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs font-bold ${readinessMeta.className}`} title={readinessMeta.issues.join('، ') || 'لا توجد ملاحظات'}>
+                          {readinessMeta.icon === 'ready' ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
+                          {readinessMeta.label}
+                        </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
