@@ -29,6 +29,11 @@ const getVisibilityMeta = (lesson: Lesson) =>
     ? { label: 'مخفي عن المنصة', className: 'bg-gray-100 text-gray-600' }
     : { label: 'ظاهر على المنصة', className: 'bg-sky-50 text-sky-700' };
 
+const getAccessMeta = (lesson: Lesson) =>
+  lesson.isLocked
+    ? { label: 'مغلق على الطلاب', className: 'bg-amber-50 text-amber-700' }
+    : { label: 'مفتوح للعرض', className: 'bg-emerald-50 text-emerald-700' };
+
 export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => {
   const { user, lessons: globalLessons, addLesson, updateLesson, deleteLesson, paths, subjects, sections, skills, topics } = useStore();
   const canReview = user.role === 'admin';
@@ -162,6 +167,12 @@ export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => 
     });
   };
 
+  const handleToggleLessonLock = (lesson: Lesson) => {
+    updateLesson(lesson.id, {
+      isLocked: lesson.isLocked !== true,
+    });
+  };
+
   const handlePreviewLesson = (lesson: Lesson) => {
     const topic = topics.find((item) => item.lessonIds?.includes(lesson.id));
     const pathId = lesson.pathId || topic?.pathId || selectedPathId || '';
@@ -178,6 +189,12 @@ export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => 
   };
 
   const filteredLessons = lessons.filter((lesson) => lesson.title.toLowerCase().includes(searchTerm.toLowerCase()));
+  const lessonOverview = {
+    total: filteredLessons.length,
+    visible: filteredLessons.filter((lesson) => lesson.showOnPlatform !== false).length,
+    approved: filteredLessons.filter((lesson) => lesson.approvalStatus === 'approved').length,
+    locked: filteredLessons.filter((lesson) => lesson.isLocked === true).length,
+  };
 
   if (isEditing) {
     return (
@@ -275,6 +292,20 @@ export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => 
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {[
+          { label: 'إجمالي الدروس', value: lessonOverview.total, tone: 'text-slate-800 bg-slate-50' },
+          { label: 'الظاهر على المنصة', value: lessonOverview.visible, tone: 'text-sky-800 bg-sky-50' },
+          { label: 'الدروس المعتمدة', value: lessonOverview.approved, tone: 'text-emerald-800 bg-emerald-50' },
+          { label: 'الدروس المغلقة', value: lessonOverview.locked, tone: 'text-amber-800 bg-amber-50' },
+        ].map((item) => (
+          <div key={item.label} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-500">{item.label}</div>
+            <div className={`mt-3 inline-flex rounded-2xl px-4 py-3 text-2xl font-black ${item.tone}`}>{item.value}</div>
+          </div>
+        ))}
+      </div>
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-right">
@@ -338,6 +369,9 @@ export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => 
                         <span className={`px-2 py-1 rounded-full text-xs font-bold ${getVisibilityMeta(lesson).className}`}>
                           {getVisibilityMeta(lesson).label}
                         </span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${getAccessMeta(lesson).className}`}>
+                          {getAccessMeta(lesson).label}
+                        </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -360,6 +394,15 @@ export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => 
                           title={lesson.showOnPlatform === false ? 'إظهار الدرس على المنصة' : 'إخفاء الدرس عن المنصة'}
                         >
                           {lesson.showOnPlatform === false ? <Lock size={18} /> : <LockOpen size={18} />}
+                        </button>
+                        <button
+                          onClick={() => handleToggleLessonLock(lesson)}
+                          className={`p-2 rounded-lg transition-colors ${
+                            lesson.isLocked ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'
+                          }`}
+                          title={lesson.isLocked ? 'فتح الدرس للطلاب' : 'قفل الدرس على الطلاب'}
+                        >
+                          {lesson.isLocked ? <Lock size={18} /> : <LockOpen size={18} />}
                         </button>
                         <button onClick={() => handleDuplicate(lesson)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="نسخ">
                           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>

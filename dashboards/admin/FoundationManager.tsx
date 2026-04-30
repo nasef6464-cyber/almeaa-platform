@@ -37,6 +37,15 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
       return matchesSubject && matchesPath && quiz.type === 'quiz';
     })
     .sort((a, b) => a.title.localeCompare(b.title, 'ar'));
+  const foundationOverview = {
+    total: subjectTopics.length,
+    visible: subjectTopics.filter((topic) => topic.showOnPlatform !== false).length,
+    locked: subjectTopics.filter((topic) => topic.isLocked === true).length,
+    linkedResources: subjectTopics.reduce(
+      (sum, topic) => sum + (topic.lessonIds?.length || 0) + (topic.quizIds?.length || 0),
+      0,
+    ),
+  };
 
   const toggleExpand = (topicId: string) => {
     const newExpanded = new Set(expandedTopics);
@@ -129,6 +138,10 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
     updateTopic(topic.id, { showOnPlatform: topic.showOnPlatform === false });
   };
 
+  const handleToggleTopicLock = (topic: Topic) => {
+    updateTopic(topic.id, { isLocked: topic.isLocked !== true });
+  };
+
   const handlePreviewTopic = (topic: Topic) => {
     const pathId = topic.pathId || currentSubject?.pathId;
     const targetSubjectId = topic.subjectId || subjectId;
@@ -151,6 +164,7 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
     const isExpanded = expandedTopics.has(topic.id);
     const attachedLessons = lessons.filter(l => topic.lessonIds?.includes(l.id));
     const attachedQuizzes = quizzes.filter(q => topic.quizIds?.includes(q.id));
+    const totalAttachments = attachedLessons.length + attachedQuizzes.length;
 
     return (
       <div key={topic.id} className={`border border-gray-100 rounded-xl mb-3 bg-white overflow-hidden shadow-sm ${level > 0 ? 'mr-8 border-r-4 border-r-indigo-200' : ''}`}>
@@ -171,6 +185,12 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
             </span>
             <span className={`text-xs px-2 py-1 rounded-full font-bold ${topic.showOnPlatform === false ? 'bg-gray-100 text-gray-600' : 'bg-sky-50 text-sky-700'}`}>
               {topic.showOnPlatform === false ? 'مخفي عن المنصة' : 'ظاهر على المنصة'}
+            </span>
+            <span className={`text-xs px-2 py-1 rounded-full font-bold ${topic.isLocked ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+              {topic.isLocked ? 'مغلق على الطلاب' : 'مفتوح للعرض'}
+            </span>
+            <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-full font-bold">
+              {totalAttachments} عنصر مربوط
             </span>
           </div>
           
@@ -198,6 +218,13 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
               title={topic.showOnPlatform === false ? 'إظهار الموضوع على المنصة' : 'إخفاء الموضوع عن المنصة'}
             >
               {topic.showOnPlatform === false ? <Lock size={18} /> : <LockOpen size={18} />}
+            </button>
+            <button
+              onClick={() => handleToggleTopicLock(topic)}
+              className={`p-2 rounded-lg transition-colors ${topic.isLocked ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+              title={topic.isLocked ? 'فتح الموضوع للطلاب' : 'قفل الموضوع على الطلاب'}
+            >
+              {topic.isLocked ? <Lock size={18} /> : <LockOpen size={18} />}
             </button>
             <button 
               onClick={() => handleCreateNew(topic.id)}
@@ -288,6 +315,20 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
         </button>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {[
+          { label: 'إجمالي الموضوعات', value: foundationOverview.total, tone: 'text-slate-800 bg-slate-50' },
+          { label: 'الظاهر على المنصة', value: foundationOverview.visible, tone: 'text-sky-800 bg-sky-50' },
+          { label: 'المغلق على الطلاب', value: foundationOverview.locked, tone: 'text-amber-800 bg-amber-50' },
+          { label: 'الموارد المربوطة', value: foundationOverview.linkedResources, tone: 'text-indigo-800 bg-indigo-50' },
+        ].map((item) => (
+          <div key={item.label} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-500">{item.label}</div>
+            <div className={`mt-3 inline-flex rounded-2xl px-4 py-3 text-2xl font-black ${item.tone}`}>{item.value}</div>
+          </div>
+        ))}
+      </div>
+
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         {mainTopics.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
@@ -335,6 +376,15 @@ export const FoundationManager: React.FC<FoundationManagerProps> = ({ subjectId 
                   className="w-5 h-5 text-indigo-600 rounded"
                 />
                 <span className="font-medium text-gray-700">إظهار هذا الموضوع على المنصة</span>
+              </label>
+              <label className="flex items-center gap-3 bg-amber-50 p-3 rounded-xl cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editingTopic.isLocked === true}
+                  onChange={(e) => setEditingTopic({ ...editingTopic, isLocked: e.target.checked })}
+                  className="w-5 h-5 text-amber-600 rounded"
+                />
+                <span className="font-medium text-gray-700">قفل هذا الموضوع على الطلاب حتى يتم تفعيله</span>
               </label>
             </div>
             <div className="flex gap-3 mt-6">

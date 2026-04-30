@@ -9,6 +9,7 @@ interface LibraryManagerProps {
 
 export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => {
   const {
+    user,
     libraryItems,
     addLibraryItem,
     updateLibraryItem,
@@ -17,6 +18,7 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
     sections,
     skills
   } = useStore();
+  const canReview = user.role === 'admin';
 
   const [isEditing, setIsEditing] = useState(false);
   const [editingItem, setEditingItem] = useState<Partial<LibraryItem> | null>(null);
@@ -24,6 +26,12 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
 
   const subjectItems = libraryItems.filter((item) => item.subjectId === subjectId);
   const currentSubject = subjects.find((item) => item.id === subjectId);
+  const libraryOverview = {
+    total: subjectItems.length,
+    visible: subjectItems.filter((item) => item.showOnPlatform !== false).length,
+    approved: subjectItems.filter((item) => item.approvalStatus === 'approved').length,
+    locked: subjectItems.filter((item) => item.isLocked === true).length,
+  };
 
   const availableMainSkills = useMemo(
     () =>
@@ -94,7 +102,9 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
         sectionId: editingItem.sectionId,
         skillIds: editingItem.skillIds || [],
         url: editingItem?.url || '',
-        showOnPlatform: editingItem?.showOnPlatform !== false
+        showOnPlatform: editingItem?.showOnPlatform !== false,
+        isLocked: editingItem?.isLocked === true,
+        approvalStatus: editingItem?.approvalStatus || 'draft'
       });
     }
 
@@ -113,6 +123,23 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
 
   const handleTogglePlatformVisibility = (item: LibraryItem) => {
     updateLibraryItem(item.id, { showOnPlatform: item.showOnPlatform === false });
+  };
+
+  const handleToggleLock = (item: LibraryItem) => {
+    updateLibraryItem(item.id, { isLocked: item.isLocked !== true });
+  };
+
+  const handleApprove = (item: LibraryItem) => {
+    updateLibraryItem(item.id, {
+      approvalStatus: 'approved',
+      approvedAt: Date.now(),
+    });
+  };
+
+  const handleReject = (item: LibraryItem) => {
+    updateLibraryItem(item.id, {
+      approvalStatus: 'rejected',
+    });
   };
 
   const handlePreviewLibraryItem = (item: LibraryItem) => {
@@ -257,6 +284,15 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
             />
             <span className="font-medium text-gray-700">إظهار هذا الملف على المنصة</span>
           </label>
+          <label className="flex items-center gap-3 bg-amber-50 p-3 rounded-xl cursor-pointer">
+            <input
+              type="checkbox"
+              checked={editingItem?.isLocked === true}
+              onChange={(event) => setEditingItem((prev) => ({ ...prev, isLocked: event.target.checked }))}
+              className="w-5 h-5 text-amber-600 rounded"
+            />
+            <span className="font-medium text-gray-700">قفل الملف حتى يتم تفعيله للطلاب</span>
+          </label>
 
           <div className="flex gap-3 pt-4">
             <button
@@ -301,6 +337,20 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
         </button>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {[
+          { label: 'إجمالي عناصر المكتبة', value: libraryOverview.total, tone: 'text-slate-800 bg-slate-50' },
+          { label: 'الظاهر على المنصة', value: libraryOverview.visible, tone: 'text-sky-800 bg-sky-50' },
+          { label: 'الملفات المعتمدة', value: libraryOverview.approved, tone: 'text-emerald-800 bg-emerald-50' },
+          { label: 'الملفات المغلقة', value: libraryOverview.locked, tone: 'text-amber-800 bg-amber-50' },
+        ].map((item) => (
+          <div key={item.label} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-500">{item.label}</div>
+            <div className={`mt-3 inline-flex rounded-2xl px-4 py-3 text-2xl font-black ${item.tone}`}>{item.value}</div>
+          </div>
+        ))}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {subjectItems.map((item) => (
           <div key={item.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col">
@@ -331,9 +381,25 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
               <span>{item.downloads} تحميل</span>
             </div>
 
-            <div className="mb-3">
+            <div className="mb-3 flex flex-wrap gap-2">
               <span className={`px-2 py-1 rounded-full text-xs font-bold ${item.showOnPlatform === false ? 'bg-gray-100 text-gray-600' : 'bg-sky-50 text-sky-700'}`}>
                 {item.showOnPlatform === false ? 'مخفي عن المنصة' : 'ظاهر على المنصة'}
+              </span>
+              <span className={`px-2 py-1 rounded-full text-xs font-bold ${item.isLocked ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                {item.isLocked ? 'مغلق على الطلاب' : 'مفتوح للعرض'}
+              </span>
+              <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                item.approvalStatus === 'approved'
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : item.approvalStatus === 'rejected'
+                    ? 'bg-red-50 text-red-700'
+                    : 'bg-amber-50 text-amber-700'
+              }`}>
+                {item.approvalStatus === 'approved'
+                  ? 'معتمد'
+                  : item.approvalStatus === 'rejected'
+                    ? 'مرفوض'
+                    : 'مسودة'}
               </span>
             </div>
 
@@ -354,6 +420,22 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
               )}
             </div>
             <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100">
+              {canReview && item.approvalStatus !== 'approved' && (
+                <button
+                  onClick={() => handleApprove(item)}
+                  className="px-3 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
+                >
+                  اعتماد
+                </button>
+              )}
+              {canReview && item.approvalStatus !== 'rejected' && (
+                <button
+                  onClick={() => handleReject(item)}
+                  className="px-3 py-1 text-xs font-bold text-red-700 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                >
+                  رفض
+                </button>
+              )}
               <button
                 onClick={() => handlePreviewLibraryItem(item)}
                 className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
@@ -367,6 +449,13 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
                 title={item.showOnPlatform === false ? 'إظهار الملف على المنصة' : 'إخفاء الملف عن المنصة'}
               >
                 {item.showOnPlatform === false ? <Lock size={18} /> : <LockOpen size={18} />}
+              </button>
+              <button
+                onClick={() => handleToggleLock(item)}
+                className={`p-2 rounded-lg transition-colors ${item.isLocked ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                title={item.isLocked ? 'فتح الملف للطلاب' : 'قفل الملف على الطلاب'}
+              >
+                {item.isLocked ? <Lock size={18} /> : <LockOpen size={18} />}
               </button>
             </div>
           </div>
