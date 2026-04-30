@@ -78,8 +78,12 @@ export const GenericPathPage: React.FC = () => {
 
     const pathLevels = levels?.filter(l => l.pathId === path.id) || [];
     const pathSubjects = subjects.filter(s => s.pathId === path.id);
+    const isPublicPackageVisible = (pkg: any) =>
+        pkg.showOnPlatform !== false &&
+        pkg.isPublished !== false &&
+        (!pkg.approvalStatus || pkg.approvalStatus === 'approved');
     const pathPackages = courses.filter(
-        c => (c.pathId || c.category) === path.id && c.isPackage && (canSeeHiddenPaths || c.showOnPlatform !== false),
+        c => (c.pathId || c.category) === path.id && c.isPackage && (canSeeHiddenPaths || isPublicPackageVisible(c)),
     );
     const isPackagesTab = searchParams.get('tab') === 'packages';
 
@@ -118,7 +122,7 @@ export const GenericPathPage: React.FC = () => {
                                  <div className="text-2xl sm:text-3xl font-bold">{pkg.price} {pkg.currency}</div>
                                  <div className="mt-3 flex flex-wrap justify-center gap-2">
                                      <span className="inline-flex rounded-full bg-white/20 px-3 py-1 text-xs font-black text-white">{scopeLabel}</span>
-                                     {pkg.showOnPlatform === false ? (
+                                     {!isPublicPackageVisible(pkg) ? (
                                          <span className="inline-flex rounded-full bg-gray-900/40 px-3 py-1 text-xs font-black text-white">مخفية عن الطلاب</span>
                                      ) : null}
                                  </div>
