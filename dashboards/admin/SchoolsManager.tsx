@@ -107,6 +107,18 @@ const createXlsxDownload = (fileName: string, rows: string[][]) => {
     XLSX.writeFile(workbook, fileName);
 };
 
+const createWorkbookDownload = (
+    fileName: string,
+    sheets: Array<{ name: string; rows: Array<Array<string | number>> }>,
+) => {
+    const workbook = XLSX.utils.book_new();
+    sheets.forEach((sheet) => {
+        const worksheet = XLSX.utils.aoa_to_sheet(sheet.rows);
+        XLSX.utils.book_append_sheet(workbook, worksheet, sheet.name.slice(0, 31));
+    });
+    XLSX.writeFile(workbook, fileName);
+};
+
 const parseImportRows = (rows: unknown[][]): ImportRow[] => {
     const normalizedRows = rows
         .map((row) => row.map((cell) => String(cell ?? '').trim()))
@@ -507,6 +519,104 @@ export const SchoolsManager: React.FC = () => {
             },
         ];
         const readinessScore = readinessChecks.filter((check) => check.isReady).length;
+        const operationalWarnings = [
+            schoolClasses.length === 0 ? 'أضف فصلًا واحدًا على الأقل قبل تسليم المدرسة.' : '',
+            schoolSupervisors.length === 0 ? 'اربط مشرفًا أو معلمًا ليتمكن من متابعة الطلاب.' : '',
+            activeSchoolPackages.length === 0 ? 'فعّل باقة مدرسية حتى يحصل الطلاب على الوصول بدون شراء فردي.' : '',
+            activeSchoolCodes.length === 0 ? 'ولّد كود دخول صالحًا إذا كانت المدرسة ستسجل الطلاب بالأكواد.' : '',
+            totalSeats > 0 && usedSeats >= totalSeats ? 'تم استهلاك كل المقاعد المتاحة، راجع سعة الباقات.' : '',
+            schoolStudents.some((student) => !(student.groupIds || []).some((groupId) => schoolClasses.some((classroom) => classroom.id === groupId)))
+                ? 'يوجد طلاب بلا فصل، يفضل نقلهم لفصول قبل متابعة التقارير.'
+                : '',
+        ].filter(Boolean);
+        const downloadSchoolHandover = () => {
+            createWorkbookDownload(`${selectedSchool.name}-handover.xlsx`, [
+                {
+                    name: 'summary',
+                    rows: [
+                        ['البند', 'القيمة'],
+                        ['اسم المدرسة', selectedSchool.name],
+                        ['حالة الجاهزية', `${readinessScore}/${readinessChecks.length}`],
+                        ['إجمالي الطلاب', schoolStudents.length],
+                        ['الفصول', schoolClasses.length],
+                        ['المشرفون والمعلمون', schoolSupervisors.length],
+                        ['الباقات النشطة', activeSchoolPackages.length],
+                        ['الأكواد الصالحة', activeSchoolCodes.length],
+                        ['المقاعد المتاحة', totalSeats],
+                        ['المقاعد المستخدمة', usedSeats],
+                    ],
+                },
+                {
+                    name: 'readiness',
+                    rows: [
+                        ['الفحص', 'الحالة', 'ملاحظة'],
+                        ...readinessChecks.map((check) => [check.label, check.isReady ? 'جاهز' : 'يحتاج استكمال', check.hint]),
+                    ],
+                },
+                {
+                    name: 'classes',
+                    rows: [
+                        ['اسم الفصل', 'عدد الطلاب', 'عدد المشرفين', 'عدد الدورات'],
+                        ...schoolClasses.map((classroom) => [
+                            classroom.name,
+                            classroom.studentIds.length,
+                            classroom.supervisorIds.length,
+                            classroom.courseIds.length,
+                        ]),
+                    ],
+                },
+                {
+                    name: 'students',
+                    rows: [
+                        ['اسم الطالب', 'البريد الإلكتروني', 'الفصل', 'الحالة'],
+                        ...schoolStudents.map((student) => {
+                            const classroomName = schoolClasses.find((classroom) => (student.groupIds || []).includes(classroom.id))?.name || 'بدون فصل';
+                            return [student.name, student.email || '', classroomName, student.isActive === false ? 'موقوف' : 'نشط'];
+                        }),
+                    ],
+                },
+                {
+                    name: 'packages',
+                    rows: [
+                        ['اسم الباقة', 'الحالة', 'نوع الوصول', 'أقصى عدد طلاب', 'أنواع المحتوى', 'المسارات', 'المواد'],
+                        ...schoolPackages.map((pkg) => [
+                            pkg.name,
+                            pkg.status === 'active' ? 'نشطة' : 'موقوفة',
+                            pkg.type === 'free_access' ? 'وصول مجاني' : 'خصم',
+                            pkg.maxStudents || 0,
+                            (pkg.contentTypes || []).join(' | '),
+                            (pkg.pathIds || []).map((pathId) => paths.find((path) => path.id === pathId)?.name || pathId).join(' | ') || 'كل المسارات',
+                            (pkg.subjectIds || []).map((subjectId) => subjects.find((subject) => subject.id === subjectId)?.name || subjectId).join(' | ') || 'كل المواد',
+                        ]),
+                    ],
+                },
+                {
+                    name: 'access-codes',
+                    rows: [
+                        ['الكود', 'الباقة', 'الاستخدام', 'أقصى استخدام', 'تاريخ الانتهاء', 'الحالة'],
+                        ...schoolCodes.map((code) => [
+                            code.code,
+                            schoolPackages.find((pkg) => pkg.id === code.packageId)?.name || code.packageId,
+                            code.currentUses || 0,
+                            code.maxUses || 0,
+                            new Date(code.expiresAt).toLocaleDateString('ar-SA'),
+                            code.expiresAt > Date.now() ? 'صالح' : 'منتهي',
+                        ]),
+                    ],
+                },
+                {
+                    name: 'supervisors',
+                    rows: [
+                        ['الاسم', 'البريد', 'الدور'],
+                        ...schoolSupervisors.map((currentUser) => [
+                            currentUser.name,
+                            currentUser.email || '',
+                            currentUser.role === Role.TEACHER ? 'معلم' : 'مشرف',
+                        ]),
+                    ],
+                },
+            ]);
+        };
 
         return (
             <div className="space-y-6 animate-fade-in">
@@ -529,6 +639,14 @@ export const SchoolsManager: React.FC = () => {
                     >
                         <Edit2 size={16} />
                         تعديل الاسم
+                    </button>
+                    <button
+                        onClick={downloadSchoolHandover}
+                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-100 transition-colors"
+                        title="تحميل ملف تسليم شامل للمدرسة"
+                    >
+                        <Download size={16} />
+                        ملف تسليم المدرسة
                     </button>
                 </div>
 
@@ -559,6 +677,22 @@ export const SchoolsManager: React.FC = () => {
                 {managementError && (
                     <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
                         {managementError}
+                    </div>
+                )}
+
+                {operationalWarnings.length > 0 && (
+                    <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+                        <div className="mb-3 flex items-center gap-2 text-sm font-black text-amber-800">
+                            <ShieldCheck size={18} />
+                            ملاحظات قبل التسليم
+                        </div>
+                        <div className="grid gap-2 md:grid-cols-2">
+                            {operationalWarnings.map((warning) => (
+                                <div key={warning} className="rounded-xl bg-white px-4 py-3 text-sm font-bold leading-7 text-amber-800">
+                                    {warning}
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
 
