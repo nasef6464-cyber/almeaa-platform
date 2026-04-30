@@ -297,9 +297,15 @@ const Quizzes: React.FC<QuizzesProps> = ({ view = 'catalog' }) => {
     return (
       <div className="space-y-8 pb-20">
         <header className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-black">
+            <span className="rounded-full bg-indigo-50 px-3 py-1.5 text-indigo-700">أنت الآن في: اختباراتي</span>
+            <Link to="/dashboard?tab=saher" className="rounded-full bg-white px-3 py-1.5 text-gray-700 border border-gray-200 hover:bg-gray-50">
+              الانتقال إلى مركز الاختبارات
+            </Link>
+          </div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">اختباراتي</h1>
           <p className="text-sm text-gray-500">
-            هنا سجل الاختبارات التي قمت بحلها فقط، مع تفاصيل الدرجة وتحليل المهارات وإمكانية مراجعة التقرير.
+            هنا فقط ترى المحاولات التي أنهيتها بالفعل: الدرجة، أضعف مهارة، تفاصيل النتيجة، وروابط التحليل وإعادة المحاولة.
           </p>
         </header>
 
@@ -454,8 +460,14 @@ const Quizzes: React.FC<QuizzesProps> = ({ view = 'catalog' }) => {
           <ArrowRight />
         </Link>
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">مركز الاختبارات وساهر</h1>
-          <p className="mt-1 text-sm text-gray-500">هنا تبدأ اختبارًا جديدًا أو تفتح اختبارًا موجّهًا لك، أما سجل محاولاتك فتجده من لوحة الطالب في تبويب اختباراتي.</p>
+          <div className="flex flex-wrap items-center gap-2 text-xs font-black mb-2">
+            <span className="rounded-full bg-amber-50 px-3 py-1.5 text-amber-700">أنت الآن في: مركز الاختبارات</span>
+            <Link to="/dashboard?tab=quizzes" className="rounded-full bg-white px-3 py-1.5 text-gray-700 border border-gray-200 hover:bg-gray-50">
+              الانتقال إلى اختباراتي
+            </Link>
+          </div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">مركز الاختبارات</h1>
+          <p className="mt-1 text-sm text-gray-500">هنا تبدأ اختبارًا جديدًا أو تفتح اختبارًا موجهًا أو جاهزًا. أما المحاولات التي أنهيتها فتجدها مجمعة داخل صفحة اختباراتي.</p>
         </div>
       </header>
 
@@ -470,6 +482,21 @@ const Quizzes: React.FC<QuizzesProps> = ({ view = 'catalog' }) => {
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="bg-secondary-500 text-white p-4 text-center font-bold text-lg">مركز الاختبارات</div>
           <div className="p-6 space-y-5">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-4">
+                <div className="text-sm font-black text-gray-900">ماذا أفعل من هنا؟</div>
+                <p className="mt-2 text-sm leading-7 text-gray-600">
+                  استخدم هذه الصفحة عندما تريد بدء اختبار جديد، أو دخول اختبار موجه لك من الإدارة أو المدرسة أو المشرف.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
+                <div className="text-sm font-black text-gray-900">ومتى أذهب إلى اختباراتي؟</div>
+                <p className="mt-2 text-sm leading-7 text-gray-600">
+                  بعد إنهاء الاختبار ستجد الدرجة والتقرير والتحليل ومراجعة المحاولة كلها داخل صفحة اختباراتي.
+                </p>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               <ActionCard
                 icon={<Zap size={24} />}
