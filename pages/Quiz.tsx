@@ -833,7 +833,7 @@ const Quiz: React.FC = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-x-4 sm:gap-x-6 gap-y-4 dir-rtl">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-3 sm:gap-x-5 gap-y-4 dir-rtl">
               {questions[currentQuestion].options.map((option, idx) => {
                 const isSelected = selectedAnswer === idx || answers[currentQuestion] === idx;
                 let borderClass = 'border-gray-200 hover:border-gray-300 bg-white';
@@ -847,19 +847,19 @@ const Quiz: React.FC = () => {
                   <button
                     key={idx}
                     onClick={() => handleAnswerSelect(idx)}
-                    className={`min-h-[84px] px-4 py-3 rounded-2xl border-2 transition-all flex items-center justify-between text-right gap-3 shadow-sm ${borderClass}`}
+                    className={`min-h-[78px] sm:min-h-[84px] px-3 sm:px-4 py-3 rounded-2xl border-2 transition-all flex items-center justify-between text-right gap-2 sm:gap-3 shadow-sm ${borderClass}`}
                   >
-                    <span className="flex-1 text-sm md:text-base font-bold text-gray-800 leading-relaxed text-center break-words">
+                    <span className="flex-1 text-xs sm:text-sm md:text-base font-bold text-gray-800 leading-relaxed text-center break-words">
                       {option}
                     </span>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-2xl md:text-3xl font-black text-gray-900">
+                    <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                      <span className="text-xl sm:text-2xl md:text-3xl font-black text-gray-900">
                         {OPTION_LABELS[idx] || String(idx + 1)}
                       </span>
-                      <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center text-lg font-black ${
+                      <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 flex items-center justify-center text-lg font-black ${
                         isSelected ? 'border-current' : 'border-gray-300'
                       }`}>
-                        <div className={`w-4 h-4 rounded-full ${
+                        <div className={`w-3 h-3 sm:w-4 sm:h-4 rounded-full ${
                           isSelected && idx === questions[currentQuestion].correctOptionIndex
                             ? 'bg-emerald-500'
                             : isSelected
@@ -871,6 +871,43 @@ const Quiz: React.FC = () => {
                   </button>
                 );
               })}
+            </div>
+
+            <div className="mt-6 rounded-2xl bg-gray-50 p-3">
+              <div className="mb-2 flex items-center justify-between text-[11px] font-bold text-gray-500">
+                <span>خريطة الأسئلة</span>
+                <span>{Object.keys(answers).length} من {questions.length} محلولة</span>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {questions.map((question, idx) => {
+                  const isCurrent = idx === currentQuestion;
+                  const isAnswered = answers[idx] !== undefined;
+                  const isFavorite = storeFavorites.includes(question.id);
+
+                  return (
+                    <button
+                      key={question.id}
+                      onClick={() => {
+                        setCurrentQuestion(idx);
+                        setSelectedAnswer(answers[idx] ?? null);
+                        setShowVideo(false);
+                      }}
+                      className={`h-9 w-9 shrink-0 rounded-xl text-xs font-black transition-colors ${
+                        isCurrent
+                          ? 'bg-amber-500 text-white shadow-sm'
+                          : isAnswered
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                            : isFavorite
+                              ? 'bg-rose-50 text-rose-700 border border-rose-100'
+                              : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-100'
+                      }`}
+                      title={isFavorite ? 'سؤال في المفضلة' : isAnswered ? 'تمت الإجابة' : 'لم تتم الإجابة بعد'}
+                    >
+                      {idx + 1}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
