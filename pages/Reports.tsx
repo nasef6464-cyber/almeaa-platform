@@ -1041,6 +1041,49 @@ const Reports: React.FC = () => {
                     </Link>
                 </div>
 
+                {selectedReportSkill ? (
+                    <div className="mb-5 rounded-3xl border border-rose-100 bg-gradient-to-br from-rose-50 via-white to-amber-50 p-4 sm:p-5">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="min-w-0">
+                                <div className="mb-3 inline-flex rounded-full bg-white px-3 py-1 text-xs font-black text-rose-700">
+                                    المهارة التي تبدأ بها اليوم
+                                </div>
+                                <div className="grid grid-cols-1 gap-2 text-xs font-bold sm:grid-cols-3">
+                                    {selectedReportSkill.subjectName ? (
+                                        <div className="rounded-xl bg-white px-3 py-2 text-gray-700">
+                                            <span className="mb-1 block text-gray-400">المادة</span>
+                                            {displayText(selectedReportSkill.subjectName)}
+                                        </div>
+                                    ) : null}
+                                    {selectedReportSkill.sectionName ? (
+                                        <div className="rounded-xl bg-white px-3 py-2 text-indigo-700">
+                                            <span className="mb-1 block text-indigo-300">المهارة الرئيسية</span>
+                                            {displayText(selectedReportSkill.sectionName)}
+                                        </div>
+                                    ) : null}
+                                    <div className="rounded-xl bg-white px-3 py-2 text-rose-700">
+                                        <span className="mb-1 block text-rose-300">المهارة الفرعية</span>
+                                        {displayText(selectedReportSkill.skill)}
+                                    </div>
+                                </div>
+                                <p className="mt-3 text-sm leading-7 text-gray-600">
+                                    {displayText(selectedSkillRecommendation.actionText) || 'ابدأ بمراجعة قصيرة، ثم حل تدريبًا بسيطًا، وبعدها أعد القياس.'}
+                                </p>
+                            </div>
+                            <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto lg:min-w-[320px]">
+                                <Link to={selectedSkillRecommendation.lessonLink || '/courses'} className="rounded-xl bg-white px-4 py-3 text-sm font-black text-indigo-700 border border-indigo-100 hover:bg-indigo-50 flex items-center justify-center gap-2">
+                                    <Video size={16} />
+                                    ابدأ بالشرح
+                                </Link>
+                                <Link to={selectedSkillRecommendation.quizLink || '/quiz'} className="rounded-xl bg-white px-4 py-3 text-sm font-black text-amber-700 border border-amber-100 hover:bg-amber-50 flex items-center justify-center gap-2">
+                                    <FileText size={16} />
+                                    ابدأ بالتدريب
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+                ) : null}
+
                 <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-[1fr_2fr]">
                     <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
                         <div className="text-xs font-black text-indigo-600">قراءة سريعة للتقرير</div>
@@ -1099,7 +1142,7 @@ const Reports: React.FC = () => {
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                             <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2 mb-3">
-                                    <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-indigo-700">مقترحات لهذه المهارة</span>
+                                    <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-indigo-700">تفصيل ومساندة لهذه المهارة</span>
                                     {selectedSkillRecommendation.subjectName ? (
                                         <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-gray-600">
                                             المادة: {displayText(selectedSkillRecommendation.subjectName)}
@@ -1114,6 +1157,9 @@ const Reports: React.FC = () => {
                                 <h3 className="text-lg font-black text-gray-900 break-words">{displayText(selectedReportSkill.skill)}</h3>
                                 <p className="mt-2 text-sm leading-7 text-gray-600">
                                     {displayText(selectedSkillRecommendation.actionText) || 'ابدأ بمراجعة قصيرة، ثم حل تدريبًا بسيطًا، وبعدها أعد القياس.'}
+                                </p>
+                                <p className="mt-2 text-xs font-bold text-indigo-600">
+                                    يمكنك تغيير المقترحات بالضغط على أي مهارة من البطاقات بالأعلى.
                                 </p>
                             </div>
                             <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto lg:min-w-[360px]">
