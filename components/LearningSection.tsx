@@ -192,6 +192,38 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
     const showActiveTabAccessNotice = !isStaffViewer && activeTabAccess && !activeTabAccess.hasAccess && Boolean(activeTabPackage);
 
     const isPremiumLocked = (shouldLock?: boolean, accessGranted = false) => Boolean(!isStaffViewer && shouldLock && !accessGranted);
+    const getLockedContentMessage = (contentType: PackageContentType) => {
+        const packageItem = buildScopedPackageItem(
+            contentType,
+            `باقة ${packageContentLabels[contentType] || 'المحتوى'}`,
+            `اشترك الآن لفتح ${packageContentLabels[contentType] || 'هذا المحتوى'} في هذه المادة.`,
+        );
+        const coverageSummary = packageItem
+            ? [
+                packageItem.includedCourseIds?.length ? `${packageItem.includedCourseIds.length} دورة` : null,
+                packageItem.subjectIds?.length ? `${packageItem.subjectIds.length} مادة` : null,
+                packageItem.pathIds?.length ? `${packageItem.pathIds.length} مسار` : null,
+            ].filter(Boolean).join(' • ')
+            : '';
+
+        return {
+            title: packageItem?.title || `يتطلب فتح ${packageContentLabels[contentType] || 'هذا المحتوى'}`,
+            description: packageItem?.description || 'هذا الجزء غير مفتوح على حسابك حاليًا.',
+            coverageSummary,
+        };
+    };
+    const openScopedPackageForType = (contentType: PackageContentType, fallbackItem?: any, fallbackType = '') => {
+        const packageItem = buildScopedPackageItem(
+            contentType,
+            `باقة ${packageContentLabels[contentType] || 'المحتوى'}`,
+            `اشترك الآن لفتح ${packageContentLabels[contentType] || 'هذا المحتوى'} في هذه المادة.`,
+        );
+        setPaymentModalData({
+            isOpen: true,
+            item: packageItem || fallbackItem,
+            type: packageItem ? 'package' : fallbackType,
+        });
+    };
     const canStudentSeeCourse = (course: (typeof courses)[number]) =>
         isStaffViewer || (course.showOnPlatform !== false && course.isPublished !== false && (!course.approvalStatus || course.approvalStatus === 'approved'));
     const canStudentSeeLesson = (lesson: (typeof lessons)[number]) =>
@@ -440,18 +472,22 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
 
     const handleItemClick = (item: any, type: string) => {
         if (item.isLocked) {
-            const packageMap: Record<string, any> = {
-                skill: buildScopedPackageItem('foundation', 'باقة التأسيس', 'اشترك الآن لفتح موضوعات التأسيس والدروس المرتبطة بها.'),
-                bank: buildScopedPackageItem('banks', 'باقة التدريبات', 'اشترك الآن لفتح بنوك الأسئلة والتدريبات القصيرة.'),
-                test: buildScopedPackageItem('tests', 'باقة الاختبارات', 'اشترك الآن لفتح الاختبارات المحاكية والمركزية.'),
-                library: buildScopedPackageItem('library', 'باقة المكتبة', 'اشترك الآن لفتح ملفات المراجعة والمكتبة العلمية.'),
+            const packageTypeMap: Record<string, PackageContentType> = {
+                skill: 'foundation',
+                bank: 'banks',
+                test: 'tests',
+                library: 'library',
             };
-            const matchedPackage = packageMap[type];
-            setPaymentModalData({
-                isOpen: true,
-                item: matchedPackage || item,
-                type: matchedPackage ? 'package' : type,
-            });
+            const matchedType = packageTypeMap[type];
+            if (matchedType) {
+                openScopedPackageForType(matchedType, item, type);
+            } else {
+                setPaymentModalData({
+                    isOpen: true,
+                    item,
+                    type,
+                });
+            }
         } else {
             if (type === 'skill') setSelectedSkill(item);
             // Tests and Banks are handled by SimulatedTestExperience directly
@@ -528,11 +564,16 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                                         <span className="rounded-full bg-white px-3 py-1 text-gray-600">المسار الحالي</span>
                                         <span className="rounded-full bg-white px-3 py-1 text-indigo-700">{currentSubjectData?.name || 'المادة الحالية'}</span>
                                         <span className="rounded-full bg-white px-3 py-1 text-emerald-700">يفتح تلقائيًا بعد اعتماد الدفع أو الكود</span>
+                                        {getLockedContentMessage(activeTabAccess.contentType).coverageSummary ? (
+                                            <span className="rounded-full bg-white px-3 py-1 text-amber-700">
+                                                {getLockedContentMessage(activeTabAccess.contentType).coverageSummary}
+                                            </span>
+                                        ) : null}
                                     </div>
                                 </div>
                             </div>
                             <button
-                                onClick={() => setPaymentModalData({ isOpen: true, item: activeTabPackage, type: 'package' })}
+                                onClick={() => openScopedPackageForType(activeTabAccess.contentType, activeTabPackage, 'package')}
                                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-amber-100 transition hover:bg-amber-600"
                             >
                                 <Package size={18} />
@@ -642,6 +683,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                                 isPurchased: accessibleCourseIds.has(baseCourse.id) || hasCourseAccess || baseCourse.isPurchased,
                             };
                             const isPurchased = course.isPurchased;
+                            const lockedCourseMessage = !isPurchased ? getLockedContentMessage('courses') : null;
 
                             return (
                             <Card key={course.id} className={`flex flex-col overflow-hidden border-2 border-transparent hover:border-${safeColorTheme}-300 hover:shadow-xl transition-all duration-300 cursor-pointer rounded-3xl`}>
@@ -675,6 +717,16 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                                         </div>
                                         <ProgressBar percentage={course.progress} showPercentage={false} color={safeColorTheme as any} />
                                     </div>
+                                    {!isPurchased && lockedCourseMessage && (
+                                        <div className="mb-4 rounded-2xl border border-amber-100 bg-amber-50 p-3 text-right">
+                                            <div className="text-xs font-black text-amber-700">لماذا هذا المحتوى مغلق؟</div>
+                                            <div className="mt-1 text-sm font-bold text-gray-900">{lockedCourseMessage.title}</div>
+                                            <div className="mt-1 text-xs leading-6 text-gray-600">{lockedCourseMessage.description}</div>
+                                            {lockedCourseMessage.coverageSummary ? (
+                                                <div className="mt-2 text-[11px] font-black text-amber-700">{lockedCourseMessage.coverageSummary}</div>
+                                            ) : null}
+                                        </div>
+                                    )}
                                     <div className="mt-auto">
                                         {!isPurchased && (
                                             <button
@@ -685,7 +737,7 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                                                 })}
                                                 className={`w-full py-3 rounded-xl font-bold text-white shadow-md transition-transform hover:-translate-y-1 flex items-center justify-center bg-${safeColorTheme}-500 hover:bg-${safeColorTheme}-600 mb-0`}
                                             >
-                                                اشترك الآن
+                                                افتح هذه الدورات الآن
                                             </button>
                                         )}
                                         <Link to={`/course/${course.id}`} className={`w-full py-3 rounded-xl font-bold text-white shadow-md transition-transform hover:-translate-y-1 flex items-center justify-center bg-${safeColorTheme}-500 hover:bg-${safeColorTheme}-600 ${!isPurchased ? 'hidden' : ''}`}>
@@ -708,43 +760,54 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
 
                 {activeTab === 'skills' && enabledTabs.skills && (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {mappedSkills.map((skill) => (
-                            <button
-                                type="button"
-                                key={skill.id}
-                                className={`p-5 border-2 border-gray-100 hover:shadow-lg transition-all cursor-pointer group hover:border-${safeColorTheme}-300 rounded-3xl relative overflow-hidden bg-white text-right`}
-                                onClick={() => handleItemClick(skill, 'skill')}
-                            >
-                                {skill.isLocked && (
-                                    <div className="absolute top-3 left-3 text-gray-400">
-                                        <Lock size={20} />
+                        {mappedSkills.map((skill) => {
+                            const lockedFoundationMessage = skill.isLocked ? getLockedContentMessage('foundation') : null;
+
+                            return (
+                                <button
+                                    type="button"
+                                    key={skill.id}
+                                    className={`p-5 border-2 border-gray-100 hover:shadow-lg transition-all cursor-pointer group hover:border-${safeColorTheme}-300 rounded-3xl relative overflow-hidden bg-white text-right`}
+                                    onClick={() => handleItemClick(skill, 'skill')}
+                                >
+                                    {skill.isLocked && (
+                                        <div className="absolute top-3 left-3 text-gray-400">
+                                            <Lock size={20} />
+                                        </div>
+                                    )}
+                                    <div className="flex items-center gap-4 mb-4">
+                                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors bg-${safeColorTheme}-100 text-${safeColorTheme}-600 group-hover:bg-${safeColorTheme}-500 group-hover:text-white`}>
+                                            <PlayCircle size={28} />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-gray-800 text-lg">{skill.title}</h3>
+                                            <span className="text-xs text-gray-500 font-medium">
+                                                {skill.totalLessons} درس • {skill.totalQuizzes || 0} تدريب قصير
+                                            </span>
+                                        </div>
                                     </div>
-                                )}
-                                <div className="flex items-center gap-4 mb-4">
-                                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors bg-${safeColorTheme}-100 text-${safeColorTheme}-600 group-hover:bg-${safeColorTheme}-500 group-hover:text-white`}>
-                                        <PlayCircle size={28} />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-bold text-gray-800 text-lg">{skill.title}</h3>
-                                        <span className="text-xs text-gray-500 font-medium">
-                                            {skill.totalLessons} درس • {skill.totalQuizzes || 0} تدريب قصير
+                                    <div className="mb-4 flex flex-wrap gap-2">
+                                        <span className={`rounded-full px-3 py-1 text-[11px] font-black ${skill.isLocked ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                                            {skill.isLocked ? 'مغلق حتى التفعيل' : 'جاهز للتعلّم الآن'}
                                         </span>
                                     </div>
-                                </div>
-                                <div className="mb-4 flex flex-wrap gap-2">
-                                    <span className={`rounded-full px-3 py-1 text-[11px] font-black ${skill.isLocked ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                                        {skill.isLocked ? 'مغلق حتى التفعيل' : 'جاهز للتعلّم الآن'}
-                                    </span>
-                                </div>
-                                <div className="space-y-2">
-                                    <div className="flex justify-between text-xs font-bold text-gray-600">
-                                        <span>التقدم</span>
-                                        <span>{Math.round((skill.completed / skill.totalLessons) * 100)}%</span>
+                                    {skill.isLocked && lockedFoundationMessage && (
+                                        <div className="mb-4 rounded-2xl border border-amber-100 bg-amber-50 p-3 text-right">
+                                            <div className="text-xs font-black text-amber-700">خطوة الفتح</div>
+                                            <div className="mt-1 text-sm font-bold text-gray-900">{lockedFoundationMessage.title}</div>
+                                            <div className="mt-1 text-xs leading-6 text-gray-600">{lockedFoundationMessage.description}</div>
+                                        </div>
+                                    )}
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-xs font-bold text-gray-600">
+                                            <span>التقدم</span>
+                                            <span>{Math.round((skill.completed / skill.totalLessons) * 100)}%</span>
+                                        </div>
+                                        <ProgressBar percentage={(skill.completed / skill.totalLessons) * 100} showPercentage={false} color={safeColorTheme as any} />
                                     </div>
-                                    <ProgressBar percentage={(skill.completed / skill.totalLessons) * 100} showPercentage={false} color={safeColorTheme as any} />
-                                </div>
-                            </button>
-                        ))}
+                                </button>
+                            );
+                        })}
                     </div>
                 )}
 
@@ -756,6 +819,31 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                             <span className="rounded-full bg-amber-50 px-3 py-2 text-amber-700">يحتاج تفعيل: {learningInventory.banks.locked}</span>
                         </div>
                     </div>
+                    {!hasBanksAccess && (
+                        <div className="mb-4 rounded-3xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                <div>
+                                    <div className="inline-flex rounded-full bg-white px-3 py-1 text-xs font-black text-amber-700">
+                                        قبل بدء التدريب
+                                    </div>
+                                    <h3 className="mt-2 text-lg font-black text-gray-900">{getLockedContentMessage('banks').title}</h3>
+                                    <p className="mt-1 text-sm leading-7 text-gray-600">{getLockedContentMessage('banks').description}</p>
+                                    {getLockedContentMessage('banks').coverageSummary ? (
+                                        <div className="mt-3 inline-flex rounded-full bg-white px-3 py-1 text-xs font-black text-amber-700">
+                                            {getLockedContentMessage('banks').coverageSummary}
+                                        </div>
+                                    ) : null}
+                                </div>
+                                <button
+                                    onClick={() => openScopedPackageForType('banks')}
+                                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-amber-100 transition hover:bg-amber-600"
+                                >
+                                    <Package size={18} />
+                                    فتح باقة التدريبات
+                                </button>
+                            </div>
+                        </div>
+                    )}
                     <SimulatedTestExperience 
                         mode="bank"
                         tests={banks.map(bank => ({
@@ -781,6 +869,31 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
                             <span className="rounded-full bg-amber-50 px-3 py-2 text-amber-700">يحتاج تفعيل: {learningInventory.tests.locked}</span>
                         </div>
                     </div>
+                    {!hasTestsAccess && (
+                        <div className="mb-4 rounded-3xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                <div>
+                                    <div className="inline-flex rounded-full bg-white px-3 py-1 text-xs font-black text-amber-700">
+                                        قبل بدء الاختبار
+                                    </div>
+                                    <h3 className="mt-2 text-lg font-black text-gray-900">{getLockedContentMessage('tests').title}</h3>
+                                    <p className="mt-1 text-sm leading-7 text-gray-600">{getLockedContentMessage('tests').description}</p>
+                                    {getLockedContentMessage('tests').coverageSummary ? (
+                                        <div className="mt-3 inline-flex rounded-full bg-white px-3 py-1 text-xs font-black text-amber-700">
+                                            {getLockedContentMessage('tests').coverageSummary}
+                                        </div>
+                                    ) : null}
+                                </div>
+                                <button
+                                    onClick={() => openScopedPackageForType('tests')}
+                                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-amber-100 transition hover:bg-amber-600"
+                                >
+                                    <Package size={18} />
+                                    فتح باقة الاختبارات
+                                </button>
+                            </div>
+                        </div>
+                    )}
                     <SimulatedTestExperience 
                         tests={tests} 
                         onStartTest={(test) => navigate(`/quiz/${test.id}`)}
@@ -791,60 +904,71 @@ export const LearningSection: React.FC<LearningSectionProps> = ({ category, subj
 
                 {activeTab === 'library' && enabledTabs.library && (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {sectionLibraryItems.map((item: any) => (
-                            <Card key={item.id} className={`p-6 border-2 border-gray-100 hover:border-${safeColorTheme}-200 hover:shadow-lg transition-all flex flex-col rounded-3xl relative`}>
-                                {item.isLocked && (
-                                    <div className="absolute top-4 left-4 text-gray-400">
-                                        <Lock size={20} />
+                        {sectionLibraryItems.map((item: any) => {
+                            const lockedLibraryMessage = item.isLocked ? getLockedContentMessage('library') : null;
+
+                            return (
+                                <Card key={item.id} className={`p-6 border-2 border-gray-100 hover:border-${safeColorTheme}-200 hover:shadow-lg transition-all flex flex-col rounded-3xl relative`}>
+                                    {item.isLocked && (
+                                        <div className="absolute top-4 left-4 text-gray-400">
+                                            <Lock size={20} />
+                                        </div>
+                                    )}
+                                    <div className="flex items-start justify-between mb-4">
+                                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${item.type === 'pdf' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+                                            <FileText size={28} />
+                                        </div>
+                                        <span className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg">{item.size}</span>
                                     </div>
-                                )}
-                                <div className="flex items-start justify-between mb-4">
-                                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${item.type === 'pdf' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
-                                        <FileText size={28} />
+                                    <h3 className="font-bold text-xl text-gray-900 mb-2">{item.title}</h3>
+                                    <div className="flex items-center gap-2 text-sm text-gray-500 mb-6 font-medium">
+                                        <User size={16} />
+                                        <span>{item.downloads} تحميل</span>
                                     </div>
-                                    <span className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg">{item.size}</span>
-                                </div>
-                                <h3 className="font-bold text-xl text-gray-900 mb-2">{item.title}</h3>
-                                <div className="flex items-center gap-2 text-sm text-gray-500 mb-6 font-medium">
-                                    <User size={16} />
-                                    <span>{item.downloads} تحميل</span>
-                                </div>
-                                <div className="mb-4 flex flex-wrap gap-2">
-                                    <span className={`rounded-full px-3 py-1 text-[11px] font-black ${item.isLocked ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                                        {item.isLocked ? 'مغلقة حتى التفعيل' : 'متاحة للعرض والتحميل'}
-                                    </span>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-auto">
-                                    <button 
-                                        onClick={() => {
-                                            if (item.isLocked) {
-                                                handleItemClick(item, 'library');
-                                            } else if (item.url) {
-                                                openExternalUrl(item.url);
-                                            }
-                                        }}
-                                        className={`bg-indigo-50 text-indigo-700 py-3 rounded-xl font-bold hover:bg-indigo-600 hover:text-white transition-colors shadow-sm ${item.isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                    >
-                                        تحميل
-                                    </button>
-                                    <button 
-                                        onClick={() => {
-                                            if (item.isLocked) {
-                                                handleItemClick(item, 'library');
-                                            } else if (item.url && item.url.includes('drive.google.com')) {
-                                                openExternalUrl(item.url); // Some Google Drive links better opened directly to avoid iframe issues
-                                            } else {
-                                                setViewingFile(item);
-                                            }
-                                        }}
-                                        className="bg-emerald-50 text-emerald-700 py-3 rounded-xl font-bold hover:bg-emerald-600 hover:text-white transition-colors flex items-center justify-center gap-2 shadow-sm"
-                                    >
-                                        <Eye size={18} />
-                                        عرض
-                                    </button>
-                                </div>
-                            </Card>
-                        ))}
+                                    <div className="mb-4 flex flex-wrap gap-2">
+                                        <span className={`rounded-full px-3 py-1 text-[11px] font-black ${item.isLocked ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                                            {item.isLocked ? 'مغلقة حتى التفعيل' : 'متاحة للعرض والتحميل'}
+                                        </span>
+                                    </div>
+                                    {item.isLocked && lockedLibraryMessage && (
+                                        <div className="mb-4 rounded-2xl border border-amber-100 bg-amber-50 p-3 text-right">
+                                            <div className="text-xs font-black text-amber-700">سبب الإغلاق</div>
+                                            <div className="mt-1 text-sm font-bold text-gray-900">{lockedLibraryMessage.title}</div>
+                                            <div className="mt-1 text-xs leading-6 text-gray-600">{lockedLibraryMessage.description}</div>
+                                        </div>
+                                    )}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-auto">
+                                        <button
+                                            onClick={() => {
+                                                if (item.isLocked) {
+                                                    handleItemClick(item, 'library');
+                                                } else if (item.url) {
+                                                    openExternalUrl(item.url);
+                                                }
+                                            }}
+                                            className={`bg-indigo-50 text-indigo-700 py-3 rounded-xl font-bold hover:bg-indigo-600 hover:text-white transition-colors shadow-sm ${item.isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        >
+                                            {item.isLocked ? 'تفعيل ثم تحميل' : 'تحميل'}
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                if (item.isLocked) {
+                                                    handleItemClick(item, 'library');
+                                                } else if (item.url && item.url.includes('drive.google.com')) {
+                                                    openExternalUrl(item.url);
+                                                } else {
+                                                    setViewingFile(item);
+                                                }
+                                            }}
+                                            className="bg-emerald-50 text-emerald-700 py-3 rounded-xl font-bold hover:bg-emerald-600 hover:text-white transition-colors flex items-center justify-center gap-2 shadow-sm"
+                                        >
+                                            <Eye size={18} />
+                                            {item.isLocked ? 'اعرف طريقة الفتح' : 'عرض'}
+                                        </button>
+                                    </div>
+                                </Card>
+                            );
+                        })}
                         {sectionLibraryItems.length === 0 && (
                             <div className="col-span-full text-center py-16 text-gray-400 bg-white rounded-3xl border-2 border-dashed border-gray-200">
                                 <Library size={64} className="mx-auto mb-4 opacity-20" />
