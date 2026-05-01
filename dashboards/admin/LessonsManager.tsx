@@ -1,13 +1,62 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Lesson } from '../../types';
-import { Plus, Search, Edit2, Trash2, Play, FileText, Lock, LockOpen, Eye, Download, X, BookOpen, ExternalLink } from 'lucide-react';
+import { Lesson, LessonType } from '../../types';
+import { Plus, Search, Edit2, Trash2, Play, FileText, Lock, LockOpen, Eye, Download, X, BookOpen, ExternalLink, Upload } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { UnifiedLessonBuilder } from './builders/UnifiedLessonBuilder';
 
 interface LessonsManagerProps {
   subjectId?: string;
 }
+
+const normalizeLookup = (value?: string) =>
+  String(value || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .toLowerCase();
+
+const readCell = (row: Record<string, unknown>, keys: string[]) => {
+  const normalizedRow = new Map<string, string>();
+  Object.entries(row).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim()) {
+      normalizedRow.set(normalizeLookup(key), String(value).trim());
+    }
+  });
+
+  for (const key of keys) {
+    const value = normalizedRow.get(normalizeLookup(key));
+    if (value) return value;
+  }
+
+  return '';
+};
+
+const splitValues = (value: string) =>
+  value
+    .split(/[,،;؛|]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const resolveLessonType = (value?: string): LessonType => {
+  const normalized = normalizeLookup(value);
+  if (['text', 'article', 'نص', 'مقال'].includes(normalized)) return 'text';
+  if (['file', 'pdf', 'ملف'].includes(normalized)) return 'file';
+  if (['zoom', 'زووم'].includes(normalized)) return 'zoom';
+  if (['google_meet', 'meet', 'google meet', 'ميت'].includes(normalized)) return 'google_meet';
+  if (['teams', 'تيمز'].includes(normalized)) return 'teams';
+  if (['live_youtube', 'youtube live', 'بث مباشر'].includes(normalized)) return 'live_youtube';
+  return 'video';
+};
+
+const resolveBoolean = (value?: string, fallback = false) => {
+  const normalized = normalizeLookup(value);
+  if (['yes', 'true', '1', 'نعم', 'ظاهر', 'مفتوح', 'نشط'].includes(normalized)) return true;
+  if (['no', 'false', '0', 'لا', 'مخفي', 'مغلق', 'متوقف'].includes(normalized)) return false;
+  return fallback;
+};
 
 const getStatusMeta = (lesson: Lesson) => {
   if (lesson.approvalStatus === 'rejected') {
@@ -37,6 +86,7 @@ const getAccessMeta = (lesson: Lesson) =>
 
 export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => {
   const { user, lessons: globalLessons, addLesson, updateLesson, deleteLesson, paths, subjects, sections, skills, topics } = useStore();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const canReview = user.role === 'admin';
   const managedPathIds = user.managedPathIds || [];
   const managedSubjectIds = user.managedSubjectIds || [];
@@ -58,6 +108,9 @@ export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => 
   const [isEditing, setIsEditing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [previewLesson, setPreviewLesson] = useState<Lesson | null>(null);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   const lessons = globalLessons.filter((lesson) => {
     if (user.role === 'teacher') {
@@ -179,6 +232,255 @@ export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => 
     setPreviewLesson(lesson);
   };
 
+  const resolveLessonScopeFromRow = (row: Record<string, unknown>, rowNumber: number) => {
+    const pathIdValue = readCell(row, ['pathId', 'path_id']);
+    const pathName = readCell(row, ['المسار', 'path', 'pathName']);
+    const subjectIdValue = readCell(row, ['subjectId', 'subject_id']);
+    const subjectName = readCell(row, ['المادة', 'subject', 'subjectName']);
+    const sectionIdValue = readCell(row, ['mainSkillId', 'sectionId', 'section_id']);
+    const sectionName = readCell(row, ['المهارة الرئيسية', 'المهارة الرئيسة', 'mainSkill', 'section']);
+    const skillIdsValue = readCell(row, ['subSkillIds', 'skillIds', 'skill_ids']);
+    const skillName = readCell(row, ['المهارة الفرعية', 'skill', 'subSkill']);
+
+    const matchedPath = allowedPaths.find((path) =>
+      (pathIdValue && path.id === pathIdValue) || normalizeLookup(path.name) === normalizeLookup(pathName),
+    );
+    if (!matchedPath) {
+      throw new Error(`الصف ${rowNumber}: المسار "${pathName || pathIdValue}" غير موجود أو خارج صلاحياتك.`);
+    }
+
+    const matchedSubject = allowedSubjects.find(
+      (subject) =>
+        subject.pathId === matchedPath.id &&
+        ((subjectIdValue && subject.id === subjectIdValue) || normalizeLookup(subject.name) === normalizeLookup(subjectName)),
+    );
+    if (!matchedSubject) {
+      throw new Error(`الصف ${rowNumber}: المادة "${subjectName || subjectIdValue}" غير موجودة داخل المسار.`);
+    }
+
+    const matchedSection = sections.find(
+      (section) =>
+        section.subjectId === matchedSubject.id &&
+        ((sectionIdValue && section.id === sectionIdValue) || normalizeLookup(section.name) === normalizeLookup(sectionName)),
+    );
+    if (!matchedSection) {
+      throw new Error(`الصف ${rowNumber}: المهارة الرئيسية "${sectionName || sectionIdValue}" غير موجودة داخل المادة.`);
+    }
+
+    const requestedSkillIds = splitValues(skillIdsValue);
+    const requestedSkillNames = splitValues(skillName);
+    const matchedSkillsById = requestedSkillIds
+      .map((requestedSkillId) =>
+        skills.find(
+          (skill) =>
+            skill.id === requestedSkillId &&
+            skill.subjectId === matchedSubject.id &&
+            skill.sectionId === matchedSection.id,
+        ),
+      )
+      .filter(Boolean) as typeof skills;
+    const matchedSkillsByName = requestedSkillNames
+      .map((requestedSkillName) =>
+        skills.find(
+          (skill) =>
+            skill.subjectId === matchedSubject.id &&
+            skill.sectionId === matchedSection.id &&
+            normalizeLookup(skill.name) === normalizeLookup(requestedSkillName),
+        ),
+      )
+      .filter(Boolean) as typeof skills;
+    const matchedSkills = [...matchedSkillsById, ...matchedSkillsByName].filter(
+      (skill, index, allSkills) => allSkills.findIndex((item) => item.id === skill.id) === index,
+    );
+
+    if (
+      (requestedSkillIds.length > 0 && matchedSkillsById.length !== requestedSkillIds.length) ||
+      (requestedSkillNames.length > 0 && matchedSkillsByName.length !== requestedSkillNames.length) ||
+      matchedSkills.length === 0
+    ) {
+      throw new Error(`الصف ${rowNumber}: المهارة الفرعية "${skillName || skillIdsValue}" غير موجودة تحت المهارة الرئيسية.`);
+    }
+
+    return { matchedPath, matchedSubject, matchedSection, matchedSkills };
+  };
+
+  const buildLessonFromRow = (row: Record<string, unknown>, rowNumber: number): Lesson => {
+    const title = readCell(row, ['عنوان الدرس', 'اسم الدرس', 'title', 'lessonTitle']);
+    const description = readCell(row, ['الوصف', 'description']);
+    const typeValue = readCell(row, ['النوع', 'type', 'lessonType']);
+    const duration = readCell(row, ['المدة', 'duration', 'minutes']);
+    const videoUrl = readCell(row, ['رابط الفيديو', 'videoUrl', 'youtubeUrl']);
+    const fileUrl = readCell(row, ['رابط الملف', 'fileUrl']);
+    const content = readCell(row, ['المحتوى النصي', 'content']);
+    const showValue = readCell(row, ['الظهور', 'showOnPlatform', 'visible']);
+    const lockedValue = readCell(row, ['القفل', 'isLocked', 'locked']);
+    const orderValue = readCell(row, ['الترتيب', 'order']);
+
+    if (!title) {
+      throw new Error(`الصف ${rowNumber}: عنوان الدرس مطلوب.`);
+    }
+
+    const { matchedPath, matchedSubject, matchedSection, matchedSkills } = resolveLessonScopeFromRow(row, rowNumber);
+    const type = resolveLessonType(typeValue);
+    if (['video', 'live_youtube'].includes(type) && !videoUrl) {
+      throw new Error(`الصف ${rowNumber}: رابط الفيديو مطلوب لهذا النوع من الدروس.`);
+    }
+    if (type === 'file' && !fileUrl) {
+      throw new Error(`الصف ${rowNumber}: رابط الملف مطلوب لدرس الملف.`);
+    }
+
+    return {
+      id: `l_import_${Date.now()}_${rowNumber}`,
+      title,
+      description,
+      type,
+      duration: duration || '0',
+      isCompleted: false,
+      content: type === 'text' ? content || description : content,
+      videoUrl: videoUrl || undefined,
+      fileUrl: fileUrl || undefined,
+      pathId: matchedPath.id,
+      subjectId: matchedSubject.id,
+      sectionId: matchedSection.id,
+      skillIds: matchedSkills.map((skill) => skill.id),
+      order: Number(orderValue) || globalLessons.length + rowNumber,
+      showOnPlatform: resolveBoolean(showValue, false),
+      isLocked: resolveBoolean(lockedValue, false),
+      accessControl: resolveBoolean(lockedValue, false) ? 'enrolled' : 'public',
+      ownerType: user.role === 'teacher' ? 'teacher' : 'platform',
+      ownerId: user.id,
+      createdBy: user.id,
+      approvalStatus: user.role === 'admin' ? 'approved' : 'pending_review',
+      approvedAt: user.role === 'admin' ? Date.now() : undefined,
+    };
+  };
+
+  const downloadImportTemplate = () => {
+    const samplePath = allowedPaths[0];
+    const sampleSubject = allowedSubjects.find((subject) => subject.pathId === samplePath?.id) || allowedSubjects[0];
+    const sampleMainSkill = sections.find((section) => section.subjectId === sampleSubject?.id) || sections[0];
+    const sampleSubSkill = skills.find((skill) => skill.subjectId === sampleSubject?.id && skill.sectionId === sampleMainSkill?.id) || skills[0];
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet([
+        {
+          pathId: samplePath?.id || '',
+          subjectId: sampleSubject?.id || '',
+          mainSkillId: sampleMainSkill?.id || '',
+          subSkillIds: sampleSubSkill?.id || '',
+          المسار: samplePath?.name || 'مسار القدرات',
+          المادة: sampleSubject?.name || 'الكمي',
+          'المهارة الرئيسية': sampleMainSkill?.name || 'مهارة رئيسية',
+          'المهارة الفرعية': sampleSubSkill?.name || 'مهارة فرعية',
+          'عنوان الدرس': 'مثال درس فيديو',
+          الوصف: 'شرح مختصر للدرس',
+          النوع: 'video',
+          المدة: '12',
+          'رابط الفيديو': 'https://www.youtube.com/watch?v=example',
+          'رابط الملف': '',
+          'المحتوى النصي': '',
+          الظهور: 'لا',
+          القفل: 'نعم',
+          الترتيب: 1,
+        },
+      ]),
+      'lessons',
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet([
+        { field: 'pathId/subjectId/mainSkillId/subSkillIds', note: 'اختياري لكنه أدق في الربط. يمكن استخدام الأسماء بدلًا منه.' },
+        { field: 'النوع', note: 'video أو text أو file أو live_youtube أو zoom أو google_meet أو teams.' },
+        { field: 'الظهور', note: 'نعم/لا. الأفضل ترك الدرس مخفيًا حتى تراجعه ثم تظهره.' },
+        { field: 'القفل', note: 'نعم تعني محتوى ضمن باقة/اشتراك، لا تعني مفتوح.' },
+      ]),
+      'instructions',
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(allowedPaths.map((path) => ({ pathId: path.id, pathName: path.name }))),
+      'paths-reference',
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(allowedSubjects.map((subject) => ({
+        subjectId: subject.id,
+        pathId: subject.pathId,
+        subjectName: subject.name,
+        pathName: paths.find((path) => path.id === subject.pathId)?.name || '',
+      }))),
+      'subjects-reference',
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(sections.filter((section) => allowedSubjects.some((subject) => subject.id === section.subjectId)).map((section) => ({
+        mainSkillId: section.id,
+        subjectId: section.subjectId,
+        mainSkillName: section.name,
+      }))),
+      'main-skills-reference',
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(skills.filter((skill) => allowedSubjects.some((subject) => subject.id === skill.subjectId)).map((skill) => ({
+        subSkillId: skill.id,
+        mainSkillId: skill.sectionId || '',
+        subjectId: skill.subjectId,
+        subSkillName: skill.name,
+      }))),
+      'sub-skills-reference',
+    );
+    XLSX.writeFile(workbook, 'lessons-import-template.xlsx');
+  };
+
+  const handleImportLessons = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setIsImporting(true);
+    setImportMessage(null);
+    setImportError(null);
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const firstSheet = workbook.Sheets[firstSheetName];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: '' });
+      if (!rows.length) {
+        throw new Error('ملف الدروس فارغ.');
+      }
+
+      const importedLessons: Lesson[] = [];
+      const rowErrors: string[] = [];
+      rows.forEach((row, index) => {
+        try {
+          importedLessons.push(buildLessonFromRow(row, index + 2));
+        } catch (error) {
+          rowErrors.push(error instanceof Error ? error.message : `الصف ${index + 2}: تعذر قراءة الدرس.`);
+        }
+      });
+
+      if (!importedLessons.length) {
+        throw new Error(rowErrors.slice(0, 5).join(' ') || 'لم يتم العثور على دروس صالحة للاستيراد.');
+      }
+
+      importedLessons.forEach((lesson) => addLesson(lesson));
+      setImportMessage(
+        rowErrors.length
+          ? `تم استيراد ${importedLessons.length} درس، وتخطينا ${rowErrors.length} صف يحتاج مراجعة. ${rowErrors.slice(0, 2).join(' ')}`
+          : `تم استيراد ${importedLessons.length} درس وربطها بمركز المهارات بنجاح.`,
+      );
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'تعذر استيراد ملف الدروس الآن.');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const filteredLessons = lessons.filter((lesson) => lesson.title.toLowerCase().includes(searchTerm.toLowerCase()));
   const lessonOverview = {
     total: filteredLessons.length,
@@ -259,6 +561,28 @@ export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => 
           <h2 className="text-2xl font-bold text-gray-800">مركز الدروس</h2>
           <p className="text-gray-500 text-sm mt-1">إدارة الدروس واعتماد ما يُرفع من المعلمين قبل ظهوره في المنصة.</p>
         </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          onChange={handleImportLessons}
+          className="hidden"
+        />
+        <button
+          onClick={downloadImportTemplate}
+          className="bg-white text-slate-700 border border-slate-100 px-4 py-2 rounded-xl font-bold hover:bg-slate-50 transition-colors flex items-center gap-2"
+        >
+          <Download size={18} />
+          قالب الاستيراد
+        </button>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isImporting}
+          className="bg-white text-blue-700 border border-blue-100 px-4 py-2 rounded-xl font-bold hover:bg-blue-50 disabled:opacity-60 transition-colors flex items-center gap-2"
+        >
+          <Upload size={18} />
+          {isImporting ? 'جارٍ الاستيراد...' : 'استيراد دروس'}
+        </button>
         <button
           onClick={downloadLessonsExport}
           className="bg-white text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl font-bold hover:bg-emerald-50 transition-colors flex items-center gap-2"
@@ -274,6 +598,14 @@ export const LessonsManager: React.FC<LessonsManagerProps> = ({ subjectId }) => 
           إضافة درس جديد
         </button>
       </div>
+
+      {(importMessage || importError) && (
+        <div className={`rounded-2xl border px-4 py-3 text-sm font-bold ${
+          importError ? 'border-red-100 bg-red-50 text-red-700' : 'border-emerald-100 bg-emerald-50 text-emerald-700'
+        }`}>
+          {importError || importMessage}
+        </div>
+      )}
 
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4">
         {!subjectId && (
