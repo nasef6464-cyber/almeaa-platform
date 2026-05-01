@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { StatusCodes } from "http-status-codes";
 import mongoose from "mongoose";
+import { eq, and, or, ne, desc, isNull } from "drizzle-orm";
 import { z } from "zod";
+import { db } from "../db/connection.js";
+import { questions as pgQuestions, quizzes as pgQuizzes, quizResults as pgQuizResults } from "../db/schema/index.js";
 import { QuizModel } from "../models/Quiz.js";
 import { QuestionModel } from "../models/Question.js";
 import { QuizResultModel } from "../models/QuizResult.js";
@@ -17,6 +20,9 @@ import { SectionModel } from "../models/Section.js";
 import { optionalAuth, requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { getActivePathIds, isStaffRole, withLearnerVisiblePaths } from "../services/visibility.js";
+import { env } from "../config/env.js";
+
+const USE_PG = () => env.USE_POSTGRES && env.DATABASE_URL;
 
 const questionBaseSchema = z.object({
   id: z.string().optional(),
@@ -538,6 +544,17 @@ quizRouter.get(
   "/questions",
   optionalAuth,
   asyncHandler(async (req, res) => {
+    if (USE_PG()) {
+      const staff = isStaffRole(req.authUser?.role);
+      const conditions = staff ? [] : [
+        or(eq(pgQuestions.approvalStatus, "approved"), isNull(pgQuestions.approvalStatus))
+      ];
+      const items = await db.select().from(pgQuestions)
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(desc(pgQuestions.createdAt));
+      return res.json(items);
+    }
+
     const baseFilter = isStaffRole(req.authUser?.role)
       ? {}
       : {
@@ -613,6 +630,19 @@ quizRouter.get(
   "/",
   optionalAuth,
   asyncHandler(async (req, res) => {
+    if (USE_PG()) {
+      const staff = isStaffRole(req.authUser?.role);
+      const conditions = staff ? [] : [
+        eq(pgQuizzes.isPublished, true),
+        ne(pgQuizzes.showOnPlatform, false),
+        or(eq(pgQuizzes.approvalStatus, "approved"), isNull(pgQuizzes.approvalStatus))
+      ];
+      const items = await db.select().from(pgQuizzes)
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(desc(pgQuizzes.createdAt));
+      return res.json(items);
+    }
+
     const baseFilter = isStaffRole(req.authUser?.role)
       ? {}
       : {
@@ -1082,12 +1112,22 @@ quizRouter.get(
   "/results/latest",
   requireAuth,
   asyncHandler(async (req, res) => {
-    const item = await QuizResultModel.findOne({ userId: req.authUser!.id }).sort({ createdAt: -1 });
+    if (USE_PG()) {
+      const result = await db.select().from(pgQuizResults)
+        .where(eq(pgQuizResults.userId, req.authUser!.id))
+        .orderBy(desc(pgQuizResults.createdAt))
+        .limit(1);
+      const item = result[0];
+      if (!item) {
+        return res.status(StatusCodes.NOT_FOUND).json({ message: "No quiz results found" });
+      }
+      return res.json(item);
+    }
 
+    const item = await QuizResultModel.findOne({ userId: req.authUser!.id }).sort({ createdAt: -1 });
     if (!item) {
       return res.status(StatusCodes.NOT_FOUND).json({ message: "No quiz results found" });
     }
-
     return res.json(item);
   }),
 );
