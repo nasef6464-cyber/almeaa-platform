@@ -2,9 +2,12 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { StatusCodes } from "http-status-codes";
 import mongoose from "mongoose";
+import { eq, and, or, ne, desc, isNull, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { optionalAuth, requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { db } from "../db/connection.js";
+import { topics as pgTopics, lessons as pgLessons, libraryItems as pgLibraryItems, groups as pgGroups, b2bPackages as pgB2bPackages, accessCodes as pgAccessCodes, studyPlans as pgStudyPlans, homepageSettings } from "../db/schema/index.js";
 import { TopicModel } from "../models/Topic.js";
 import { LessonModel } from "../models/Lesson.js";
 import { LibraryItemModel } from "../models/LibraryItem.js";
@@ -16,6 +19,9 @@ import { QuizResultModel } from "../models/QuizResult.js";
 import { HomepageSettingsModel } from "../models/HomepageSettings.js";
 import { StudyPlanModel } from "../models/StudyPlan.js";
 import { isStaffRole, withLearnerVisiblePaths } from "../services/visibility.js";
+import { env } from "../config/env.js";
+
+const USE_PG = () => env.USE_POSTGRES && env.DATABASE_URL;
 
 const topicSchema = z.object({
   id: z.string().optional(),
@@ -493,6 +499,19 @@ contentRouter.get(
   "/bootstrap",
   optionalAuth,
   asyncHandler(async (req, res) => {
+    if (USE_PG()) {
+      const staff = isStaffRole(req.authUser?.role);
+      const [allTopics, allLessons, allLib, allGroups, allPackages, allCodes, allPlans] = await Promise.all([
+        db.select().from(pgTopics).orderBy(pgTopics.subjectId, pgTopics.order),
+        db.select().from(pgLessons).orderBy(desc(pgLessons.createdAt)),
+        db.select().from(pgLibraryItems).orderBy(desc(pgLibraryItems.createdAt)),
+        db.select().from(pgGroups),
+        db.select().from(pgB2bPackages),
+        db.select().from(pgAccessCodes),
+        req.authUser ? db.select().from(pgStudyPlans).where(eq(pgStudyPlans.userId, req.authUser.id)) : Promise.resolve([]),
+      ]);
+      return res.json({ topics: allTopics, lessons: allLessons, libraryItems: allLib, groups: allGroups, b2bPackages: allPackages, accessCodes: allCodes, studyPlans: allPlans });
+    }
     const lessonFilter = isStaffRole(req.authUser?.role)
       ? {}
       : {
