@@ -1,0 +1,17 @@
+.git
+.gitignore
+.vscodeignore
+.vscode-test
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+dist/tests
+src/**/*.test.ts
+src/test
+**/*.map
+**/*.log
+node_modules
+out
+test
+.DS_Store
+*.vsix

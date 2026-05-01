@@ -29,12 +29,14 @@ const courseSummarySchema = z.object({
 });
 
 type AiResponseMimeType = "application/json";
-type AiProvider = "gemini" | "ollama" | "lmstudio" | "none";
+type AiProvider = "gemini" | "ollama" | "lmstudio" | "deepseek" | "none";
 
 const isOllamaExplicitlyConfigured = () =>
   Boolean(process.env.AI_PROVIDER === "ollama" || process.env.OLLAMA_BASE_URL || process.env.OLLAMA_MODEL);
 const isLmStudioExplicitlyConfigured = () =>
   Boolean(process.env.AI_PROVIDER === "lmstudio" || process.env.LM_STUDIO_BASE_URL || process.env.LM_STUDIO_MODEL);
+const isDeepSeekExplicitlyConfigured = () =>
+  Boolean(process.env.AI_PROVIDER === "deepseek" || process.env.DEEPSEEK_API_KEY);
 
 const ARABIC_TUTOR_RULES = `
 أنت مساعد تعليمي عربي داخل منصة تعليمية للقدرات والتحصيلي.
@@ -67,6 +69,7 @@ const formatSkillContext = (skill: Record<string, unknown>) =>
 
 const resolveProvider = (): AiProvider => {
   if (env.AI_PROVIDER) return env.AI_PROVIDER;
+  if (env.DEEPSEEK_API_KEY) return "deepseek";
   if (env.GEMINI_API_KEY) return "gemini";
   if (isOllamaExplicitlyConfigured() && env.OLLAMA_BASE_URL && env.OLLAMA_MODEL) return "ollama";
   if (isLmStudioExplicitlyConfigured() && env.LM_STUDIO_BASE_URL && env.LM_STUDIO_MODEL) return "lmstudio";
@@ -153,8 +156,47 @@ const callLmStudio = async (prompt: string, responseMimeType?: AiResponseMimeTyp
   return payload.choices?.[0]?.message?.content?.trim() || "";
 };
 
+const callDeepSeek = async (prompt: string, responseMimeType?: AiResponseMimeType) => {
+  if (!env.DEEPSEEK_API_KEY) return "";
+
+  const response = await fetchWithTimeout(`${env.DEEPSEEK_BASE_URL.replace(/\/$/, "")}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${env.DEEPSEEK_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: env.DEEPSEEK_MODEL,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
+      response_format: responseMimeType === "application/json" ? { type: "json_object" } : undefined,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`DeepSeek request failed with status ${response.status}`);
+  }
+
+  const payload = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+
+  return payload.choices?.[0]?.message?.content?.trim() || "";
+};
+
 const callAi = async (prompt: string, responseMimeType?: AiResponseMimeType) => {
   const provider = resolveProvider();
+
+  if (provider === "deepseek") {
+    try {
+      return await callDeepSeek(prompt, responseMimeType);
+    } catch (error) {
+      if (env.GEMINI_API_KEY) {
+        return callGemini(prompt, responseMimeType);
+      }
+      throw error;
+    }
+  }
 
   if (provider === "ollama") {
     try {
@@ -190,12 +232,14 @@ export const aiRouter = Router();
 aiRouter.get(
   "/status",
   asyncHandler(async (_req, res) => {
+    const provider = resolveProvider();
     res.json({
-      provider: resolveProvider(),
+      provider,
       ollamaConfigured: isOllamaExplicitlyConfigured() && Boolean(env.OLLAMA_BASE_URL && env.OLLAMA_MODEL),
       lmStudioConfigured: isLmStudioExplicitlyConfigured() && Boolean(env.LM_STUDIO_BASE_URL && env.LM_STUDIO_MODEL),
+      deepseekConfigured: isDeepSeekExplicitlyConfigured() && Boolean(env.DEEPSEEK_API_KEY),
       geminiConfigured: Boolean(env.GEMINI_API_KEY),
-      model: resolveProvider() === "ollama" ? env.OLLAMA_MODEL : resolveProvider() === "lmstudio" ? env.LM_STUDIO_MODEL : env.GEMINI_MODEL,
+      model: provider === "deepseek" ? env.DEEPSEEK_MODEL : provider === "ollama" ? env.OLLAMA_MODEL : provider === "lmstudio" ? env.LM_STUDIO_MODEL : env.GEMINI_MODEL,
       timeoutMs: env.AI_REQUEST_TIMEOUT_MS,
     });
   }),

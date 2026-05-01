@@ -221,7 +221,7 @@ async function run() {
     results,
     "admin",
     "ai status available",
-    ["gemini", "ollama", "none"].includes(String(aiStatus?.provider || "")) &&
+    ["gemini", "ollama", "lmstudio", "deepseek", "none"].includes(String(aiStatus?.provider || "")) &&
       typeof aiStatus?.timeoutMs === "number" &&
       typeof aiStatus?.model === "string",
     `provider=${aiStatus?.provider || "unknown"}, model=${aiStatus?.model || "unknown"}`,

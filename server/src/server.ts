@@ -8,8 +8,14 @@ import { createSocketServer } from "./sockets/index.js";
 
 async function bootstrap() {
   await connectToDatabase();
-  await ensureSkillTaxonomy();
-  await ensureAdminAccount();
+
+  if (!env.USE_POSTGRES) {
+    // Mongoose-only bootstrap (skip when using PostgreSQL)
+    await ensureSkillTaxonomy();
+    await ensureAdminAccount();
+  } else {
+    console.log("PostgreSQL mode — skipping Mongoose bootstrap");
+  }
 
   const app = createApp();
   const server = createServer(app);

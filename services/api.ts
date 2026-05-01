@@ -453,8 +453,10 @@ export const api = {
     }),
   aiStatus: (token?: string | null) =>
     request<{
-      provider: "gemini" | "ollama" | "none";
+      provider: "gemini" | "ollama" | "lmstudio" | "deepseek" | "none";
       ollamaConfigured: boolean;
+      lmStudioConfigured?: boolean;
+      deepseekConfigured?: boolean;
       geminiConfigured: boolean;
       model: string;
       timeoutMs: number;

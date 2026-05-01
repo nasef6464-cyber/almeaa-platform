@@ -1,0 +1,90 @@
+{
+  "name": "deepseek-copilot",
+  "displayName": "DeepSeek V4 for Copilot Chat",
+  "description": "Add DeepSeek V4 Pro & Flash directly to GitHub Copilot Chat model picker",
+  "version": "1.0.0",
+  "publisher": "almeaa",
+  "engines": {
+    "vscode": "^1.116.0"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "keywords": [
+    "deepseek",
+    "copilot",
+    "chat",
+    "ai",
+    "llm"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:deepseek.setApiKey",
+    "onCommand:deepseek.setVisionProxy"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "deepseek.setApiKey",
+        "title": "DeepSeek: Set API Key",
+        "category": "DeepSeek"
+      },
+      {
+        "command": "deepseek.setVisionProxy",
+        "title": "DeepSeek: Set Vision Proxy Model",
+        "category": "DeepSeek"
+      },
+      {
+        "command": "deepseek.clearApiKey",
+        "title": "DeepSeek: Clear API Key",
+        "category": "DeepSeek"
+      }
+    ],
+    "configuration": {
+      "title": "DeepSeek",
+      "properties": {
+        "deepseek.thinkingEffort": {
+          "type": "string",
+          "enum": [
+            "none",
+            "high",
+            "max"
+          ],
+          "default": "high",
+          "description": "Default thinking effort level for DeepSeek models",
+          "markdownDescription": "Default thinking effort:\n- **None**: Fastest, no reasoning\n- **High**: Balanced (recommended)\n- **Max**: Deep reasoning for complex tasks"
+        },
+        "deepseek.enableVisionProxy": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable automatic image proxy through another Copilot model for image descriptions"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run esbuild-base -- --minify",
+    "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --target=node18",
+    "esbuild": "npm run esbuild-base -- --sourcemap",
+    "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
+    "watch": "npm run esbuild-watch",
+    "build": "npm run esbuild",
+    "compile": "tsc -p ./",
+    "pretest": "npm run compile",
+    "lint": "eslint src"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.116.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "esbuild": "^0.19.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "keytar": "^7.9.0"
+  }
+}

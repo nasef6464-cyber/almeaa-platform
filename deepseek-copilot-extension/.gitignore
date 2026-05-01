@@ -1,0 +1,17 @@
+node_modules
+dist
+*.vsix
+.vscode-test
+out
+*.log
+.DS_Store
+.env
+.env.local
+*.sublime-workspace
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

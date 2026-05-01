@@ -2,14 +2,20 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { StatusCodes } from "http-status-codes";
 import mongoose from "mongoose";
+import { eq, ilike, desc } from "drizzle-orm";
 import { z } from "zod";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { db } from "../db/connection.js";
+import { users, accessCodes, b2bPackages } from "../db/schema/index.js";
 import { UserModel } from "../models/User.js";
 import { AccessCodeModel } from "../models/AccessCode.js";
 import { B2BPackageModel } from "../models/B2BPackage.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { signAccessToken } from "../utils/jwt.js";
 import { applyPurchaseToUser } from "../services/applyPurchaseToUser.js";
+import { env } from "../config/env.js";
+
+const USE_PG = () => env.USE_POSTGRES && env.DATABASE_URL;
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -62,8 +68,7 @@ const redeemAccessCodeSchema = z.object({
 });
 
 const serializeUser = (user: any) => {
-  const plain = typeof user?.toJSON === "function" ? user.toJSON() : user?.toObject?.() || user;
-  const { passwordHash, __v, ...safeUser } = plain;
+  const { passwordHash, __v, ...safeUser } = user;
   return safeUser;
 };
 
@@ -77,18 +82,47 @@ authRouter.post(
   "/register",
   asyncHandler(async (req, res) => {
     const payload = registerSchema.parse(req.body);
-    const exists = await UserModel.findOne({ email: payload.email.toLowerCase() });
+    const email = payload.email.toLowerCase();
 
-    if (exists) {
+    const exists = await (USE_PG()
+      ? db.select().from(users).where(eq(users.email, email)).limit(1)
+      : UserModel.findOne({ email }));
+    const userExists = Array.isArray(exists) ? exists[0] : exists;
+
+    if (userExists) {
       return res.status(StatusCodes.CONFLICT).json({
         message: "Email already exists",
       });
     }
 
     const passwordHash = await bcrypt.hash(payload.password, 10);
+
+    if (USE_PG()) {
+      const id = `user_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const [user] = await db.insert(users).values({
+        id,
+        name: payload.name,
+        email,
+        passwordHash,
+        role: "student",
+      }).returning();
+
+      const token = signAccessToken({
+        id: user.id,
+        email: user.email,
+        role: user.role as "student" | "teacher" | "admin" | "supervisor" | "parent",
+        name: user.name,
+      });
+
+      return res.status(StatusCodes.CREATED).json({
+        token,
+        user: serializeUser(user),
+      });
+    }
+
     const user = await UserModel.create({
       name: payload.name,
-      email: payload.email.toLowerCase(),
+      email,
       passwordHash,
       role: "student",
     });
@@ -111,7 +145,12 @@ authRouter.post(
   "/login",
   asyncHandler(async (req, res) => {
     const payload = loginSchema.parse(req.body);
-    const user = await UserModel.findOne({ email: payload.email.toLowerCase() });
+    const email = payload.email.toLowerCase();
+
+    const result = await (USE_PG()
+      ? db.select().from(users).where(eq(users.email, email)).limit(1)
+      : UserModel.findOne({ email }));
+    const user = Array.isArray(result) ? result[0] : result;
 
     if (!user) {
       return res.status(StatusCodes.UNAUTHORIZED).json({
@@ -129,7 +168,7 @@ authRouter.post(
     const token = signAccessToken({
       id: user.id,
       email: user.email,
-      role: user.role,
+      role: user.role as "student" | "teacher" | "admin" | "supervisor" | "parent",
       name: user.name,
     });
 
@@ -149,6 +188,42 @@ authRouter.post(
     const email = payload.email.toLowerCase();
     const passwordHash = await bcrypt.hash(payload.password, 10);
 
+    if (USE_PG()) {
+      const id = `user_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
+
+      if (existing[0]) {
+        const [updated] = await db.update(users)
+          .set({
+            name: payload.name,
+            passwordHash,
+            role: payload.role,
+            isActive: true,
+            linkedStudentIds: payload.linkedStudentIds || [],
+            managedPathIds: payload.managedPathIds || [],
+            managedSubjectIds: payload.managedSubjectIds || [],
+          })
+          .where(eq(users.id, existing[0].id))
+          .returning();
+
+        return res.status(StatusCodes.CREATED).json({ user: serializeUser(updated) });
+      }
+
+      const [user] = await db.insert(users).values({
+        id,
+        name: payload.name,
+        email,
+        passwordHash,
+        role: payload.role,
+        isActive: true,
+        linkedStudentIds: payload.linkedStudentIds || [],
+        managedPathIds: payload.managedPathIds || [],
+        managedSubjectIds: payload.managedSubjectIds || [],
+      }).returning();
+
+      return res.status(StatusCodes.CREATED).json({ user: serializeUser(user) });
+    }
+
     const user = await UserModel.findOneAndUpdate(
       { email },
       {
@@ -161,16 +236,10 @@ authRouter.post(
         managedPathIds: payload.managedPathIds || [],
         managedSubjectIds: payload.managedSubjectIds || [],
       },
-      {
-        upsert: true,
-        new: true,
-        setDefaultsOnInsert: true,
-      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
     );
 
-    return res.status(StatusCodes.CREATED).json({
-      user: serializeUser(user),
-    });
+    return res.status(StatusCodes.CREATED).json({ user: serializeUser(user) });
   }),
 );
 
@@ -179,11 +248,13 @@ authRouter.get(
   requireAuth,
   requireRole(["admin"]),
   asyncHandler(async (_req, res) => {
-    const users = await UserModel.find().sort({ createdAt: -1 });
+    if (USE_PG()) {
+      const allUsers = await db.select().from(users).orderBy(desc(users.createdAt));
+      return res.json({ users: allUsers.map(serializeUser) });
+    }
 
-    return res.json({
-      users: users.map(serializeUser),
-    });
+    const allUsers = await UserModel.find().sort({ createdAt: -1 });
+    return res.json({ users: allUsers.map(serializeUser) });
   }),
 );
 
@@ -193,6 +264,20 @@ authRouter.patch(
   requireRole(["admin"]),
   asyncHandler(async (req, res) => {
     const payload = adminUpdateUserSchema.parse(req.body);
+
+    if (USE_PG()) {
+      const [updated] = await db.update(users)
+        .set(payload)
+        .where(eq(users.id, req.params.id))
+        .returning();
+
+      if (!updated) {
+        return res.status(StatusCodes.NOT_FOUND).json({ message: "User not found" });
+      }
+
+      return res.json({ user: serializeUser(updated) });
+    }
+
     const updated = await UserModel.findByIdAndUpdate(
       req.params.id,
       payload,
@@ -200,14 +285,10 @@ authRouter.patch(
     );
 
     if (!updated) {
-      return res.status(StatusCodes.NOT_FOUND).json({
-        message: "User not found",
-      });
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "User not found" });
     }
 
-    return res.json({
-      user: serializeUser(updated),
-    });
+    return res.json({ user: serializeUser(updated) });
   }),
 );
 
@@ -215,17 +296,26 @@ authRouter.get(
   "/me",
   requireAuth,
   asyncHandler(async (req, res) => {
+    const userId = req.authUser?.id || "";
+
+    if (USE_PG()) {
+      const result = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      const user = result[0];
+
+      if (!user) {
+        return res.status(StatusCodes.NOT_FOUND).json({ message: "User not found" });
+      }
+
+      return res.json({ user: serializeUser(user) });
+    }
+
     const user = await UserModel.findById(req.authUser?.id);
 
     if (!user) {
-      return res.status(StatusCodes.NOT_FOUND).json({
-        message: "User not found",
-      });
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "User not found" });
     }
 
-    return res.json({
-      user: serializeUser(user),
-    });
+    return res.json({ user: serializeUser(user) });
   }),
 );
 
@@ -244,6 +334,19 @@ authRouter.patch(
       update.reviewLater = Array.from(new Set(payload.reviewLater));
     }
 
+    if (USE_PG()) {
+      const [user] = await db.update(users)
+        .set(update)
+        .where(eq(users.id, req.authUser?.id || ""))
+        .returning();
+
+      if (!user) {
+        return res.status(StatusCodes.NOT_FOUND).json({ message: "User not found" });
+      }
+
+      return res.json({ user: serializeUser(user) });
+    }
+
     const user = await UserModel.findByIdAndUpdate(
       req.authUser?.id,
       update,
@@ -251,14 +354,10 @@ authRouter.patch(
     );
 
     if (!user) {
-      return res.status(StatusCodes.NOT_FOUND).json({
-        message: "User not found",
-      });
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "User not found" });
     }
 
-    return res.json({
-      user: serializeUser(user),
-    });
+    return res.json({ user: serializeUser(user) });
   }),
 );
 

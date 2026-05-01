@@ -54,9 +54,10 @@ type TeacherContributionItem = {
 };
 
 type AiStatus = {
-    provider: 'gemini' | 'ollama' | 'lmstudio' | 'none';
+    provider: 'gemini' | 'ollama' | 'lmstudio' | 'deepseek' | 'none';
     ollamaConfigured: boolean;
     lmStudioConfigured?: boolean;
+    deepseekConfigured?: boolean;
     geminiConfigured: boolean;
     model: string;
     timeoutMs: number;
@@ -876,7 +877,7 @@ export const AdminDashboard: React.FC = () => {
                         </div>
                     )}
 
-                    <div className="mt-6 grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <div className="mt-6 grid grid-cols-1 md:grid-cols-6 gap-4">
                         <div className="rounded-2xl bg-gray-50 border border-gray-100 p-4">
                             <div className="text-xs text-gray-500 mb-2">النموذج</div>
                             <div className="font-black text-gray-900 break-words">{aiStatus?.model || 'غير محدد'}</div>
@@ -897,6 +898,12 @@ export const AdminDashboard: React.FC = () => {
                             <div className="text-xs text-gray-500 mb-2">LM Studio</div>
                             <div className={`font-black ${aiStatus?.lmStudioConfigured ? 'text-emerald-700' : 'text-gray-500'}`}>
                                 {aiStatus?.lmStudioConfigured ? 'مفعل' : 'غير مفعل'}
+                            </div>
+                        </div>
+                        <div className="rounded-2xl bg-gray-50 border border-gray-100 p-4">
+                            <div className="text-xs text-gray-500 mb-2">DeepSeek V4 Pro</div>
+                            <div className={`font-black ${aiStatus?.deepseekConfigured ? 'text-emerald-700' : 'text-gray-500'}`}>
+                                {aiStatus?.deepseekConfigured ? 'مفعل' : 'غير مفعل'}
                             </div>
                         </div>
                         <div className="rounded-2xl bg-gray-50 border border-gray-100 p-4">
