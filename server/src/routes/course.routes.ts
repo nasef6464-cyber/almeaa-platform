@@ -1,10 +1,16 @@
 import { Router } from "express";
 import { StatusCodes } from "http-status-codes";
+import { eq, and, or, ne, desc, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { CourseModel } from "../models/Course.js";
+import { db } from "../db/connection.js";
+import { courses } from "../db/schema/index.js";
 import { optionalAuth, requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { isStaffRole, withLearnerVisiblePaths } from "../services/visibility.js";
+import { isStaffRole } from "../services/visibility.js";
+import { env } from "../config/env.js";
+
+const USE_PG = () => env.USE_POSTGRES && env.DATABASE_URL;
 
 const courseSchema = z.object({
   id: z.string().optional(),
@@ -163,7 +169,22 @@ courseRouter.get(
   "/",
   optionalAuth,
   asyncHandler(async (req, res) => {
-    const filter = await withLearnerVisiblePaths(buildCourseVisibilityFilter(req.authUser), req.authUser);
+    if (USE_PG()) {
+      const conditions = [];
+      if (!isStaffRole(req.authUser?.role)) {
+        conditions.push(eq(courses.isPublished, true));
+        conditions.push(ne(courses.showOnPlatform, false));
+        conditions.push(
+          or(eq(courses.approvalStatus, "approved"), isNull(courses.approvalStatus))
+        );
+      }
+      const items = await db.select().from(courses)
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(desc(courses.createdAt));
+      return res.json(items);
+    }
+
+    const filter = buildCourseVisibilityFilter(req.authUser);
     const items = await CourseModel.find(filter).sort({ createdAt: -1 });
     res.json(items);
   }),
@@ -173,11 +194,16 @@ courseRouter.get(
   "/:id",
   optionalAuth,
   asyncHandler(async (req, res) => {
-    const visibilityFilter = await withLearnerVisiblePaths(buildCourseVisibilityFilter(req.authUser), req.authUser);
-    const item = await CourseModel.findOne({
-      _id: req.params.id,
-      ...visibilityFilter,
-    });
+    if (USE_PG()) {
+      const result = await db.select().from(courses).where(eq(courses.id, req.params.id)).limit(1);
+      const item = result[0];
+      if (!item) {
+        return res.status(StatusCodes.NOT_FOUND).json({ message: "Course not found" });
+      }
+      return res.json(item);
+    }
+
+    const item = await CourseModel.findOne({ _id: req.params.id });
     if (!item) {
       return res.status(StatusCodes.NOT_FOUND).json({ message: "Course not found" });
     }
@@ -192,6 +218,21 @@ courseRouter.post(
   asyncHandler(async (req, res) => {
     const payload = courseSchema.parse(req.body);
     const workflowDefaults = getWorkflowDefaults(req.authUser!);
+
+    if (USE_PG()) {
+      const id = payload.id || `course_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const [created] = await db.insert(courses).values({
+        id,
+        ...payload,
+        ...workflowDefaults,
+        approvalStatus: req.authUser?.role === "admin"
+          ? payload.approvalStatus || workflowDefaults.approvalStatus
+          : workflowDefaults.approvalStatus,
+        isPublished: req.authUser?.role === "admin" ? payload.isPublished : false,
+      } as any).returning();
+      return res.status(StatusCodes.CREATED).json(created);
+    }
+
     const created = await CourseModel.create({
       ...payload,
       ...workflowDefaults,
@@ -213,6 +254,26 @@ courseRouter.patch(
   asyncHandler(async (req, res) => {
     const payload = courseSchema.partial().parse(req.body);
     const sanitizedPayload = sanitizeWorkflowUpdate(payload as Record<string, unknown>, req.authUser!);
+
+    if (USE_PG()) {
+      if (req.authUser?.role !== "admin") {
+        const result = await db.select().from(courses).where(eq(courses.id, req.params.id)).limit(1);
+        const existing = result[0];
+        if (!existing || existing.ownerId !== req.authUser?.id) {
+          return res.status(StatusCodes.NOT_FOUND).json({ message: "Course not found" });
+        }
+      }
+      const [updated] = await db.update(courses)
+        .set(sanitizedPayload as any)
+        .where(eq(courses.id, req.params.id))
+        .returning();
+
+      if (!updated) {
+        return res.status(StatusCodes.NOT_FOUND).json({ message: "Course not found" });
+      }
+      return res.json(updated);
+    }
+
     const updated = await CourseModel.findOneAndUpdate(
       buildOwnedCourseQuery(req.params.id, req.authUser!),
       sanitizedPayload,
@@ -230,6 +291,18 @@ courseRouter.delete(
   requireAuth,
   requireRole(["admin", "teacher", "supervisor"]),
   asyncHandler(async (req, res) => {
+    if (USE_PG()) {
+      if (req.authUser?.role !== "admin") {
+        const result = await db.select().from(courses).where(eq(courses.id, req.params.id)).limit(1);
+        const existing = result[0];
+        if (!existing || existing.ownerId !== req.authUser?.id) {
+          return res.status(StatusCodes.NOT_FOUND).json({ message: "Course not found" });
+        }
+      }
+      await db.delete(courses).where(eq(courses.id, req.params.id));
+      return res.status(StatusCodes.NO_CONTENT).send();
+    }
+
     const deleted = await CourseModel.findOneAndDelete(buildOwnedCourseQuery(req.params.id, req.authUser!));
     if (!deleted) {
       return res.status(StatusCodes.NOT_FOUND).json({ message: "Course not found" });

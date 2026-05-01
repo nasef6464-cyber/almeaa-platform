@@ -3,6 +3,8 @@ import { StatusCodes } from "http-status-codes";
 import { z } from "zod";
 import { optionalAuth, requireAuth, requireRole } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { db } from "../db/connection.js";
+import { paths as pgPaths, levels as pgLevels, subjects as pgSubjects, sections as pgSections, skills as pgSkills } from "../db/schema/index.js";
 import { PathModel } from "../models/Path.js";
 import { LevelModel } from "../models/Level.js";
 import { SubjectModel } from "../models/Subject.js";
@@ -15,6 +17,9 @@ import { QuizModel } from "../models/Quiz.js";
 import { TopicModel } from "../models/Topic.js";
 import { CourseModel } from "../models/Course.js";
 import { ensureSkillTaxonomy } from "../services/ensureSkillTaxonomy.js";
+import { env } from "../config/env.js";
+
+const USE_PG = () => env.USE_POSTGRES && env.DATABASE_URL;
 
 const pathSchema = z.object({
   id: z.string().optional(),
@@ -71,6 +76,17 @@ taxonomyRouter.get(
   "/bootstrap",
   optionalAuth,
   asyncHandler(async (req, res) => {
+    if (USE_PG()) {
+      const [allPaths, allLevels, allSubjects, allSections, allSkills] = await Promise.all([
+        db.select().from(pgPaths),
+        db.select().from(pgLevels),
+        db.select().from(pgSubjects),
+        db.select().from(pgSections),
+        db.select().from(pgSkills),
+      ]);
+      return res.json({ paths: allPaths, levels: allLevels, subjects: allSubjects, sections: allSections, skills: allSkills });
+    }
+
     await ensureSkillTaxonomy();
 
     const canSeeInactiveTaxonomy = ["admin", "teacher", "supervisor"].includes(req.authUser?.role || "");
