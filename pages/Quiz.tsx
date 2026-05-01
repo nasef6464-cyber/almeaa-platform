@@ -849,7 +849,7 @@ const Quiz: React.FC = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-3 sm:gap-x-5 gap-y-4 dir-rtl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-3 sm:gap-x-5 gap-y-4 dir-rtl">
               {questions[currentQuestion].options.map((option, idx) => {
                 const isSelected = selectedAnswer === idx || answers[currentQuestion] === idx;
                 let borderClass = 'border-gray-200 hover:border-gray-300 bg-white';
@@ -863,7 +863,7 @@ const Quiz: React.FC = () => {
                   <button
                     key={idx}
                     onClick={() => handleAnswerSelect(idx)}
-                    className={`min-h-[78px] sm:min-h-[84px] px-3 sm:px-4 py-3 rounded-2xl border-2 transition-all flex items-center justify-between text-right gap-2 sm:gap-3 shadow-sm ${borderClass}`}
+                    className={`min-h-[84px] px-3 sm:px-4 py-3 rounded-2xl border-2 transition-all flex items-center justify-between text-right gap-2 sm:gap-3 shadow-sm ${borderClass}`}
                   >
                     <span className="flex-1 text-xs sm:text-sm md:text-base font-bold text-gray-800 leading-relaxed text-center break-words">
                       {option}

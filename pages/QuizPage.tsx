@@ -599,7 +599,7 @@ export const QuizPage: React.FC = () => {
                                 />
                               </div>
                             )}
-                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
                               {question.options.map((option, optionIndex) => {
                                 let bgClass = 'bg-gray-50 border-gray-200';
                                 let helperLabel = '';
@@ -617,7 +617,7 @@ export const QuizPage: React.FC = () => {
                                 }
 
                                 return (
-                                  <div key={optionIndex} className={`p-3 rounded-xl border flex items-center gap-3 ${bgClass}`}>
+                                  <div key={optionIndex} className={`min-h-[92px] p-3 rounded-xl border flex items-center justify-between gap-3 ${bgClass}`}>
                                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 bg-white text-lg font-black">
                                       {OPTION_LABELS[optionIndex] || optionIndex + 1}
                                     </div>
@@ -627,7 +627,7 @@ export const QuizPage: React.FC = () => {
                                     }`}>
                                       {(optionIndex === question.correctOptionIndex || optionIndex === userAnswer) && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                                     </div>
-                                    <div className="min-w-0 flex-1">
+                                    <div className="min-w-0 flex-1 text-center">
                                       <span className="block break-words text-sm font-bold leading-7">{option}</span>
                                       {helperLabel ? <span className="mt-1 inline-flex rounded-full bg-white px-2 py-0.5 text-[11px] font-black">{helperLabel}</span> : null}
                                     </div>
