@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Edit2, Filter, MoreVertical, Plus, Search, UserCheck, UserX, X } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { Download, Edit2, Filter, MoreVertical, Plus, Search, UserCheck, UserX, X } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { CategoryPath, CategorySubject, Role, User } from '../../types';
 import { api } from '../../services/api';
@@ -53,6 +54,18 @@ const roleLabels: Record<Role, string> = {
     [Role.TEACHER]: 'معلم',
     [Role.PARENT]: 'ولي أمر',
     [Role.STUDENT]: 'طالب',
+};
+
+const createWorkbookDownload = (
+    fileName: string,
+    sheets: Array<{ name: string; rows: Array<Array<string | number>> }>,
+) => {
+    const workbook = XLSX.utils.book_new();
+    sheets.forEach((sheet) => {
+        const worksheet = XLSX.utils.aoa_to_sheet(sheet.rows);
+        XLSX.utils.book_append_sheet(workbook, worksheet, sheet.name.slice(0, 31));
+    });
+    XLSX.writeFile(workbook, fileName);
 };
 
 const MultiSelectField: React.FC<{
@@ -144,6 +157,17 @@ export const UsersManager: React.FC = () => {
             return matchesSearch && matchesRole;
         });
     }, [roleFilter, searchTerm, users]);
+    const usersByRole = useMemo(() => {
+        return Object.values(Role).reduce((acc, role) => {
+            acc[role] = users.filter((user) => user.role === role).length;
+            return acc;
+        }, {} as Record<Role, number>);
+    }, [users]);
+    const inactiveUsersCount = useMemo(() => users.filter((user) => user.isActive === false).length, [users]);
+    const scopedTeachersCount = useMemo(
+        () => users.filter((user) => user.role === Role.TEACHER && ((user.managedPathIds?.length || 0) > 0 || (user.managedSubjectIds?.length || 0) > 0)).length,
+        [users],
+    );
 
     const handleRoleChange = (userId: string, newRole: Role) => {
         updateUser(userId, { role: newRole });
@@ -215,6 +239,47 @@ export const UsersManager: React.FC = () => {
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const exportUsersWorkbook = () => {
+        const userRows: Array<Array<string | number>> = [
+            ['الاسم', 'البريد الإلكتروني', 'الدور', 'الحالة', 'المدرسة', 'الفصل/المجموعة', 'نطاق المعلم', 'الأبناء المرتبطون'],
+            ...filteredUsers.map((currentUser) => {
+                const schoolName = resolveSchoolName(currentUser) || '';
+                const userGroups = groups
+                    .filter((group) => currentUser.groupIds?.includes(group.id))
+                    .map((group) => group.name)
+                    .join('، ');
+                const { pathNames, subjectNames } = resolveTeacherScope(currentUser);
+                const linkedStudents = users
+                    .filter((student) => currentUser.linkedStudentIds?.includes(student.id))
+                    .map((student) => student.name)
+                    .join('، ');
+
+                return [
+                    currentUser.name,
+                    currentUser.email || '',
+                    roleLabels[currentUser.role],
+                    currentUser.isActive === false ? 'متوقف' : 'نشط',
+                    schoolName,
+                    userGroups,
+                    [...pathNames, ...subjectNames].join('، '),
+                    linkedStudents,
+                ];
+            }),
+        ];
+
+        const roleRows: Array<Array<string | number>> = [
+            ['الدور', 'العدد'],
+            ...Object.values(Role).map((role) => [roleLabels[role], usersByRole[role] || 0]),
+            ['مستخدمون متوقفون', inactiveUsersCount],
+            ['معلمون بنطاق تدريس محدد', scopedTeachersCount],
+        ];
+
+        createWorkbookDownload('platform-users-operational-report.xlsx', [
+            { name: 'users', rows: userRows },
+            { name: 'roles', rows: roleRows },
+        ]);
     };
 
     const getRoleBadge = (role: Role) => {
@@ -408,6 +473,14 @@ export const UsersManager: React.FC = () => {
                     <h1 className="text-2xl font-bold text-gray-900">إدارة المستخدمين</h1>
                     <p className="text-gray-500 text-sm mt-1">إدارة الأدوار، نطاق المعلمين، المدارس والفصول، وربط ولي الأمر والطلاب.</p>
                 </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        onClick={exportUsersWorkbook}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm"
+                    >
+                        <Download size={18} />
+                        <span>تصدير المستخدمين</span>
+                    </button>
                 <button
                     onClick={() => {
                         setIsCreateOpen(true);
@@ -418,6 +491,31 @@ export const UsersManager: React.FC = () => {
                     <Plus size={18} />
                     <span>إضافة مستخدم</span>
                 </button>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+                    <p className="text-xs text-gray-500 mb-2">الطلاب</p>
+                    <p className="text-2xl font-black text-gray-900">{usersByRole[Role.STUDENT] || 0}</p>
+                </div>
+                <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+                    <p className="text-xs text-gray-500 mb-2">المعلمون</p>
+                    <p className="text-2xl font-black text-gray-900">{usersByRole[Role.TEACHER] || 0}</p>
+                    <p className="text-xs text-gray-400 mt-1">{scopedTeachersCount} بنطاق محدد</p>
+                </div>
+                <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+                    <p className="text-xs text-gray-500 mb-2">المشرفون</p>
+                    <p className="text-2xl font-black text-gray-900">{usersByRole[Role.SUPERVISOR] || 0}</p>
+                </div>
+                <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+                    <p className="text-xs text-gray-500 mb-2">أولياء الأمور</p>
+                    <p className="text-2xl font-black text-gray-900">{usersByRole[Role.PARENT] || 0}</p>
+                </div>
+                <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+                    <p className="text-xs text-gray-500 mb-2">حسابات متوقفة</p>
+                    <p className="text-2xl font-black text-amber-600">{inactiveUsersCount}</p>
+                </div>
             </div>
 
             {isCreateOpen && (

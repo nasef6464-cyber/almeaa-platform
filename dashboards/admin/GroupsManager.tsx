@@ -1,7 +1,20 @@
 import React, { useState } from 'react';
+import * as XLSX from 'xlsx';
 import { useStore } from '../../store/useStore';
 import { Group, GroupType, Role } from '../../types';
-import { Building2, Users, BookOpen, Plus, Search, MoreVertical, Edit2, Trash2, UserCheck, UserMinus, Shield } from 'lucide-react';
+import { Building2, Users, BookOpen, Plus, Search, MoreVertical, Edit2, Trash2, UserCheck, UserMinus, Shield, Download, FileSpreadsheet } from 'lucide-react';
+
+const createWorkbookDownload = (
+    fileName: string,
+    sheets: Array<{ name: string; rows: Array<Array<string | number>> }>,
+) => {
+    const workbook = XLSX.utils.book_new();
+    sheets.forEach((sheet) => {
+        const worksheet = XLSX.utils.aoa_to_sheet(sheet.rows);
+        XLSX.utils.book_append_sheet(workbook, worksheet, sheet.name.slice(0, 31));
+    });
+    XLSX.writeFile(workbook, fileName);
+};
 
 export const GroupsManager: React.FC = () => {
     const { 
@@ -36,6 +49,12 @@ export const GroupsManager: React.FC = () => {
     });
     const schools = groups.filter(group => group.type === 'SCHOOL');
     const publishedCourses = courses.filter(course => course.isPublished !== false);
+    const classes = groups.filter(group => group.type === 'CLASS');
+    const privateGroups = groups.filter(group => group.type === 'PRIVATE_GROUP');
+    const totalLinkedStudents = groups.reduce((sum, group) => sum + group.studentIds.length, 0);
+    const totalLinkedSupervisors = groups.reduce((sum, group) => sum + group.supervisorIds.length, 0);
+    const groupsWithoutSupervisor = groups.filter(group => group.supervisorIds.length === 0).length;
+    const groupsWithoutContent = groups.filter(group => group.courseIds.length === 0).length;
 
     const getTypeBadge = (type: GroupType) => {
         switch (type) {
@@ -93,6 +112,130 @@ export const GroupsManager: React.FC = () => {
         });
         setSelectedGroup(updatedGroup);
         setIsEditingGroup(false);
+    };
+
+    const exportGroupsWorkbook = () => {
+        const groupRows: Array<Array<string | number>> = [
+            ['الاسم', 'النوع', 'المدرسة الأم', 'الطلاب', 'المشرفون', 'الدورات', 'تاريخ الإنشاء', 'ملاحظة تشغيلية'],
+            ...filteredGroups.map((group) => {
+                const parentSchool = group.parentId ? schools.find((school) => school.id === group.parentId) : undefined;
+                const note = [
+                    group.supervisorIds.length === 0 ? 'يحتاج مشرف' : '',
+                    group.courseIds.length === 0 ? 'لا توجد دورات مرتبطة' : '',
+                ].filter(Boolean).join(' - ') || 'جاهز مبدئيًا';
+
+                return [
+                    group.name,
+                    group.type === 'SCHOOL' ? 'مدرسة' : group.type === 'CLASS' ? 'فصل' : 'مجموعة خاصة',
+                    parentSchool?.name || '',
+                    group.studentIds.length,
+                    group.supervisorIds.length,
+                    group.courseIds.length,
+                    new Date(group.createdAt).toLocaleDateString('ar-SA'),
+                    note,
+                ];
+            }),
+        ];
+
+        const studentRows: Array<Array<string | number>> = [
+            ['الطالب', 'البريد الإلكتروني', 'المجموعة/الفصل', 'النوع', 'المدرسة الأم'],
+        ];
+
+        filteredGroups.forEach((group) => {
+            const parentSchool = group.parentId ? schools.find((school) => school.id === group.parentId) : undefined;
+            users
+                .filter((user) => group.studentIds.includes(user.id))
+                .forEach((student) => {
+                    studentRows.push([
+                        student.name,
+                        student.email || '',
+                        group.name,
+                        group.type === 'SCHOOL' ? 'مدرسة' : group.type === 'CLASS' ? 'فصل' : 'مجموعة خاصة',
+                        parentSchool?.name || '',
+                    ]);
+                });
+        });
+
+        const supervisorRows: Array<Array<string | number>> = [
+            ['المشرف/المعلم', 'البريد الإلكتروني', 'الدور', 'المجموعة/الفصل', 'المدرسة الأم'],
+        ];
+
+        filteredGroups.forEach((group) => {
+            const parentSchool = group.parentId ? schools.find((school) => school.id === group.parentId) : undefined;
+            users
+                .filter((user) => group.supervisorIds.includes(user.id))
+                .forEach((supervisor) => {
+                    supervisorRows.push([
+                        supervisor.name,
+                        supervisor.email || '',
+                        supervisor.role === Role.TEACHER ? 'معلم' : 'مشرف',
+                        group.name,
+                        parentSchool?.name || '',
+                    ]);
+                });
+        });
+
+        createWorkbookDownload('school-groups-operational-report.xlsx', [
+            { name: 'groups', rows: groupRows },
+            { name: 'students', rows: studentRows },
+            { name: 'supervisors', rows: supervisorRows },
+        ]);
+    };
+
+    const exportSelectedGroupRoster = (
+        group: Group,
+        groupStudents: typeof users,
+        groupSupervisors: typeof users,
+        groupCourses: typeof courses,
+        parentSchool?: Group,
+    ) => {
+        createWorkbookDownload(`${group.name}-roster.xlsx`, [
+            {
+                name: 'summary',
+                rows: [
+                    ['اسم المجموعة', group.name],
+                    ['النوع', group.type === 'SCHOOL' ? 'مدرسة' : group.type === 'CLASS' ? 'فصل' : 'مجموعة خاصة'],
+                    ['المدرسة الأم', parentSchool?.name || ''],
+                    ['عدد الطلاب', groupStudents.length],
+                    ['عدد المشرفين والمعلمين', groupSupervisors.length],
+                    ['عدد الدورات المرتبطة', groupCourses.length],
+                    ['ملاحظة', group.supervisorIds.length === 0 ? 'يحتاج تعيين مشرف أو معلم' : 'جاهز للمتابعة'],
+                ],
+            },
+            {
+                name: 'students',
+                rows: [
+                    ['اسم الطالب', 'البريد الإلكتروني', 'الحالة'],
+                    ...groupStudents.map((student) => [
+                        student.name,
+                        student.email || '',
+                        student.isActive === false ? 'متوقف' : 'نشط',
+                    ]),
+                ],
+            },
+            {
+                name: 'supervisors',
+                rows: [
+                    ['الاسم', 'البريد الإلكتروني', 'الدور', 'الحالة'],
+                    ...groupSupervisors.map((supervisor) => [
+                        supervisor.name,
+                        supervisor.email || '',
+                        supervisor.role === Role.TEACHER ? 'معلم' : 'مشرف',
+                        supervisor.isActive === false ? 'متوقف' : 'نشط',
+                    ]),
+                ],
+            },
+            {
+                name: 'courses',
+                rows: [
+                    ['الدورة', 'الحالة'],
+                    ...groupCourses.map((course) => [
+                        course.title,
+                        course.isPublished === false ? 'غير منشورة' : 'منشورة',
+                    ]),
+                ],
+            },
+        ]);
     };
 
     if (selectedGroup) {
@@ -177,6 +320,13 @@ export const GroupsManager: React.FC = () => {
                         </div>
                         <div className="flex gap-2">
                             <button
+                                onClick={() => exportSelectedGroupRoster(selectedGroup, groupStudents, groupSupervisors, groupCourses, parentSchool)}
+                                className="p-2 text-gray-500 hover:text-emerald-600 bg-gray-50 hover:bg-emerald-50 rounded-lg transition-colors"
+                                title="تصدير كشف المجموعة"
+                            >
+                                <Download size={18} />
+                            </button>
+                            <button
                                 onClick={() => {
                                     if (isEditingGroup) {
                                         saveSelectedGroup();
@@ -210,6 +360,24 @@ export const GroupsManager: React.FC = () => {
                             المدرسة الأم: {parentSchool.name}
                         </div>
                     ) : null}
+
+                    <div className="mb-6 rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
+                        <div className="flex items-start gap-3">
+                            <FileSpreadsheet className="text-amber-600 mt-0.5" size={20} />
+                            <div>
+                                <h3 className="font-bold text-gray-900">جاهزية تشغيل المجموعة</h3>
+                                <p className="text-sm text-gray-600 mt-1">
+                                    {selectedGroup.supervisorIds.length === 0
+                                        ? 'هذه المجموعة تحتاج تعيين مشرف أو معلم حتى تكون المتابعة واضحة.'
+                                        : selectedGroup.studentIds.length === 0
+                                          ? 'أضف الطلاب لهذه المجموعة ثم صدّر الكشف للمراجعة.'
+                                          : selectedGroup.courseIds.length === 0
+                                            ? 'اربط دورة أو أكثر حتى يظهر المحتوى داخل نطاق الطلاب.'
+                                            : 'المجموعة جاهزة مبدئيًا: طلاب + مشرفون + محتوى مرتبط.'}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
 
                     <div className="grid grid-cols-3 gap-4 mb-8">
                         <div className="bg-blue-50 p-4 rounded-lg flex items-center gap-4">
@@ -382,13 +550,45 @@ export const GroupsManager: React.FC = () => {
                     <h1 className="text-2xl font-bold text-gray-900">المجموعات والمدارس</h1>
                     <p className="text-gray-500 text-sm mt-1">إدارة المدارس، الفصول، والمجموعات الخاصة</p>
                 </div>
-                <button 
-                    onClick={handleCreateGroup}
-                    className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm"
-                >
-                    <Plus size={18} />
-                    <span>إنشاء مجموعة</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        onClick={exportGroupsWorkbook}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm"
+                    >
+                        <Download size={18} />
+                        <span>تصدير التشغيل</span>
+                    </button>
+                    <button 
+                        onClick={handleCreateGroup}
+                        className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm"
+                    >
+                        <Plus size={18} />
+                        <span>إنشاء مجموعة</span>
+                    </button>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+                    <p className="text-xs text-gray-500 mb-2">المدارس</p>
+                    <p className="text-2xl font-black text-gray-900">{schools.length}</p>
+                    <p className="text-xs text-gray-400 mt-1">{classes.length} فصل مرتبط</p>
+                </div>
+                <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+                    <p className="text-xs text-gray-500 mb-2">المجموعات الخاصة</p>
+                    <p className="text-2xl font-black text-gray-900">{privateGroups.length}</p>
+                    <p className="text-xs text-gray-400 mt-1">للخطط والتجميعات المرنة</p>
+                </div>
+                <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+                    <p className="text-xs text-gray-500 mb-2">طلاب داخل مجموعات</p>
+                    <p className="text-2xl font-black text-gray-900">{totalLinkedStudents}</p>
+                    <p className="text-xs text-gray-400 mt-1">{totalLinkedSupervisors} مشرف/معلم مرتبط</p>
+                </div>
+                <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+                    <p className="text-xs text-gray-500 mb-2">تنبيهات تشغيل</p>
+                    <p className="text-2xl font-black text-amber-600">{groupsWithoutSupervisor + groupsWithoutContent}</p>
+                    <p className="text-xs text-gray-400 mt-1">{groupsWithoutSupervisor} بلا مشرف، {groupsWithoutContent} بلا محتوى</p>
+                </div>
             </div>
 
             {/* Filters */}
