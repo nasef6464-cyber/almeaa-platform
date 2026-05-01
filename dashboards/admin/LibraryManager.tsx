@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import * as XLSX from 'xlsx';
 import { useStore } from '../../store/useStore';
 import { LibraryItem } from '../../types';
-import { Plus, Edit2, Trash2, FileText, Lock, LockOpen, Eye } from 'lucide-react';
+import { Plus, Edit2, Trash2, FileText, Lock, LockOpen, Eye, Download } from 'lucide-react';
 
 interface LibraryManagerProps {
   subjectId: string;
@@ -16,7 +17,8 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
     deleteLibraryItem,
     subjects,
     sections,
-    skills
+    skills,
+    paths
   } = useStore();
   const canReview = user.role === 'admin';
 
@@ -31,6 +33,58 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
     visible: subjectItems.filter((item) => item.showOnPlatform !== false).length,
     approved: subjectItems.filter((item) => item.approvalStatus === 'approved').length,
     locked: subjectItems.filter((item) => item.isLocked === true).length,
+  };
+
+  const downloadLibraryExport = () => {
+    const workbook = XLSX.utils.book_new();
+    const rows = [
+      [
+        'عنوان الملف',
+        'النوع',
+        'المسار',
+        'المادة',
+        'المهارة الرئيسية',
+        'المهارات الفرعية',
+        'الحجم',
+        'التحميلات',
+        'حالة الاعتماد',
+        'الظهور على المنصة',
+        'القفل/الفتح',
+        'الرابط',
+      ],
+      ...subjectItems.map((item) => {
+        const pathName = currentSubject?.pathId ? (paths.find((path) => path.id === currentSubject.pathId)?.name || '-') : '-';
+        const sectionName = sections.find((section) => section.id === item.sectionId)?.name || '-';
+        const skillNames = (item.skillIds || []).map((skillId) => skills.find((skill) => skill.id === skillId)?.name).filter(Boolean).join('، ');
+
+        return [
+          item.title,
+          item.type,
+          pathName,
+          currentSubject?.name || '-',
+          sectionName,
+          skillNames || '-',
+          item.size,
+          item.downloads || 0,
+          item.approvalStatus || 'draft',
+          item.showOnPlatform === false ? 'مخفي' : 'ظاهر',
+          item.isLocked ? 'مغلق' : 'مفتوح',
+          item.url || '-',
+        ];
+      }),
+    ];
+    const summary = [
+      ['البند', 'القيمة'],
+      ['إجمالي ملفات المكتبة', libraryOverview.total],
+      ['الظاهر على المنصة', libraryOverview.visible],
+      ['المعتمد', libraryOverview.approved],
+      ['المغلق على الطلاب', libraryOverview.locked],
+      ['تاريخ التصدير', new Date().toLocaleString('ar-SA')],
+    ];
+
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(summary), 'summary');
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), 'library');
+    XLSX.writeFile(workbook, `${currentSubject?.name || 'library'}-readiness.xlsx`);
   };
 
   const availableMainSkills = useMemo(
@@ -246,18 +300,26 @@ export const LibraryManager: React.FC<LibraryManagerProps> = ({ subjectId }) => 
                   availableSubSkills.map((skill) => {
                     const isSelected = editingItem?.skillIds?.includes(skill.id);
                     return (
-                      <button
-                        key={skill.id}
-                        type="button"
-                        onClick={() => toggleSkill(skill.id)}
-                        className={`text-right px-3 py-2 rounded-lg border text-sm font-bold transition-colors ${
-                          isSelected
-                            ? 'bg-indigo-600 text-white border-indigo-600'
-                            : 'bg-white text-gray-700 border-gray-200 hover:border-indigo-300'
-                        }`}
-                      >
-                        {skill.name}
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+          <button
+            onClick={downloadLibraryExport}
+            className="bg-white text-emerald-700 border border-emerald-100 px-6 py-2 rounded-xl font-bold hover:bg-emerald-50 transition-colors flex items-center gap-2"
+          >
+            <Download size={18} />
+            تصدير المكتبة
+          </button>
+          <button
+            onClick={() => {
+              setValidationError('');
+              setEditingItem({ sectionId: undefined, skillIds: [], showOnPlatform: false });
+              setIsEditing(true);
+            }}
+            className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2"
+          >
+            <Plus size={18} />
+            إضافة ملف جديد
+          </button>
+        </div>
                     );
                   })
                 ) : (
