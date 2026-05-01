@@ -105,6 +105,7 @@ async function seed() {
       features: ["محاضرات مباشرة", "بنك أسئلة", "اختبارات محاكاة", "شهادة"],
       description: "دورة شاملة للقدرات تغطي الكمي واللفظي",
       isPublished: true,
+      approvalStatus: "approved",
       skills: ["skill_algebra_eq", "skill_geometry_area", "skill_reading_comp"],
     },
     {
@@ -256,6 +257,14 @@ async function seed() {
     },
   ]);
   console.log("✅ اختبارات: 2\n");
+
+  // Fix: set approvalStatus to approved for all existing content
+  await db.update(courses).set({ approvalStatus: "approved" } as any);
+  await db.update(questions).set({ approvalStatus: "approved" } as any);
+  await db.update(quizzes).set({ approvalStatus: "approved" } as any);
+  await db.update(lessons).set({ approvalStatus: "approved" } as any);
+  await db.update(libraryItems).set({ approvalStatus: "approved" } as any);
+  console.log("✅ Approval status fixed for all content\n");
 
   console.log("🎉 Seeding complete!");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
