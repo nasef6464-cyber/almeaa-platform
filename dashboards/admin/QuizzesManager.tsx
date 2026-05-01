@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
+import * as XLSX from 'xlsx';
 import { Question, Quiz } from '../../types';
-import { AlertTriangle, CheckCircle2, Plus, Search, Edit2, Trash2, FileQuestion, Lock, LockOpen, Eye } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Plus, Search, Edit2, Trash2, FileQuestion, Lock, LockOpen, Eye, Download } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { QuizBuilder } from './QuizBuilder';
 
@@ -358,6 +359,65 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
     window.open(`${window.location.origin}/#/quiz/${quiz.id}`, '_blank', 'noopener,noreferrer');
   };
 
+  const downloadQuizzesReadinessExport = () => {
+    const workbook = XLSX.utils.book_new();
+    const quizRows = [
+      [
+        'اسم الاختبار',
+        'النوع',
+        'المسار',
+        'المادة',
+        'المهارات الرئيسية المقاسة',
+        'المهارات الفرعية المقاسة',
+        'عدد الأسئلة',
+        'حالة المستودع',
+        'الظهور على المنصة',
+        'نوع الوصول',
+        'جاهزية النشر',
+        'ملاحظات قبل النشر',
+      ],
+      ...filteredQuizzes.map((quiz) => {
+        const readiness = getQuizReadinessMeta(quiz, questions);
+        const status = getStatusMeta(quiz);
+        const visibility = getVisibilityMeta(quiz);
+        const access = getAccessMeta(quiz);
+        const pathName = paths.find((path) => path.id === quiz.pathId)?.name || '-';
+        const subjectName = subjects.find((subject) => subject.id === quiz.subjectId)?.name || '-';
+
+        return [
+          quiz.title,
+          (quiz.mode || 'regular') === 'saher' ? 'ساهر' : (quiz.mode || 'regular') === 'central' ? 'موجه/مركزي' : 'عادي',
+          pathName,
+          subjectName,
+          measuredSectionNames(quiz).join('، ') || '-',
+          measuredSkillNames(quiz).join('، ') || '-',
+          quiz.questionIds?.length || 0,
+          status.label,
+          visibility.label,
+          access.label,
+          readiness.label,
+          readiness.issues.join(' | ') || 'جاهز',
+        ];
+      }),
+    ];
+    const summaryRows = [
+      ['البند', 'القيمة'],
+      ['إجمالي العناصر الحالية', scopedCounts.total],
+      ['المعروض على المنصة', scopedCounts.visible],
+      ['المخفي عن الطلاب', scopedCounts.hidden],
+      ['بانتظار المراجعة', scopedCounts.pending],
+      ['جاهز للنشر الآمن', scopedCounts.ready],
+      ['يحتاج ضبط قبل العرض', scopedCounts.needsReview],
+      ['بلا أسئلة', quizzesWithoutQuestions],
+      ['بلا مهارات مقاسة', quizzesWithoutMeasuredSkills],
+      ['تاريخ التصدير', new Date().toLocaleString('ar-SA')],
+    ];
+
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(summaryRows), 'summary');
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(quizRows), 'quizzes');
+    XLSX.writeFile(workbook, filterType === 'bank' ? 'training-bank-readiness.xlsx' : 'quizzes-readiness.xlsx');
+  };
+
   if (isEditing) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-120px)] animate-fade-in">
@@ -382,6 +442,13 @@ export const QuizzesManager: React.FC<QuizzesManagerProps> = ({ subjectId, filte
           <p className="text-gray-500 text-sm mt-1">{managerDescription}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            onClick={downloadQuizzesReadinessExport}
+            className="bg-white text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl font-bold hover:bg-emerald-50 transition-colors flex items-center gap-2"
+          >
+            <Download size={18} />
+            تصدير الجاهزية
+          </button>
           <button
             onClick={handleCreateNew}
             className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2"
